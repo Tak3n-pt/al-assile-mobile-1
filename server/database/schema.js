@@ -330,6 +330,91 @@ const initDatabase = (db) => {
     console.log('[schema] client_payments.remote_id migration:', e.message);
   }
 
+  // Migration: add delivery tracking columns to sales.
+  try {
+    const cols = db.prepare("PRAGMA table_info(sales)").all().map(c => c.name);
+    if (!cols.includes('delivery_due_date')) {
+      db.exec('ALTER TABLE sales ADD COLUMN delivery_due_date DATE');
+    }
+    if (!cols.includes('delivered_at')) {
+      db.exec('ALTER TABLE sales ADD COLUMN delivered_at DATETIME');
+    }
+    if (!cols.includes('delivery_notes')) {
+      db.exec('ALTER TABLE sales ADD COLUMN delivery_notes TEXT');
+    }
+  } catch (e) {
+    console.log('[schema] sales delivery columns migration:', e.message);
+  }
+
+  // ============================================
+  // PURCHASES (goods received from suppliers)
+  // ============================================
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS purchases (
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      supplier_id    INTEGER,
+      date           DATE    NOT NULL,
+      subtotal       REAL    DEFAULT 0,
+      discount       REAL    DEFAULT 0,
+      total          REAL    DEFAULT 0,
+      paid_amount    REAL    DEFAULT 0,
+      status         TEXT    DEFAULT 'pending'
+                             CHECK(status IN ('pending', 'partial', 'paid', 'cancelled')),
+      payment_method TEXT    DEFAULT 'cash',
+      notes          TEXT,
+      created_by     INTEGER,
+      created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (supplier_id) REFERENCES suppliers(id),
+      FOREIGN KEY (created_by)  REFERENCES users(id)
+    )
+  `);
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS purchase_items (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      purchase_id INTEGER NOT NULL,
+      product_id  INTEGER NOT NULL,
+      quantity    REAL    NOT NULL,
+      unit_price  REAL    NOT NULL,
+      total       REAL    NOT NULL,
+      created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (purchase_id) REFERENCES purchases(id) ON DELETE CASCADE,
+      FOREIGN KEY (product_id)  REFERENCES products(id)
+    )
+  `);
+  db.exec('CREATE INDEX IF NOT EXISTS idx_purchases_date     ON purchases(date)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_purchases_supplier ON purchases(supplier_id)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_pi_purchase        ON purchase_items(purchase_id)');
+
+  // ============================================
+  // EXPENSES (cash outflows not tied to purchases)
+  // ============================================
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS expenses (
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      amount         REAL    NOT NULL,
+      category       TEXT    DEFAULT 'other',
+      description    TEXT,
+      date           DATE    NOT NULL,
+      payment_method TEXT    DEFAULT 'cash',
+      notes          TEXT,
+      created_by     INTEGER,
+      created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (created_by) REFERENCES users(id)
+    )
+  `);
+  db.exec('CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date)');
+
+  // Migration: add category column to products for mobile-side product management.
+  try {
+    const cols = db.prepare('PRAGMA table_info(products)').all().map(c => c.name);
+    if (!cols.includes('category')) {
+      db.exec('ALTER TABLE products ADD COLUMN category TEXT');
+      console.log('[schema] Migration: added category to products');
+    }
+  } catch (e) {
+    console.log('[schema] products.category migration:', e.message);
+  }
+
   console.log('[schema] Database initialized successfully');
 };
 

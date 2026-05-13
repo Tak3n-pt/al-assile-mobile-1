@@ -500,4 +500,53 @@ router.delete('/payments/:paymentId', (req, res) => {
   }
 });
 
+/**
+ * POST /api/suppliers/:id/repair-balance
+ * Admin-only. Sets suppliers.balance to SUM(supplier_payments.amount).
+ */
+router.post('/:id/repair-balance', (req, res) => {
+  if (req.user?.role !== 'admin') {
+    return res.status(403).json({ success: false, error: 'Only admins can repair balances' });
+  }
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isInteger(id) || id < 1) {
+    return res.status(400).json({ success: false, error: 'Invalid supplier id' });
+  }
+  try {
+    const supplier = db.prepare('SELECT id, balance FROM suppliers WHERE id = ?').get(id);
+    if (!supplier) return res.status(404).json({ success: false, error: 'Supplier not found' });
+
+    const sumPayments = db.prepare(
+      'SELECT COALESCE(SUM(amount), 0) AS s FROM supplier_payments WHERE supplier_id = ?'
+    ).get(id).s;
+    const expected   = Math.round(sumPayments * 100) / 100;
+    const oldBalance = Math.round(supplier.balance * 100) / 100;
+
+    db.transaction(() => {
+      const payRow = db.prepare(`
+        INSERT INTO supplier_payments
+          (supplier_id, purchase_id, amount, date, method, notes, batch_id, created_by)
+        VALUES (?, NULL, 0, ?, 'balance_correction', ?, ?, ?)
+      `).run(
+        id,
+        new Date().toISOString().slice(0, 10),
+        `Balance corrected from ${oldBalance.toFixed(2)} to ${expected.toFixed(2)}`,
+        `repair-sup-${id}-${Date.now()}`,
+        req.user.userId || null
+      );
+      db.prepare('UPDATE suppliers SET balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+        .run(expected, id);
+      db.prepare(`INSERT INTO sync_log (entity_type, entity_id, action, synced) VALUES ('supplier_payment', ?, 'create', 0)`)
+        .run(payRow.lastInsertRowid);
+      db.prepare(`INSERT INTO sync_log (entity_type, entity_id, action, synced) VALUES ('supplier', ?, 'update', 0)`)
+        .run(id);
+    })();
+
+    return res.json({ success: true, data: { id, old_balance: oldBalance, balance: expected } });
+  } catch (err) {
+    console.error('[suppliers] POST /:id/repair-balance error:', err.message);
+    return res.status(500).json({ success: false, error: 'Repair failed' });
+  }
+});
+
 module.exports = router;

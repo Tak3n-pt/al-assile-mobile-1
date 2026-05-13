@@ -1,22 +1,54 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Grid3X3, ShoppingCart, Receipt, Users, Truck, FileBarChart } from 'lucide-react';
+import { Home, ShoppingCart, Receipt, Users, Truck, FileBarChart, Bell } from 'lucide-react';
 import { useCart } from '../hooks/useCart.jsx';
+import { useAuth } from '../hooks/useAuth.jsx';
 import { t } from '../utils/i18n.js';
+
+function useNotificationCount() {
+  const [count, setCount] = useState(0);
+  const { isAuthenticated, token } = useAuth();
+
+  useEffect(() => {
+    if (!isAuthenticated || !token) return;
+
+    let cancelled = false;
+    const BASE_URL = window.location.origin;
+
+    async function fetchCount() {
+      try {
+        const res = await fetch(`${BASE_URL}/api/notifications`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        const json = await res.json();
+        if (!cancelled) setCount(json.total || 0);
+      } catch {}
+    }
+
+    fetchCount();
+    const timer = setInterval(fetchCount, 60000); // refresh every minute
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [isAuthenticated, token]);
+
+  return count;
+}
 
 export default function BottomNav() {
   const navigate = useNavigate();
   const location = useLocation();
   const { getItemCount } = useCart();
-  const itemCount = getItemCount();
+  const itemCount      = getItemCount();
+  const notifCount     = useNotificationCount();
 
   const tabs = [
-    { path: '/', icon: Grid3X3, label: t('products') },
-    { path: '/cart', icon: ShoppingCart, label: t('cart'), badge: true },
-    { path: '/sales', icon: Receipt, label: t('sales') },
-    { path: '/clients', icon: Users, label: t('clients') },
-    { path: '/suppliers', icon: Truck, label: t('suppliers') },
-    { path: '/reports', icon: FileBarChart, label: t('reports') },
+    { path: '/',              icon: Home,       label: 'الرئيسية' },
+    { path: '/cart',          icon: ShoppingCart, label: t('cart'),          cartBadge: true },
+    { path: '/sales',         icon: Receipt,    label: t('sales') },
+    { path: '/clients',       icon: Users,      label: t('clients') },
+    { path: '/suppliers',     icon: Truck,      label: t('suppliers') },
+    { path: '/reports',       icon: FileBarChart, label: t('reports') },
+    { path: '/notifications', icon: Bell,       label: t('notifications'), notifBadge: true },
   ];
 
   return (
@@ -28,9 +60,10 @@ export default function BottomNav() {
         paddingBottom: 'env(safe-area-inset-bottom, 0px)',
       }}
     >
-      {tabs.map(({ path, icon: Icon, label, badge }) => {
+      {tabs.map(({ path, icon: Icon, label, cartBadge, notifBadge }) => {
         const isActive = location.pathname === path;
-        const count = badge ? itemCount : 0;
+        const count    = cartBadge ? itemCount : notifBadge ? notifCount : 0;
+        const badgeColor = notifBadge ? '#f59e0b' : '#ef4444';
 
         return (
           <button
@@ -40,7 +73,8 @@ export default function BottomNav() {
             style={{ minHeight: '4rem', padding: '0.5rem 0' }}
           >
             {isActive && (
-              <div className="absolute top-0 left-1/2 -translate-x-1/2"
+              <div
+                className="absolute top-0 left-1/2 -translate-x-1/2"
                 style={{
                   width: '3rem', height: '2px',
                   background: 'linear-gradient(90deg, transparent, #D4A574, transparent)',
@@ -51,16 +85,16 @@ export default function BottomNav() {
 
             <div className="relative">
               <Icon
-                size={24}
+                size={22}
                 strokeWidth={isActive ? 2.3 : 1.7}
                 style={{ color: isActive ? '#D4A574' : '#3d5068', transition: 'color 0.15s' }}
               />
               {count > 0 && (
                 <span
-                  className="absolute -top-1.5 -right-2.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full text-[10px] font-bold text-white px-1"
+                  className="absolute -top-1.5 -right-2.5 min-w-[16px] h-[16px] flex items-center justify-center rounded-full text-[9px] font-bold text-white px-0.5"
                   style={{
-                    background: 'linear-gradient(135deg, #ef4444, #dc2626)',
-                    boxShadow: '0 2px 6px rgba(239,68,68,0.4)',
+                    background: badgeColor,
+                    boxShadow: `0 1px 4px ${badgeColor}60`,
                   }}
                 >
                   {count > 99 ? '99+' : count}
@@ -69,7 +103,7 @@ export default function BottomNav() {
             </div>
 
             <span
-              className="text-[11px] font-semibold"
+              className="text-[10px] font-semibold"
               style={{ color: isActive ? '#D4A574' : '#3d5068', transition: 'color 0.15s' }}
             >
               {label}

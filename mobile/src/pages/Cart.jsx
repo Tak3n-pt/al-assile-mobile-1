@@ -82,7 +82,7 @@ export default function Cart() {
       await api.delete(`/api/sales/${completedSale.id}`);
       setCompletedSale(null);
       setCancelConfirm(false);
-      navigate('/');
+      navigate('/products/list');
     } catch (err) {
       setError(err.message || t('cancelSaleFailed'));
       setCancelConfirm(false);
@@ -152,7 +152,7 @@ export default function Cart() {
             )}
 
             <button
-              onClick={() => { setCompletedSale(null); navigate('/'); }}
+              onClick={() => { setCompletedSale(null); navigate('/products/list'); }}
               className="w-full flex items-center justify-center gap-2.5 py-4 rounded-2xl
                          font-bold text-white text-base touch-manipulation"
               style={{
@@ -243,16 +243,16 @@ export default function Cart() {
       {/* Header */}
       <div
         className="flex-shrink-0 safe-top"
-        style={{ background: 'rgba(8,12,20,0.97)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}
+        style={{ background: 'linear-gradient(135deg, #3949AB 0%, #5C6BC0 100%)', boxShadow: '0 3px 12px rgba(57,73,171,0.4)' }}
       >
-        <div className="flex items-center gap-3 px-4 pt-2 pb-4">
+        <div className="flex items-center gap-3 px-4 pt-2 pb-3">
           <button
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/products/list')}
             className="w-10 h-10 flex items-center justify-center rounded-full touch-manipulation"
-            style={{ background: 'rgba(255,255,255,0.05)' }}
+            style={{ background: 'rgba(255,255,255,0.15)' }}
             aria-label={t('backToProducts')}
           >
-            <ArrowLeft size={20} style={{ color: '#9ca3af' }} />
+            <ArrowLeft size={20} color="white" />
           </button>
 
           <h1 className="text-xl font-bold text-white flex-1">{t('cart')}</h1>
@@ -261,7 +261,7 @@ export default function Cart() {
             <button
               onClick={clear}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold touch-manipulation"
-              style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.15)', color: '#f87171' }}
+              style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', color: 'white' }}
               aria-label={t('clearCart')}
             >
               <Trash2 size={14} />
@@ -285,7 +285,7 @@ export default function Cart() {
             <p className="text-sm" style={{ color: '#3d5068' }}>{t('addProductsToStart')}</p>
           </div>
           <button
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/products/list')}
             className="px-6 py-3 rounded-xl text-sm font-semibold touch-manipulation"
             style={{
               background: 'linear-gradient(135deg, #8B6914 0%, #D4A574 100%)',
@@ -472,8 +472,8 @@ export default function Cart() {
           <div
             className="flex-shrink-0 px-4 py-4 space-y-3"
             style={{
-              background: 'rgba(8,12,20,0.97)',
-              borderTop: '1px solid rgba(255,255,255,0.05)',
+              background: '#0d1120',
+              borderTop: '1px solid rgba(255,255,255,0.08)',
               paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 4rem)',
             }}
           >

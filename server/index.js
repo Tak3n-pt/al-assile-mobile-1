@@ -29,6 +29,10 @@ const paymentsRouter = require('./routes/payments');
 const syncRouter     = require('./routes/sync');
 const settingsRouter = require('./routes/settings');
 const reportsRouter  = require('./routes/reports');
+const notificationsRouter = require('./routes/notifications');
+const purchasesRouter    = require('./routes/purchases');
+const expensesRouter     = require('./routes/expenses');
+const treasuryRouter     = require('./routes/treasury');
 
 // ---------------------------------------------------------------------------
 // Initialise database schema on startup
@@ -84,6 +88,10 @@ app.use('/api/sales',    authenticate, salesRouter);
 app.use('/api/payments', authenticate, paymentsRouter);
 app.use('/api/settings', authenticate, settingsRouter);
 app.use('/api/reports', authenticate, reportsRouter);
+app.use('/api/notifications', authenticate, notificationsRouter);
+app.use('/api/purchases',    authenticate, purchasesRouter);
+app.use('/api/expenses',     authenticate, expensesRouter);
+app.use('/api/treasury',     authenticate, treasuryRouter);
 
 // ---------------------------------------------------------------------------
 // Health check (unauthenticated - useful for load balancers and monitoring)

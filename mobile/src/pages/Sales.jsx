@@ -36,7 +36,9 @@ function SaleRow({ sale, settings, onReturn }) {
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [returning, setReturning] = useState(false);
 
-  const time = new Date(sale.created_at).toLocaleTimeString('fr-DZ', { hour: '2-digit', minute: '2-digit' });
+  const time = sale.created_at
+    ? new Date(sale.created_at).toLocaleTimeString('fr-DZ', { hour: '2-digit', minute: '2-digit' })
+    : '—';
   const items = sale.items || sale.sale_items || [];
 
   const handleReturn = async (returnData) => {
@@ -205,13 +207,15 @@ function DailyStats({ date }) {
   const api = useApi();
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     if (!date) return;
     setLoading(true);
+    setError(false);
     api.get(`/api/reports/daily?date=${date}`)
-      .then(data => setReport(data))
-      .catch(() => setReport(null))
+      .then(data => { setReport(data); })
+      .catch(() => { setError(true); setReport(null); })
       .finally(() => setLoading(false));
   }, [date]);
 
@@ -230,6 +234,12 @@ function DailyStats({ date }) {
     );
   }
 
+  if (error) return (
+    <div className="px-4 pb-2">
+      <p className="text-xs text-center" style={{ color: '#4a5568' }}>تعذّر تحميل إحصاء اليوم</p>
+    </div>
+  );
+
   if (!report) return null;
 
   const stats = [
@@ -241,7 +251,7 @@ function DailyStats({ date }) {
     },
     {
       label: t('collected'),
-      value: formatCurrency(report.collected || report.total_paid || 0),
+      value: formatCurrency(report.total_collected || report.collected || 0),
       icon: ShoppingBag,
       color: '#34d399',
     },
@@ -326,8 +336,12 @@ export default function Sales() {
   };
 
   const handleReturn = async (saleId, returnData) => {
-    await api.post(`/api/sales/${saleId}/return`, returnData);
-    fetchSales(true);
+    try {
+      await api.post(`/api/sales/${saleId}/return`, returnData);
+      fetchSales(true);
+    } catch (err) {
+      setError(err.message || 'فشل تسجيل المرتجع');
+    }
   };
 
   const filteredSales = searchQuery.trim()
@@ -353,14 +367,14 @@ export default function Sales() {
       {/* Header */}
       <div
         className="flex-shrink-0 safe-top"
-        style={{ background: 'rgba(8,12,20,0.97)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}
+        style={{ background: 'linear-gradient(135deg, #3949AB 0%, #5C6BC0 100%)', boxShadow: '0 3px 12px rgba(57,73,171,0.4)' }}
       >
         <div className="flex items-center gap-3 px-4 pt-2 pb-3">
           <div className="flex-1 min-w-0">
             <h1 className="text-xl font-bold text-white">
               {isToday ? t('todaysSales') : t('sales')}
             </h1>
-            <p className="text-xs mt-0.5 capitalize truncate" style={{ color: '#3d5068' }}>
+            <p className="text-xs mt-0.5 capitalize truncate" style={{ color: 'rgba(255,255,255,0.6)' }}>
               {displayDate}
             </p>
           </div>
@@ -369,15 +383,13 @@ export default function Sales() {
           <button
             onClick={() => { setSearchOpen(v => !v); if (searchOpen) setSearchQuery(''); }}
             className="w-10 h-10 flex items-center justify-center rounded-full touch-manipulation"
-            style={{
-              background: searchOpen ? 'rgba(212,165,116,0.12)' : 'rgba(255,255,255,0.05)',
-            }}
+            style={{ background: 'rgba(255,255,255,0.15)' }}
             aria-label={t('searchSalesLabel')}
           >
             {searchOpen ? (
-              <X size={19} style={{ color: '#D4A574' }} />
+              <X size={19} color="white" />
             ) : (
-              <Search size={19} style={{ color: '#9ca3af' }} />
+              <Search size={19} color="white" />
             )}
           </button>
 
@@ -385,12 +397,12 @@ export default function Sales() {
             onClick={() => fetchSales(true)}
             disabled={refreshing}
             className="w-10 h-10 flex items-center justify-center rounded-full touch-manipulation"
-            style={{ background: 'rgba(255,255,255,0.05)' }}
+            style={{ background: 'rgba(255,255,255,0.15)' }}
             aria-label={t('refreshSales')}
           >
             <RefreshCw
               size={18}
-              style={{ color: '#9ca3af' }}
+              color="white"
               className={refreshing ? 'animate-spin' : ''}
             />
           </button>
@@ -409,7 +421,7 @@ export default function Sales() {
               <div className="relative">
                 <Search
                   size={16}
-                  className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
                   style={{ color: '#4a5568' }}
                 />
                 <input
@@ -418,7 +430,7 @@ export default function Sales() {
                   onChange={e => setSearchQuery(e.target.value)}
                   placeholder={t('searchSales')}
                   autoFocus
-                  className="w-full pl-10 pr-4 py-3 rounded-xl text-white placeholder-gray-600 outline-none"
+                  className="w-full pr-10 pl-4 py-3 rounded-xl text-white placeholder-gray-600 outline-none"
                   style={{
                     background: 'rgba(255,255,255,0.05)',
                     border: '1px solid rgba(255,255,255,0.08)',

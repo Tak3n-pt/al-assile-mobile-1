@@ -750,4 +750,37 @@ router.post('/:id/return', (req, res) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// PATCH /api/sales/:id/deliver
+// Mark a sale as delivered (sets delivered_at = now, optionally stores notes)
+// ---------------------------------------------------------------------------
+router.patch('/:id/deliver', (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!id || id < 1) {
+    return res.status(400).json({ success: false, error: 'Invalid sale id' });
+  }
+
+  const { delivery_notes } = req.body || {};
+  const now = new Date().toISOString();
+
+  try {
+    const info = db.prepare(`
+      UPDATE sales
+      SET delivered_at = ?, delivery_notes = COALESCE(?, delivery_notes)
+      WHERE id = ? AND delivered_at IS NULL
+    `).run(now, delivery_notes || null, id);
+
+    if (info.changes === 0) {
+      const sale = db.prepare('SELECT id, delivered_at FROM sales WHERE id = ?').get(id);
+      if (!sale) return res.status(404).json({ success: false, error: 'Sale not found' });
+      return res.json({ success: true, already_delivered: true, delivered_at: sale.delivered_at });
+    }
+
+    return res.json({ success: true, delivered_at: now });
+  } catch (err) {
+    console.error('[sales] PATCH deliver error:', err.message);
+    return res.status(500).json({ success: false, error: 'Failed to mark as delivered' });
+  }
+});
+
 module.exports = router;

@@ -25,7 +25,7 @@ export function AuthProvider({ children }) {
 
       const data = await res.json();
 
-      if (!res.ok) {
+      if (!res.ok || data.success === false) {
         return { success: false, error: data.message || data.error || t('loginFailedGeneric') };
       }
 

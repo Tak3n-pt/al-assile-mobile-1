@@ -13,7 +13,18 @@ export const formatCurrencyShort = (v) => {
 
 export const parseAmount = (str) => {
   if (!str) return 0;
-  const cleaned = String(str).replace(/[^\d.,]/g, '').replace(',', '.');
-  const num = parseFloat(cleaned);
+  const stripped = String(str).replace(/[^\d.,]/g, '');
+  const parts = stripped.split('.');
+  const lastComma = stripped.lastIndexOf(',');
+  const lastDot = stripped.lastIndexOf('.');
+  let normalized;
+  if (lastComma > lastDot) {
+    // comma is decimal separator (e.g. "1.234,56" → "1234.56")
+    normalized = stripped.replace(/\./g, '').replace(',', '.');
+  } else {
+    // dot is decimal separator or no decimal at all (e.g. "1,234.56" → "1234.56")
+    normalized = stripped.replace(/,/g, '');
+  }
+  const num = parseFloat(normalized);
   return isNaN(num) ? 0 : num;
 };

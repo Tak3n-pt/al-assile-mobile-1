@@ -26,6 +26,7 @@ router.get('/', (req, res) => {
         quantity,
         min_stock_alert,
         is_resale,
+        category,
         created_at,
         updated_at,
         CASE WHEN image_data IS NOT NULL AND image_data != '' THEN 1 ELSE 0 END AS has_image
@@ -52,7 +53,7 @@ router.get('/barcode/:barcode', (req, res) => {
       SELECT
         id, name, description, selling_price, purchase_price,
         unit, barcode, is_favorite, is_active, quantity,
-        min_stock_alert, is_resale, created_at, updated_at,
+        min_stock_alert, is_resale, category, created_at, updated_at,
         CASE WHEN image_data IS NOT NULL AND image_data != '' THEN 1 ELSE 0 END AS has_image
       FROM products
       WHERE barcode = ? AND is_active = 1
@@ -98,6 +99,105 @@ router.get('/:id/image', (req, res) => {
   } catch (err) {
     console.error('[products] GET /:id/image error:', err.message);
     return res.status(500).json({ success: false, error: 'Failed to fetch image' });
+  }
+});
+
+const PRODUCT_SELECT = `
+  SELECT id, name, description, selling_price, purchase_price,
+         unit, barcode, is_favorite, is_active, quantity,
+         min_stock_alert, is_resale, category, created_at, updated_at,
+         CASE WHEN image_data IS NOT NULL AND image_data != '' THEN 1 ELSE 0 END AS has_image
+  FROM products WHERE id = ?
+`;
+
+/**
+ * POST /api/products
+ * Create a new product from the mobile app.
+ */
+router.post('/', (req, res) => {
+  const { name, description, selling_price, purchase_price,
+          unit, barcode, category, is_favorite, quantity, min_stock_alert } = req.body || {};
+
+  if (!name || !String(name).trim()) {
+    return res.status(400).json({ success: false, error: 'Product name is required' });
+  }
+
+  try {
+    const result = db.prepare(`
+      INSERT INTO products (
+        name, description, selling_price, purchase_price,
+        unit, barcode, category, is_favorite,
+        quantity, min_stock_alert, is_active, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
+    `).run(
+      String(name).trim(),
+      description || null,
+      parseFloat(selling_price) || 0,
+      parseFloat(purchase_price) || 0,
+      unit || 'pcs',
+      barcode || null,
+      category || null,
+      is_favorite ? 1 : 0,
+      parseFloat(quantity) || 0,
+      parseFloat(min_stock_alert) || 0
+    );
+
+    const product = db.prepare(PRODUCT_SELECT).get(result.lastInsertRowid);
+    return res.json({ success: true, data: product });
+  } catch (err) {
+    console.error('[products] POST / error:', err.message);
+    return res.status(500).json({ success: false, error: 'Failed to create product' });
+  }
+});
+
+/**
+ * PATCH /api/products/:id
+ * Update product fields (price, name, category, etc.).
+ * Only fields present in the request body are updated.
+ */
+router.patch('/:id', (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isInteger(id) || id < 1) {
+    return res.status(400).json({ success: false, error: 'Invalid product id' });
+  }
+
+  try {
+    const existing = db.prepare('SELECT * FROM products WHERE id = ?').get(id);
+    if (!existing) {
+      return res.status(404).json({ success: false, error: 'Product not found' });
+    }
+
+    const b = req.body || {};
+    const v = {
+      name:            b.name            !== undefined ? String(b.name).trim()             : existing.name,
+      description:     b.description     !== undefined ? b.description                      : existing.description,
+      selling_price:   b.selling_price   !== undefined ? parseFloat(b.selling_price)  || 0  : existing.selling_price,
+      purchase_price:  b.purchase_price  !== undefined ? parseFloat(b.purchase_price) || 0  : existing.purchase_price,
+      unit:            b.unit            !== undefined ? b.unit                               : existing.unit,
+      barcode:         b.barcode         !== undefined ? b.barcode                            : existing.barcode,
+      category:        b.category        !== undefined ? b.category                           : existing.category,
+      is_favorite:     b.is_favorite     !== undefined ? (b.is_favorite ? 1 : 0)             : existing.is_favorite,
+      quantity:        b.quantity        !== undefined ? parseFloat(b.quantity)        || 0  : existing.quantity,
+      min_stock_alert: b.min_stock_alert !== undefined ? parseFloat(b.min_stock_alert) || 0  : existing.min_stock_alert,
+    };
+
+    db.prepare(`
+      UPDATE products SET
+        name = ?, description = ?, selling_price = ?, purchase_price = ?,
+        unit = ?, barcode = ?, category = ?, is_favorite = ?,
+        quantity = ?, min_stock_alert = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(
+      v.name, v.description, v.selling_price, v.purchase_price,
+      v.unit, v.barcode, v.category, v.is_favorite,
+      v.quantity, v.min_stock_alert, id
+    );
+
+    const updated = db.prepare(PRODUCT_SELECT).get(id);
+    return res.json({ success: true, data: updated });
+  } catch (err) {
+    console.error('[products] PATCH /:id error:', err.message);
+    return res.status(500).json({ success: false, error: 'Failed to update product' });
   }
 });
 

@@ -408,6 +408,20 @@ const translations = {
     revenue: 'Revenue',
     unitsSold: 'Units sold',
     salesperDay: 'Daily revenue',
+
+    // Notifications
+    notifications: 'Alerts',
+    activeAlerts: 'active alerts',
+    debtRecalls: 'Debt Recalls',
+    lateDeliveries: 'Late Deliveries',
+    noDebtAlerts: 'No debt alerts',
+    noDebtAlertsDesc: 'All clients are up to date.',
+    noDeliveryAlerts: 'No delivery alerts',
+    noDeliveryAlertsDesc: 'All deliveries are on time.',
+    daysOverdue: 'days overdue',
+    dayOverdue: 'day overdue',
+    markDelivered: 'Mark as Delivered',
+    failedToMarkDelivered: 'Failed to mark as delivered',
   },
 
   ar: {
@@ -816,6 +830,20 @@ const translations = {
     revenue: 'الإيرادات',
     unitsSold: 'الوحدات المباعة',
     salesperDay: 'الإيرادات اليومية',
+
+    // Notifications
+    notifications: 'التنبيهات',
+    activeAlerts: 'تنبيه نشط',
+    debtRecalls: 'تذكيرات الديون',
+    lateDeliveries: 'توصيلات متأخرة',
+    noDebtAlerts: 'لا تنبيهات ديون',
+    noDebtAlertsDesc: 'جميع العملاء على المستوى المطلوب.',
+    noDeliveryAlerts: 'لا تنبيهات توصيل',
+    noDeliveryAlertsDesc: 'جميع التوصيلات في موعدها.',
+    daysOverdue: 'أيام متأخرة',
+    dayOverdue: 'يوم متأخر',
+    markDelivered: 'تأكيد التوصيل',
+    failedToMarkDelivered: 'فشل تأكيد التوصيل',
   }
 };
 

@@ -1,0 +1,1346 @@
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Search, X, Users, User, Phone, RefreshCw, ChevronRight,
+  Wallet, History, Trash2, Edit2, AlertTriangle, UserPlus, Loader2,
+  PlusCircle, ArrowRight, CheckCircle2, XCircle, Wrench, TrendingDown,
+  TrendingUp, BarChart3, CreditCard, ClipboardList,
+} from 'lucide-react';
+import { useApi } from '../hooks/useApi.jsx';
+import { useAuth } from '../hooks/useAuth.jsx';
+import { formatCurrency } from '../utils/currency.js';
+import { t } from '../utils/i18n.js';
+
+// ─── helpers ────────────────────────────────────────────────────────────────
+
+function BalanceBadge({ balance }) {
+  const b = balance || 0;
+  if (b < 0) return <span className="text-xs font-bold" style={{ color: '#f87171' }}>{t('owes')} {formatCurrency(Math.abs(b))}</span>;
+  if (b > 0) return <span className="text-xs font-bold" style={{ color: '#34d399' }}>+{formatCurrency(b)} {t('creditBalance')}</span>;
+  return <span className="text-xs" style={{ color: '#6b7280' }}>{t('clear')}</span>;
+}
+
+// ─── main component ──────────────────────────────────────────────────────────
+
+export default function ClientsList() {
+  const api      = useApi();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { user } = useAuth();
+  const isAdmin  = user?.role === 'admin';
+
+  const s          = location.state || {};
+  const autoAdd    = s.action === 'add';
+  const mode       = useMemo(() => {
+    if (s.action === 'opening-balances') return 'balances';
+    if (s.action === 'audit')            return 'audit';
+    if (s.filter === 'owes'   && s.report) return 'owes-report';
+    if (s.filter === 'credit' && s.report) return 'credit-report';
+    if (s.filter === 'owes')             return 'owes';
+    if (s.filter === 'credit')           return 'credit';
+    return 'all';
+  }, []); // eslint-disable-line
+
+  const [clients,    setClients]    = useState([]);
+  const [auditData,  setAuditData]  = useState(null);
+  const [loading,    setLoading]    = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadError,  setLoadError]  = useState('');
+  const [query,      setQuery]      = useState('');
+  const [filter,     setFilter]     = useState(s.filter || 'all');
+  const [selectedId, setSelectedId] = useState(null);
+  const [showAdd,    setShowAdd]    = useState(autoAdd);
+  const [repairing,  setRepairing]  = useState(null);
+
+  const fetchClients = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true); else setRefreshing(true);
+    setLoadError('');
+    try {
+      const res = await api.get('/api/clients');
+      setClients(Array.isArray(res?.data) ? res.data : (Array.isArray(res) ? res : []));
+    } catch (err) { console.error(err); setLoadError('تعذّر تحميل العملاء'); }
+    finally { setLoading(false); setRefreshing(false); }
+  }, []);
+
+  const fetchAudit = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true); else setRefreshing(true);
+    setLoadError('');
+    try {
+      const res = await api.get('/api/clients/audit');
+      setAuditData(res?.data || res);
+    } catch (err) { console.error(err); setLoadError('تعذّر تحميل بيانات التدقيق'); }
+    finally { setLoading(false); setRefreshing(false); }
+  }, []);
+
+  useEffect(() => {
+    if (mode === 'audit') fetchAudit();
+    else fetchClients();
+  }, []);
+
+  const filtered = useMemo(() => {
+    const activeFilter = (mode === 'owes' || mode === 'owes-report') ? 'owes'
+                       : (mode === 'credit' || mode === 'credit-report') ? 'credit'
+                       : filter;
+    return clients
+      .filter(c => {
+        if (activeFilter === 'owes'   && !(c.balance < 0)) return false;
+        if (activeFilter === 'credit' && !(c.balance > 0)) return false;
+        if (!query) return true;
+        const q = query.toLowerCase();
+        return (c.name || '').toLowerCase().includes(q) || (c.phone || '').includes(query);
+      })
+      .sort((a, b) => {
+        const ba = a.balance || 0, bb = b.balance || 0;
+        if (ba < 0 && bb >= 0) return -1;
+        if (ba >= 0 && bb < 0) return 1;
+        if (ba < 0 && bb < 0) return ba - bb;
+        return bb - ba;
+      });
+  }, [clients, filter, query, mode]);
+
+  const totalOwed   = clients.reduce((s, c) => s + Math.max(0, -(c.balance || 0)), 0);
+  const totalCredit = clients.reduce((s, c) => s + Math.max(0,   c.balance || 0),  0);
+
+  const headerTitle = {
+    all:           'العملاء',
+    balances:      'الارصدة والمبالغ النقدية',
+    owes:          'ذمم العملاء',
+    'owes-report': 'تقرير الذمم',
+    'credit-report':'تقرير الأرصدة',
+    credit:        'العملاء الدائنون',
+    audit:         'فحص ارصدة العملاء',
+  }[mode] || 'العملاء';
+
+  const doRepair = async (clientId) => {
+    setRepairing(clientId);
+    try {
+      await api.post(`/api/clients/${clientId}/repair-balance`);
+      await fetchAudit(true);
+    } catch (err) { alert(err.message || 'فشل الإصلاح'); }
+    finally { setRepairing(null); }
+  };
+
+  const refresh = () => mode === 'audit' ? fetchAudit(true) : fetchClients(true);
+
+  return (
+    <div dir="rtl" className="h-full flex flex-col" style={{ background: '#F0F2F5', fontFamily: "'Cairo','Tajawal',sans-serif" }}>
+
+      {/* ── Header ── */}
+      <div style={{
+        background: 'linear-gradient(135deg, #3949AB 0%, #5C6BC0 100%)',
+        padding: '0.9rem 1rem',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.75rem',
+        flexShrink: 0,
+        boxShadow: '0 3px 12px rgba(57,73,171,0.4)',
+      }}>
+        <button onClick={() => navigate('/clients')}
+          style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: '38px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+          <ArrowRight size={20} color="white" />
+        </button>
+        <h1 style={{ flex: 1, fontSize: '1.05rem', fontWeight: '700', color: 'white', margin: 0 }}>
+          {headerTitle}
+        </h1>
+        <button onClick={refresh}
+          style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: '38px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+          <RefreshCw size={18} color="white" className={refreshing ? 'animate-spin' : ''} />
+        </button>
+        {(mode === 'all' || mode === 'owes' || mode === 'credit' || mode === 'balances') && (
+          <button onClick={() => setShowAdd(true)}
+            style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: '50%', width: '38px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+            <UserPlus size={18} color="white" />
+          </button>
+        )}
+      </div>
+
+      {/* ── Body ── */}
+      {loading ? (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="w-10 h-10 border-2 rounded-full animate-spin" style={{ borderColor: 'rgba(57,73,171,0.2)', borderTopColor: '#5C6BC0' }} />
+        </div>
+      ) : loadError ? (
+        <div className="flex-1 flex items-center justify-center px-8">
+          <p style={{ color: '#ef4444', textAlign: 'center', fontSize: '0.9rem' }}>{loadError}</p>
+        </div>
+      ) : mode === 'audit' ? (
+        <AuditView auditData={auditData} isAdmin={isAdmin} repairing={repairing} onRepair={doRepair} refreshing={refreshing} />
+      ) : mode === 'owes-report' ? (
+        <OwesReport clients={filtered} total={totalOwed} onSelect={setSelectedId} />
+      ) : mode === 'credit-report' ? (
+        <CreditReport clients={filtered} total={totalCredit} onSelect={setSelectedId} />
+      ) : mode === 'balances' ? (
+        <BalancesView clients={clients} onSelect={setSelectedId} />
+      ) : (
+        <ClientListView
+          clients={filtered}
+          mode={mode}
+          filter={filter}
+          query={query}
+          totalOwed={totalOwed}
+          totalCredit={totalCredit}
+          onFilterChange={setFilter}
+          onQueryChange={setQuery}
+          onSelect={setSelectedId}
+        />
+      )}
+
+      {/* ── Sheets ── */}
+      <AnimatePresence>
+        {selectedId !== null && (
+          <ClientDetailSheet
+            clientId={selectedId}
+            onClose={() => setSelectedId(null)}
+            onChanged={() => (mode === 'audit' ? fetchAudit(true) : fetchClients(true))}
+            isAdmin={isAdmin}
+          />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {showAdd && (
+          <AddClientSheet
+            onClose={() => setShowAdd(false)}
+            onCreated={(nc) => { setShowAdd(false); fetchClients(true); if (nc?.id) setSelectedId(nc.id); }}
+          />
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ─── Standard list view (modes: all / owes / credit) ────────────────────────
+
+function ClientListView({ clients, mode, filter, query, totalOwed, totalCredit, onFilterChange, onQueryChange, onSelect }) {
+  return (
+    <>
+      <div className="flex-shrink-0 px-4 pt-3 pb-2">
+        {/* Summary cards */}
+        <div className="grid grid-cols-2 gap-2 mb-3">
+          <div className="rounded-xl p-3" style={{ background: 'white', boxShadow: '0 1px 4px rgba(0,0,0,0.08)', borderLeft: '3px solid #ef4444' }}>
+            <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#ef4444' }}>الذمم</p>
+            <p className="text-base font-bold mt-0.5" style={{ color: '#ef4444' }}>{formatCurrency(totalOwed)}</p>
+          </div>
+          <div className="rounded-xl p-3" style={{ background: 'white', boxShadow: '0 1px 4px rgba(0,0,0,0.08)', borderLeft: '3px solid #10b981' }}>
+            <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#10b981' }}>الأرصدة</p>
+            <p className="text-base font-bold mt-0.5" style={{ color: '#10b981' }}>{formatCurrency(totalCredit)}</p>
+          </div>
+        </div>
+
+        {/* Search */}
+        <div className="relative mb-2">
+          <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: '#9ca3af' }} />
+          <input
+            type="text" value={query} onChange={e => onQueryChange(e.target.value)}
+            placeholder="بحث بالاسم أو الهاتف..."
+            className="w-full pr-9 pl-8 py-2.5 rounded-xl outline-none"
+            style={{ background: 'white', border: '1px solid #e5e7eb', fontSize: '14px', color: '#1a1a1a', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}
+          />
+          {query && (
+            <button onClick={() => onQueryChange('')} className="absolute left-2 top-1/2 -translate-y-1/2 p-1 rounded-full" style={{ color: '#9ca3af' }}>
+              <X size={14} />
+            </button>
+          )}
+        </div>
+
+        {/* Filter pills — only show on 'all' mode */}
+        {mode === 'all' && (
+          <div className="flex gap-2">
+            {[{ id: 'all', label: 'الكل' }, { id: 'owes', label: 'مديونون' }, { id: 'credit', label: 'دائنون' }].map(({ id, label }) => (
+              <button key={id} onClick={() => onFilterChange(id)}
+                className="px-3 py-1 rounded-full text-xs font-semibold transition-all"
+                style={{
+                  background: filter === id ? '#3949AB' : 'white',
+                  border:     filter === id ? '1px solid #3949AB' : '1px solid #e5e7eb',
+                  color:      filter === id ? 'white' : '#6b7280',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                }}>
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="flex-1 overflow-y-auto scroll-touch px-4 pb-4">
+        {clients.length === 0 ? (
+          <div className="text-center py-16">
+            <Users size={44} className="mx-auto mb-3" style={{ color: '#9ca3af' }} />
+            <p style={{ color: '#6b7280' }}>لا يوجد عملاء</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {clients.map(c => (
+              <motion.button
+                key={c.id} whileTap={{ scale: 0.98 }}
+                onClick={() => onSelect(c.id)}
+                className="w-full flex items-center gap-3 p-3.5 rounded-xl text-left touch-manipulation"
+                style={{ background: 'white', boxShadow: '0 1px 4px rgba(0,0,0,0.08)', border: 'none' }}
+              >
+                <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                  style={{ background: '#E8EAF6' }}>
+                  <User size={17} style={{ color: '#3949AB' }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold truncate" style={{ color: '#1a1a1a' }}>{c.name}</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    {c.phone && <span className="text-xs flex items-center gap-1" style={{ color: '#9ca3af' }}><Phone size={10} />{c.phone}</span>}
+                    <BalanceBadge balance={c.balance} />
+                  </div>
+                </div>
+                <ChevronRight size={15} style={{ color: '#ccc' }} />
+              </motion.button>
+            ))}
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+// ─── Balances view (item 2) ──────────────────────────────────────────────────
+
+function BalancesView({ clients, onSelect }) {
+  const withBalance = [...clients].sort((a, b) => Math.abs(b.balance || 0) - Math.abs(a.balance || 0));
+  const totalDebt   = clients.reduce((s, c) => s + Math.max(0, -(c.balance || 0)), 0);
+  const totalCredit = clients.reduce((s, c) => s + Math.max(0,   c.balance || 0),  0);
+  const countDebt   = clients.filter(c => (c.balance || 0) < 0).length;
+  const countCredit = clients.filter(c => (c.balance || 0) > 0).length;
+
+  return (
+    <>
+      {/* Summary */}
+      <div className="flex-shrink-0 px-4 pt-3 pb-2">
+        <div className="grid grid-cols-2 gap-2 mb-3">
+          <div className="rounded-xl p-3" style={{ background: 'white', boxShadow: '0 1px 4px rgba(0,0,0,0.08)', borderLeft: '3px solid #ef4444' }}>
+            <p className="text-[10px] font-semibold uppercase" style={{ color: '#ef4444' }}>ذمم ({countDebt})</p>
+            <p className="text-lg font-bold mt-0.5" style={{ color: '#ef4444' }}>{formatCurrency(totalDebt)}</p>
+          </div>
+          <div className="rounded-xl p-3" style={{ background: 'white', boxShadow: '0 1px 4px rgba(0,0,0,0.08)', borderLeft: '3px solid #10b981' }}>
+            <p className="text-[10px] font-semibold uppercase" style={{ color: '#10b981' }}>أرصدة ({countCredit})</p>
+            <p className="text-lg font-bold mt-0.5" style={{ color: '#10b981' }}>{formatCurrency(totalCredit)}</p>
+          </div>
+        </div>
+        <p className="text-xs" style={{ color: '#9ca3af' }}>مرتبة حسب الرصيد | {clients.length} عميل</p>
+      </div>
+
+      <div className="flex-1 overflow-y-auto scroll-touch px-4 pb-4 space-y-2">
+        {withBalance.map(c => {
+          const b = c.balance || 0;
+          const isDebt   = b < 0;
+          const isCredit = b > 0;
+          return (
+            <motion.button
+              key={c.id} whileTap={{ scale: 0.98 }}
+              onClick={() => onSelect(c.id)}
+              className="w-full flex items-center gap-3 p-3.5 rounded-xl text-left touch-manipulation"
+              style={{
+                background: 'white',
+                boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+                borderLeft: isDebt ? '3px solid #ef4444' : isCredit ? '3px solid #10b981' : '3px solid #e5e7eb',
+              }}>
+              <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                style={{ background: isDebt ? '#FEF2F2' : isCredit ? '#F0FDF4' : '#F9FAFB' }}>
+                {isDebt ? <TrendingDown size={17} style={{ color: '#ef4444' }} />
+                        : isCredit ? <TrendingUp size={17} style={{ color: '#10b981' }} />
+                        : <User size={17} style={{ color: '#9ca3af' }} />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold truncate" style={{ color: '#1a1a1a' }}>{c.name}</p>
+                {c.phone && <p className="text-xs mt-0.5" style={{ color: '#9ca3af' }}>{c.phone}</p>}
+              </div>
+              <div className="text-left flex-shrink-0">
+                <p className="text-base font-bold" style={{ color: isDebt ? '#ef4444' : isCredit ? '#10b981' : '#6b7280' }}>
+                  {b === 0 ? '0' : isDebt ? `-${formatCurrency(Math.abs(b))}` : `+${formatCurrency(b)}`}
+                </p>
+                <p className="text-[10px]" style={{ color: '#9ca3af' }}>
+                  {isDebt ? 'مدين' : isCredit ? 'دائن' : 'صفر'}
+                </p>
+              </div>
+            </motion.button>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+// ─── Owes report (item 4) ────────────────────────────────────────────────────
+
+function OwesReport({ clients, total, onSelect }) {
+  const sorted = [...clients].sort((a, b) => (a.balance || 0) - (b.balance || 0));
+  return (
+    <>
+      {/* Report header */}
+      <div className="flex-shrink-0 px-4 pt-3 pb-2">
+        <div className="rounded-2xl p-4 mb-3" style={{ background: 'white', boxShadow: '0 2px 8px rgba(0,0,0,0.09)', borderLeft: '4px solid #ef4444' }}>
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: '#FEF2F2' }}>
+              <ClipboardList size={22} style={{ color: '#ef4444' }} />
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: '#ef4444' }}>إجمالي الذمم</p>
+              <p className="text-2xl font-bold" style={{ color: '#ef4444' }}>{formatCurrency(total)}</p>
+              <p className="text-xs" style={{ color: '#9ca3af' }}>{sorted.length} عميل مدين</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto scroll-touch px-4 pb-4 space-y-2">
+        {sorted.length === 0 ? (
+          <div className="text-center py-16">
+            <CheckCircle2 size={48} className="mx-auto mb-3" style={{ color: '#10b981' }} />
+            <p className="font-semibold" style={{ color: '#10b981' }}>لا توجد ذمم</p>
+            <p className="text-xs mt-1" style={{ color: '#6b7280' }}>جميع العملاء ليس عليهم ديون</p>
+          </div>
+        ) : sorted.map((c, idx) => {
+          const owed = Math.abs(c.balance || 0);
+          const pct  = total > 0 ? (owed / total) * 100 : 0;
+          return (
+            <motion.button
+              key={c.id} whileTap={{ scale: 0.98 }}
+              onClick={() => onSelect(c.id)}
+              className="w-full p-3.5 rounded-xl text-left touch-manipulation"
+              style={{ background: 'white', boxShadow: '0 1px 4px rgba(0,0,0,0.08)', borderLeft: '3px solid #ef4444' }}>
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold"
+                  style={{ background: '#FEF2F2', color: '#ef4444' }}>
+                  {idx + 1}
+                </div>
+                <p className="flex-1 text-sm font-semibold truncate" style={{ color: '#1a1a1a' }}>{c.name}</p>
+                <p className="text-base font-bold flex-shrink-0" style={{ color: '#ef4444' }}>{formatCurrency(owed)}</p>
+              </div>
+              {/* Progress bar */}
+              <div className="h-1.5 rounded-full overflow-hidden" style={{ background: '#FEE2E2' }}>
+                <div className="h-full rounded-full" style={{ width: `${pct}%`, background: 'linear-gradient(90deg, #ef4444, #fca5a5)' }} />
+              </div>
+              <p className="text-[10px] mt-1" style={{ color: '#9ca3af' }}>{pct.toFixed(1)}% من إجمالي الذمم</p>
+            </motion.button>
+          );
+        })}
+      </div>
+
+      {/* Sheets */}
+      <AnimatePresence>
+        {/* selectedId handled by parent */}
+      </AnimatePresence>
+    </>
+  );
+}
+
+// ─── Credit report (item 5) ──────────────────────────────────────────────────
+
+function CreditReport({ clients, total, onSelect }) {
+  const sorted = [...clients].sort((a, b) => (b.balance || 0) - (a.balance || 0));
+  return (
+    <>
+      <div className="flex-shrink-0 px-4 pt-3 pb-2">
+        <div className="rounded-2xl p-4 mb-3" style={{ background: 'white', boxShadow: '0 2px 8px rgba(0,0,0,0.09)', borderLeft: '4px solid #10b981' }}>
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: '#F0FDF4' }}>
+              <CreditCard size={22} style={{ color: '#10b981' }} />
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: '#10b981' }}>إجمالي الأرصدة الدائنة</p>
+              <p className="text-2xl font-bold" style={{ color: '#10b981' }}>{formatCurrency(total)}</p>
+              <p className="text-xs" style={{ color: '#9ca3af' }}>{sorted.length} عميل دائن</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto scroll-touch px-4 pb-4 space-y-2">
+        {sorted.length === 0 ? (
+          <div className="text-center py-16">
+            <Users size={44} className="mx-auto mb-3" style={{ color: '#9ca3af' }} />
+            <p style={{ color: '#6b7280' }}>لا يوجد عملاء دائنون</p>
+          </div>
+        ) : sorted.map((c, idx) => {
+          const credit = c.balance || 0;
+          const pct    = total > 0 ? (credit / total) * 100 : 0;
+          return (
+            <motion.button
+              key={c.id} whileTap={{ scale: 0.98 }}
+              onClick={() => onSelect(c.id)}
+              className="w-full p-3.5 rounded-xl text-left touch-manipulation"
+              style={{ background: 'white', boxShadow: '0 1px 4px rgba(0,0,0,0.08)', borderLeft: '3px solid #10b981' }}>
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold"
+                  style={{ background: '#F0FDF4', color: '#10b981' }}>
+                  {idx + 1}
+                </div>
+                <p className="flex-1 text-sm font-semibold truncate" style={{ color: '#1a1a1a' }}>{c.name}</p>
+                <p className="text-base font-bold flex-shrink-0" style={{ color: '#10b981' }}>+{formatCurrency(credit)}</p>
+              </div>
+              <div className="h-1.5 rounded-full overflow-hidden" style={{ background: '#D1FAE5' }}>
+                <div className="h-full rounded-full" style={{ width: `${pct}%`, background: 'linear-gradient(90deg, #10b981, #6ee7b7)' }} />
+              </div>
+              <p className="text-[10px] mt-1" style={{ color: '#9ca3af' }}>{pct.toFixed(1)}% من إجمالي الأرصدة</p>
+            </motion.button>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+// ─── Audit view (item 6) ─────────────────────────────────────────────────────
+
+function AuditView({ auditData, isAdmin, repairing, onRepair, refreshing }) {
+  if (!auditData) return (
+    <div className="flex-1 flex items-center justify-center">
+      <p style={{ color: '#6b7280' }}>جارٍ تحميل بيانات التدقيق...</p>
+    </div>
+  );
+
+  const all    = auditData.all || [];
+  const drifts = auditData.drifts || [];
+  const ok     = all.filter(a => !a.has_drift);
+
+  return (
+    <div className="flex-1 overflow-y-auto scroll-touch px-4 pt-3 pb-4">
+      {/* Summary */}
+      <div className="grid grid-cols-2 gap-2 mb-4">
+        <div className="rounded-xl p-3" style={{ background: 'white', boxShadow: '0 1px 4px rgba(0,0,0,0.08)', borderLeft: '3px solid #10b981' }}>
+          <p className="text-[10px] font-semibold uppercase" style={{ color: '#10b981' }}>صحيح</p>
+          <p className="text-2xl font-bold mt-0.5" style={{ color: '#10b981' }}>{ok.length}</p>
+        </div>
+        <div className="rounded-xl p-3" style={{ background: 'white', boxShadow: '0 1px 4px rgba(0,0,0,0.08)', borderLeft: `3px solid ${drifts.length > 0 ? '#ef4444' : '#10b981'}` }}>
+          <p className="text-[10px] font-semibold uppercase" style={{ color: drifts.length > 0 ? '#ef4444' : '#10b981' }}>فروق</p>
+          <p className="text-2xl font-bold mt-0.5" style={{ color: drifts.length > 0 ? '#ef4444' : '#10b981' }}>{drifts.length}</p>
+        </div>
+      </div>
+
+      {drifts.length === 0 ? (
+        <div className="rounded-2xl p-6 text-center mb-4" style={{ background: 'white', boxShadow: '0 1px 4px rgba(0,0,0,0.08)', borderLeft: '4px solid #10b981' }}>
+          <CheckCircle2 size={40} className="mx-auto mb-2" style={{ color: '#10b981' }} />
+          <p className="font-bold" style={{ color: '#1a1a1a' }}>جميع الأرصدة صحيحة</p>
+          <p className="text-xs mt-1" style={{ color: '#6b7280' }}>لا توجد أي فروق في {all.length} عميل</p>
+        </div>
+      ) : (
+        <>
+          <p className="text-xs font-semibold mb-2" style={{ color: '#ef4444' }}>العملاء ذوو الفروق ({drifts.length})</p>
+          <div className="space-y-2 mb-4">
+            {drifts.map(row => (
+              <div key={row.id} className="rounded-xl p-3.5"
+                style={{ background: 'white', boxShadow: '0 1px 4px rgba(0,0,0,0.08)', borderLeft: '3px solid #ef4444' }}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold truncate" style={{ color: '#1a1a1a' }}>{row.name}</p>
+                    {row.phone && <p className="text-xs" style={{ color: '#9ca3af' }}>{row.phone}</p>}
+                    <div className="flex gap-3 mt-2">
+                      <div>
+                        <p className="text-[10px]" style={{ color: '#9ca3af' }}>مخزن</p>
+                        <p className="text-xs font-bold" style={{ color: '#d97706' }}>{formatCurrency(row.stored_balance)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px]" style={{ color: '#9ca3af' }}>متوقع</p>
+                        <p className="text-xs font-bold" style={{ color: '#3b82f6' }}>{formatCurrency(row.expected_balance)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px]" style={{ color: '#9ca3af' }}>الفرق</p>
+                        <p className="text-xs font-bold" style={{ color: '#ef4444' }}>{formatCurrency(row.drift)}</p>
+                      </div>
+                    </div>
+                  </div>
+                  {isAdmin && (
+                    <button
+                      onClick={() => onRepair(row.id)}
+                      disabled={repairing === row.id}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold touch-manipulation flex-shrink-0"
+                      style={{ background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', color: '#f59e0b', opacity: repairing === row.id ? 0.5 : 1 }}>
+                      {repairing === row.id ? <Loader2 size={13} className="animate-spin" /> : <Wrench size={13} />}
+                      إصلاح
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* OK clients */}
+      {ok.length > 0 && (
+        <>
+          <p className="text-xs font-semibold mb-2" style={{ color: '#10b981' }}>الأرصدة الصحيحة ({ok.length})</p>
+          <div className="space-y-1.5">
+            {ok.map(row => (
+              <div key={row.id} className="rounded-xl px-3.5 py-2.5 flex items-center gap-3"
+                style={{ background: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.06)', borderLeft: '3px solid #10b981' }}>
+                <CheckCircle2 size={15} style={{ color: '#10b981', flexShrink: 0 }} />
+                <p className="flex-1 text-sm truncate" style={{ color: '#1a1a1a' }}>{row.name}</p>
+                <p className="text-xs font-semibold" style={{ color: '#10b981' }}>{formatCurrency(row.stored_balance)}</p>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── ClientDetailSheet ────────────────────────────────────────────────────────
+
+function ClientDetailSheet({ clientId, onClose, onChanged, isAdmin }) {
+  const api = useApi();
+  const [tab, setTab] = useState('overview');
+  const [client, setClient] = useState(null);
+  const [payments, setPayments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showVersement, setShowVersement] = useState(false);
+  const [showFunding, setShowFunding] = useState(false);
+  const [editingEntry, setEditingEntry] = useState(null);
+  const [showEditClient, setShowEditClient] = useState(false);
+  const [showAdjust, setShowAdjust] = useState(false);
+
+  const reload = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [clientRes, payRes] = await Promise.all([
+        api.get(`/api/clients/${clientId}`),
+        api.get(`/api/payments?client_id=${clientId}`),
+      ]);
+      setClient(clientRes?.data || clientRes);
+      setPayments(Array.isArray(payRes?.data) ? payRes.data : []);
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
+  }, [clientId]);
+
+  useEffect(() => { reload(); }, [reload]);
+
+  const onDeletePayment = async (p) => {
+    if (!window.confirm(t('confirmDeletePayment'))) return;
+    try { await api.delete(`/api/payments/${p.id}`); await reload(); onChanged(); }
+    catch (err) { alert(err.message || t('failedToDelete')); }
+  };
+
+  const onDeleteClient = async () => {
+    if (!window.confirm(t('confirmDeleteClient'))) return;
+    try { await api.delete(`/api/clients/${clientId}`); onClose(); onChanged(); }
+    catch (err) { alert(err?.response?.data?.error || err?.message || t('failedToDeleteClient')); }
+  };
+
+  return (
+    <motion.div className="fixed inset-0 z-50" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <motion.div
+        className="absolute inset-x-0 bottom-0 rounded-t-3xl flex flex-col"
+        style={{ background: 'white', maxHeight: '92vh', paddingBottom: 'env(safe-area-inset-bottom, 0px)', boxShadow: '0 -4px 24px rgba(0,0,0,0.12)' }}
+        initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+        transition={{ type: 'spring', damping: 28, stiffness: 280 }}>
+
+        <div className="flex justify-center pt-3 pb-1">
+          <div className="w-10 h-1 rounded-full" style={{ background: '#e5e7eb' }} />
+        </div>
+
+        {/* Client header */}
+        <div className="flex items-center justify-between px-5 py-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+              style={{ background: '#E8EAF6' }}>
+              <User size={18} style={{ color: '#3949AB' }} />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-base font-bold truncate" style={{ color: '#1a1a1a' }}>{client?.name || '...'}</h2>
+              {client?.phone && <p className="text-xs truncate" style={{ color: '#9ca3af' }}>{client.phone}</p>}
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            {client && (
+              <button onClick={() => setShowEditClient(true)} className="w-9 h-9 flex items-center justify-center rounded-full touch-manipulation" style={{ background: '#F3F4F6' }}>
+                <Edit2 size={15} style={{ color: '#6b7280' }} />
+              </button>
+            )}
+            {isAdmin && client && (
+              <button onClick={() => setShowAdjust(true)} className="w-9 h-9 flex items-center justify-center rounded-full touch-manipulation" style={{ background: '#FFFBEB' }}>
+                <AlertTriangle size={15} style={{ color: '#d97706' }} />
+              </button>
+            )}
+            {isAdmin && client && (
+              <button onClick={onDeleteClient} className="w-9 h-9 flex items-center justify-center rounded-full touch-manipulation" style={{ background: '#FEF2F2' }}>
+                <Trash2 size={15} style={{ color: '#ef4444' }} />
+              </button>
+            )}
+            <button onClick={onClose} className="w-9 h-9 flex items-center justify-center rounded-full" style={{ background: '#F3F4F6' }}>
+              <X size={18} style={{ color: '#6b7280' }} />
+            </button>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="px-5 pb-3">
+          <div className="flex rounded-xl p-1" style={{ background: '#F3F4F6' }}>
+            {[{ id: 'overview', label: 'نظرة عامة' }, { id: 'history', label: 'السجل المالي' }].map(({ id, label }) => (
+              <button key={id} onClick={() => setTab(id)}
+                className="flex-1 py-2 rounded-lg text-xs font-semibold transition-all touch-manipulation"
+                style={{
+                  background: tab === id ? 'white' : 'transparent',
+                  color:      tab === id ? '#3949AB' : '#9ca3af',
+                  boxShadow:  tab === id ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                }}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto scroll-touch px-5 pb-3">
+          {loading ? (
+            <div className="text-center py-8" style={{ color: '#9ca3af' }}>جارٍ التحميل...</div>
+          ) : tab === 'overview' ? (
+            <OverviewTab client={client} />
+          ) : (
+            <HistoryTab payments={payments} onDelete={onDeletePayment} onEdit={p => setEditingEntry(p)} isAdmin={isAdmin} />
+          )}
+        </div>
+
+        {/* Action bar */}
+        <div className="px-5 py-3" style={{ borderTop: '1px solid #f0f0f0', background: '#FAFAFA' }}>
+          {/* WhatsApp reminder */}
+          {client?.phone && (client.balance || 0) < 0 && (
+            <button
+              onClick={async () => {
+                const owed = Math.abs(client.balance || 0);
+                const msg  = `مرحبا ${client.name}، تذكير بسداد مبلغ ${formatCurrency(owed)}`;
+                let phone  = String(client.phone).replace(/[^0-9]/g, '');
+                if (phone.startsWith('00')) phone = phone.slice(2);
+                if (phone.startsWith('0'))  phone = '213' + phone.slice(1);
+                const e164 = phone.startsWith('213') ? phone : '213' + phone;
+                window.open(`https://wa.me/${e164}?text=${encodeURIComponent(msg)}`, '_blank');
+                try { await api.patch(`/api/clients/${client.id}/contact-note`, { note: 'تم إرسال تذكير واتساب' }); await reload(); onChanged(); } catch {}
+              }}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl font-bold text-base touch-manipulation mb-2"
+              style={{ background: 'rgba(37,211,102,0.12)', border: '1px solid rgba(37,211,102,0.35)', color: '#25d366' }}>
+              <span className="text-lg">💬</span>
+              إرسال تذكير واتساب
+            </button>
+          )}
+          <div className="flex gap-2">
+            <button onClick={() => setShowVersement(true)} disabled={!client}
+              className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-white text-sm touch-manipulation"
+              style={{ background: 'linear-gradient(135deg, #065f46 0%, #10b981 100%)', border: '1px solid rgba(16,185,129,0.3)' }}>
+              <Wallet size={17} />
+              تسجيل دفعة
+            </button>
+            <button onClick={() => setShowFunding(true)} disabled={!client}
+              className="flex items-center justify-center gap-2 px-4 py-3.5 rounded-2xl font-bold text-white text-sm touch-manipulation"
+              style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%)', border: '1px solid rgba(37,99,235,0.4)' }}>
+              <PlusCircle size={17} />
+              إيداع رصيد
+            </button>
+          </div>
+        </div>
+      </motion.div>
+
+      <AnimatePresence>
+        {showVersement && client && <VersementModal client={client} onClose={() => setShowVersement(false)} onDone={async () => { setShowVersement(false); await reload(); onChanged(); }} />}
+      </AnimatePresence>
+      <AnimatePresence>
+        {showFunding && client && <FundingSheet client={client} onClose={() => setShowFunding(false)} onDone={async () => { setShowFunding(false); await reload(); onChanged(); }} />}
+      </AnimatePresence>
+      <AnimatePresence>
+        {editingEntry && <EditEntryModal entry={editingEntry} onClose={() => setEditingEntry(null)} onDone={async () => { setEditingEntry(null); await reload(); onChanged(); }} />}
+      </AnimatePresence>
+      <AnimatePresence>
+        {showEditClient && client && <EditClientSheet client={client} onClose={() => setShowEditClient(false)} onDone={async () => { setShowEditClient(false); await reload(); onChanged(); }} />}
+      </AnimatePresence>
+      <AnimatePresence>
+        {showAdjust && client && <AdjustBalanceSheet client={client} onClose={() => setShowAdjust(false)} onDone={async () => { setShowAdjust(false); await reload(); onChanged(); }} />}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
+// ─── OverviewTab ─────────────────────────────────────────────────────────────
+
+function OverviewTab({ client }) {
+  if (!client) return null;
+  const b = client.balance || 0;
+  return (
+    <div className="space-y-3 pt-1">
+      {client.credit_blocked && (
+        <div className="rounded-xl p-3 flex items-center gap-2" style={{ background: '#FEF2F2', border: '1px solid #FECACA' }}>
+          <span className="text-base">🚫</span>
+          <div><p className="text-xs font-bold" style={{ color: '#ef4444' }}>عميل نقدي فقط</p><p className="text-[10px]" style={{ color: '#9ca3af' }}>لا يُسمح بالبيع الآجل</p></div>
+        </div>
+      )}
+      {client.last_contact_at && (
+        <div className="rounded-xl p-3" style={{ background: '#EFF6FF', border: '1px solid #BFDBFE' }}>
+          <p className="text-[10px] font-semibold uppercase tracking-wide mb-1" style={{ color: '#3b82f6' }}>
+            آخر تواصل: {new Date(client.last_contact_at).toLocaleDateString('ar-DZ')}
+          </p>
+          {client.last_contact_note && <p className="text-xs italic" style={{ color: '#6b7280' }}>"{client.last_contact_note}"</p>}
+        </div>
+      )}
+      {/* Balance card */}
+      <div className="rounded-2xl p-4"
+        style={{
+          background: b < 0 ? '#FEF2F2' : b > 0 ? '#F0FDF4' : '#F9FAFB',
+          borderLeft: `4px solid ${b < 0 ? '#ef4444' : b > 0 ? '#10b981' : '#e5e7eb'}`,
+        }}>
+        <p className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: b < 0 ? '#ef4444' : b > 0 ? '#10b981' : '#6b7280' }}>
+          {b < 0 ? 'مدين بـ' : b > 0 ? 'رصيد دائن' : 'الرصيد'}
+        </p>
+        <p className="text-3xl font-bold" style={{ color: b < 0 ? '#ef4444' : b > 0 ? '#10b981' : '#1a1a1a' }}>
+          {formatCurrency(Math.abs(b))}
+        </p>
+      </div>
+      {/* Unpaid sales */}
+      {client.unpaid_sales && client.unpaid_sales.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: '#6b7280' }}>
+            فواتير غير مسددة ({client.unpaid_sales.length})
+          </p>
+          <div className="space-y-2">
+            {client.unpaid_sales.map(sale => (
+              <div key={sale.id} className="rounded-xl p-3 flex items-center justify-between"
+                style={{ background: '#FFFBEB', border: '1px solid #FDE68A' }}>
+                <div>
+                  <p className="text-xs font-semibold" style={{ color: '#1a1a1a' }}>فاتورة #{sale.id}</p>
+                  <p className="text-[11px]" style={{ color: '#9ca3af' }}>{new Date(sale.date).toLocaleDateString('ar-DZ')}</p>
+                </div>
+                <div className="text-left">
+                  <p className="text-xs" style={{ color: '#9ca3af' }}>{formatCurrency(sale.paid_amount)} / {formatCurrency(sale.total)}</p>
+                  <p className="text-sm font-bold" style={{ color: '#d97706' }}>{formatCurrency(sale.remaining)} متبقي</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {/* Stats */}
+      <div className="grid grid-cols-2 gap-2">
+        <div className="rounded-xl p-3" style={{ background: '#F9FAFB', border: '1px solid #e5e7eb' }}>
+          <p className="text-[10px] uppercase tracking-wide" style={{ color: '#9ca3af' }}>عدد الفواتير</p>
+          <p className="text-sm font-bold mt-0.5" style={{ color: '#1a1a1a' }}>{client.sale_count || 0}</p>
+        </div>
+        <div className="rounded-xl p-3" style={{ background: '#F9FAFB', border: '1px solid #e5e7eb' }}>
+          <p className="text-[10px] uppercase tracking-wide" style={{ color: '#9ca3af' }}>إجمالي المشتريات</p>
+          <p className="text-sm font-bold mt-0.5" style={{ color: '#1a1a1a' }}>{formatCurrency(client.total_purchases || 0)}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── HistoryTab ───────────────────────────────────────────────────────────────
+
+function HistoryTab({ payments, onDelete, onEdit, isAdmin }) {
+  if (payments.length === 0) {
+    return (
+      <div className="text-center py-8">
+        <History size={40} className="mx-auto mb-3" style={{ color: '#9ca3af' }} />
+        <p style={{ color: '#6b7280' }}>لا توجد حركات مالية</p>
+      </div>
+    );
+  }
+  const methodLabel = (p) => {
+    if (p.method === 'adjustment') return p.amount >= 0 ? 'تعديل دائن' : 'تعديل مدين';
+    if (p.method === 'credit_carry') return 'رصيد محمول';
+    if (p.method === 'opening_balance') return 'رصيد افتتاحي';
+    if (p.method === 'funding') return 'إيداع رصيد';
+    if (p.method === 'return') return 'رصيد إرجاع';
+    if (p.sale_id) return `دفعة مقابل فاتورة #${p.sale_id}`;
+    return 'دفعة عميل';
+  };
+
+  return (
+    <div className="space-y-2 pt-1">
+      {payments.map(p => {
+        const isAdjustment = p.method === 'adjustment';
+        const isReadOnly   = !!p.synthetic;
+        const needsAdmin   = isAdjustment && !isAdmin;
+        return (
+          <div key={p.id} className="rounded-xl p-3 flex items-center gap-3"
+            style={{
+              background: isAdjustment ? '#FFFBEB' : p.method === 'credit_carry' ? '#EFF6FF' : '#F9FAFB',
+              borderLeft: `3px solid ${isAdjustment ? '#d97706' : p.method === 'credit_carry' ? '#3b82f6' : '#e5e7eb'}`,
+            }}>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold truncate" style={{ color: '#1a1a1a' }}>{methodLabel(p)}</p>
+              <p className="text-[11px]" style={{ color: '#9ca3af' }}>
+                {new Date(p.date).toLocaleDateString('ar-DZ')}
+                {p.created_by_name && ` · ${p.created_by_name}`}
+              </p>
+              {p.notes && <p className="text-[11px] italic mt-0.5 truncate" style={{ color: '#6b7280' }}>{p.notes}</p>}
+            </div>
+            <div className="flex-shrink-0 text-left ml-2">
+              <p className="text-base font-bold" style={{ color: p.amount < 0 ? '#ef4444' : p.method === 'credit_carry' ? '#3b82f6' : '#10b981' }}>
+                {p.amount >= 0 ? '+' : ''}{formatCurrency(p.amount)}
+              </p>
+            </div>
+            {!isReadOnly && (
+              <div className="flex flex-col gap-1 flex-shrink-0">
+                <button onClick={() => onEdit(p)} disabled={needsAdmin}
+                  className="p-1.5 rounded-lg touch-manipulation"
+                  style={{ background: '#F3F4F6', color: needsAdmin ? '#d1d5db' : '#6b7280', opacity: needsAdmin ? 0.4 : 1 }}>
+                  <Edit2 size={13} />
+                </button>
+                <button onClick={() => onDelete(p)} disabled={needsAdmin}
+                  className="p-1.5 rounded-lg touch-manipulation"
+                  style={{ background: '#FEF2F2', color: needsAdmin ? '#fca5a5' : '#ef4444', opacity: needsAdmin ? 0.4 : 1 }}>
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── VersementModal ───────────────────────────────────────────────────────────
+
+function VersementModal({ client, onClose, onDone }) {
+  const api = useApi();
+  const [amount, setAmount] = useState('');
+  const [method, setMethod] = useState('cash');
+  const [notes, setNotes] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const numeric = parseFloat((amount || '').replace(',', '.')) || 0;
+  const debt    = Math.max(0, -(client.balance || 0));
+
+  const handleDigit = (d) => setAmount(prev => {
+    if (d === '.' && prev.includes('.')) return prev;
+    if (d === '.' && !prev) return '0.';
+    return prev + d;
+  });
+
+  const submit = async () => {
+    if (numeric <= 0) return;
+    setSubmitting(true); setError('');
+    try { await api.post('/api/payments', { client_id: client.id, amount: numeric, method, notes: notes.trim() || null }); onDone(); }
+    catch (err) { setError(err.message || 'فشل تسجيل الدفعة'); }
+    finally { setSubmitting(false); }
+  };
+
+  return (
+    <motion.div className="fixed inset-0 z-[60]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={submitting ? undefined : onClose} />
+      <motion.div className="absolute inset-x-0 bottom-0 rounded-t-3xl flex flex-col"
+        style={{ background: 'white', maxHeight: '92vh', paddingBottom: 'env(safe-area-inset-bottom, 0px)', boxShadow: '0 -4px 24px rgba(0,0,0,0.12)' }}
+        initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 28 }}>
+        <div className="flex justify-center pt-3 pb-1"><div className="w-10 h-1 rounded-full" style={{ background: '#e5e7eb' }} /></div>
+        <div className="flex items-center justify-between px-5 py-3">
+          <h2 className="text-lg font-bold" style={{ color: '#1a1a1a' }}>تسجيل دفعة</h2>
+          <button onClick={onClose} disabled={submitting} className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: '#F3F4F6', opacity: submitting ? 0.4 : 1 }}>
+            <X size={18} style={{ color: '#6b7280' }} />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto scroll-touch px-5 pb-3 space-y-3">
+          {/* Debt indicator */}
+          <div className="rounded-xl p-3" style={{ background: debt > 0 ? '#FEF2F2' : '#F0FDF4', borderLeft: `3px solid ${debt > 0 ? '#ef4444' : '#10b981'}` }}>
+            <p className="text-xs" style={{ color: '#6b7280' }}>{client.name} {debt > 0 ? '— مدين بـ' : '— بدون دين'}</p>
+            <p className="text-xl font-bold" style={{ color: debt > 0 ? '#ef4444' : '#10b981' }}>{formatCurrency(debt)}</p>
+          </div>
+          {/* Amount display */}
+          <div className="rounded-xl px-4 py-3 text-right" style={{ background: '#F9FAFB', border: '1px solid #e5e7eb' }}>
+            <p className="text-xs font-medium" style={{ color: '#6b7280' }}>المبلغ المستلم</p>
+            <p className="text-3xl font-bold mt-1" style={{ color: amount ? '#1a1a1a' : '#9ca3af' }}>
+              {amount ? formatCurrency(numeric) : '0.00 DA'}
+            </p>
+          </div>
+          {/* Quick amounts */}
+          {debt > 0 && (
+            <div className="flex gap-2">
+              {[25, 50, 75, 100].map(pct => (
+                <button key={pct} onClick={() => setAmount(String(Math.round(debt * pct / 100)))}
+                  className="flex-1 py-2 rounded-lg text-xs font-semibold touch-manipulation"
+                  style={{ background: '#E8EAF6', border: '1px solid #C5CAE9', color: '#3949AB' }}>
+                  {pct === 100 ? 'الكل' : `${pct}%`}
+                </button>
+              ))}
+            </div>
+          )}
+          {/* Numpad */}
+          <div className="grid grid-cols-3 gap-2">
+            {['1','2','3','4','5','6','7','8','9','.','0','⌫'].map(key => (
+              <button key={key}
+                onClick={() => key === '⌫' ? setAmount(p => p.slice(0, -1)) : handleDigit(key)}
+                className="py-3 rounded-xl text-base font-semibold touch-manipulation active:scale-95"
+                style={{ background: key === '⌫' ? '#FEF2F2' : '#F9FAFB', border: `1px solid ${key === '⌫' ? '#FECACA' : '#e5e7eb'}`, color: key === '⌫' ? '#ef4444' : '#1a1a1a' }}>
+                {key}
+              </button>
+            ))}
+          </div>
+          {/* Method */}
+          <div className="flex rounded-xl p-1" style={{ background: '#F3F4F6' }}>
+            {['cash', 'bank'].map(m => (
+              <button key={m} onClick={() => setMethod(m)}
+                className="flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all touch-manipulation"
+                style={{ background: method === m ? 'white' : 'transparent', color: method === m ? '#3949AB' : '#9ca3af', boxShadow: method === m ? '0 1px 3px rgba(0,0,0,0.1)' : 'none' }}>
+                {m === 'cash' ? 'نقدي' : 'بنك'}
+              </button>
+            ))}
+          </div>
+          <input type="text" value={notes} onChange={e => setNotes(e.target.value)} placeholder="ملاحظات (اختياري)"
+            className="w-full px-4 py-2.5 rounded-xl outline-none"
+            style={{ background: '#F9FAFB', border: '1px solid #e5e7eb', fontSize: '15px', color: '#1a1a1a' }} />
+          {error && <div className="rounded-xl p-3 text-xs" style={{ background: '#FEF2F2', border: '1px solid #FECACA', color: '#ef4444' }}>{error}</div>}
+        </div>
+        <div className="px-5 py-3" style={{ borderTop: '1px solid #f0f0f0' }}>
+          <button onClick={submit} disabled={submitting || numeric <= 0}
+            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-white text-base touch-manipulation"
+            style={{ background: numeric > 0 && !submitting ? 'linear-gradient(135deg, #065f46 0%, #10b981 100%)' : '#F3F4F6', color: numeric > 0 && !submitting ? 'white' : '#9ca3af', opacity: numeric > 0 && !submitting ? 1 : 0.6 }}>
+            <Wallet size={18} />
+            {submitting ? 'جارٍ المعالجة...' : 'تسجيل الدفعة'}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// ─── EditEntryModal ───────────────────────────────────────────────────────────
+
+function EditEntryModal({ entry, onClose, onDone }) {
+  const api = useApi();
+  const [amount, setAmount] = useState(String(entry.amount));
+  const [notes, setNotes] = useState(entry.notes || '');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const submit = async () => {
+    const amt = parseFloat((amount || '').replace(',', '.'));
+    if (!Number.isFinite(amt) || amt === 0) { setError('المبلغ يجب أن يكون غير صفر'); return; }
+    setSubmitting(true); setError('');
+    try { await api.patch(`/api/payments/${entry.id}`, { amount: amt, notes: notes.trim() || null }); onDone(); }
+    catch (err) { setError(err.message || 'فشل التعديل'); }
+    finally { setSubmitting(false); }
+  };
+
+  return (
+    <motion.div className="fixed inset-0 z-[70] flex items-center justify-center p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={submitting ? undefined : onClose} />
+      <motion.div className="relative w-full max-w-sm rounded-2xl flex flex-col overflow-hidden"
+        style={{ background: 'white', border: '1px solid #e5e7eb', boxShadow: '0 20px 40px rgba(0,0,0,0.15)' }}
+        initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}>
+        <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: '1px solid #f0f0f0' }}>
+          <h2 className="text-base font-bold" style={{ color: '#1a1a1a' }}>تعديل الدفعة</h2>
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full" style={{ background: '#F3F4F6' }}><X size={16} style={{ color: '#6b7280' }} /></button>
+        </div>
+        <div className="p-5 space-y-3">
+          <div>
+            <label className="text-xs font-semibold" style={{ color: '#6b7280' }}>المبلغ (DZD)</label>
+            <input type="text" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} autoFocus
+              className="w-full mt-1 px-3 py-2.5 rounded-xl text-right text-lg font-bold outline-none"
+              style={{ background: '#F9FAFB', border: '1px solid #e5e7eb', color: '#1a1a1a' }} />
+          </div>
+          <div>
+            <label className="text-xs font-semibold" style={{ color: '#6b7280' }}>ملاحظات</label>
+            <input type="text" value={notes} onChange={e => setNotes(e.target.value)}
+              className="w-full mt-1 px-3 py-2.5 rounded-xl outline-none"
+              style={{ background: '#F9FAFB', border: '1px solid #e5e7eb', fontSize: '15px', color: '#1a1a1a' }} />
+          </div>
+          {error && <div className="rounded-xl p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.08)', color: '#f87171' }}>{error}</div>}
+        </div>
+        <div className="px-5 pb-4 flex gap-2">
+          <button onClick={onClose} disabled={submitting} className="flex-1 py-2.5 rounded-xl text-sm font-semibold" style={{ background: '#F3F4F6', color: '#6b7280' }}>إلغاء</button>
+          <button onClick={submit} disabled={submitting} className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white"
+            style={{ background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)', opacity: submitting ? 0.6 : 1 }}>
+            {submitting ? '...' : 'حفظ'}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// ─── AddClientSheet ───────────────────────────────────────────────────────────
+
+function AddClientSheet({ onClose, onCreated }) {
+  const api = useApi();
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [address, setAddress] = useState('');
+  const [notes, setNotes] = useState('');
+  const [balanceSign, setBalanceSign] = useState('none');
+  const [balanceAmount, setBalanceAmount] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const parsedAmount = parseFloat(balanceAmount);
+  const amountValid  = balanceSign === 'none' || (Number.isFinite(parsedAmount) && parsedAmount > 0);
+  const canSubmit    = name.trim().length > 0 && !submitting && amountValid;
+
+  const computeBalance = () => {
+    if (balanceSign === 'none') return 0;
+    const amt = parseFloat(balanceAmount) || 0;
+    return balanceSign === 'credit' ? amt : -amt;
+  };
+
+  const handleSubmit = async () => {
+    if (!canSubmit) return;
+    setSubmitting(true); setError('');
+    try {
+      const res = await api.post('/api/clients', { name: name.trim(), phone: phone.trim() || null, address: address.trim() || null, notes: notes.trim() || null, initial_balance: computeBalance() });
+      onCreated(res?.data || res);
+    } catch (err) { setError(err?.message || 'فشل إنشاء العميل'); }
+    finally { setSubmitting(false); }
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50" style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }}
+      onClick={e => { if (e.target === e.currentTarget && !submitting) onClose(); }}>
+      <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+        transition={{ type: 'spring', damping: 28, stiffness: 280 }}
+        className="absolute bottom-0 left-0 right-0 rounded-t-3xl flex flex-col"
+        style={{ background: 'white', maxHeight: '90vh', paddingBottom: 'env(safe-area-inset-bottom, 0px)', boxShadow: '0 -4px 24px rgba(0,0,0,0.12)' }}>
+        <div className="flex justify-center pt-3 pb-1 flex-shrink-0"><div className="w-10 h-1 rounded-full" style={{ background: '#e5e7eb' }} /></div>
+        <div className="flex items-center justify-between px-5 py-3 flex-shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: 'rgba(16,185,129,0.15)' }}><UserPlus size={16} style={{ color: '#34d399' }} /></div>
+            <h2 className="text-base font-bold" style={{ color: '#1a1a1a' }}>إضافة عميل جديد</h2>
+          </div>
+          <button onClick={onClose} disabled={submitting} className="w-8 h-8 flex items-center justify-center rounded-full" style={{ background: '#F3F4F6' }}><X size={18} style={{ color: '#6b7280' }} /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto scroll-touch px-5 pb-3 space-y-3">
+          {[
+            { v: name,    set: setName,    label: 'اسم العميل', required: true, type: 'text' },
+            { v: phone,   set: setPhone,   label: 'رقم الهاتف', type: 'tel' },
+            { v: address, set: setAddress, label: 'العنوان', type: 'text' },
+            { v: notes,   set: setNotes,   label: 'ملاحظات', type: 'text' },
+          ].map((f, i) => (
+            <div key={i}>
+              <label className="block text-xs font-semibold mb-1.5" style={{ color: '#6b7280' }}>
+                {f.label}{f.required && <span style={{ color: '#f87171' }}> *</span>}
+              </label>
+              <input type={f.type} value={f.v} onChange={e => f.set(e.target.value)} autoFocus={i === 0} placeholder={f.label}
+                className="w-full px-4 py-3 rounded-xl outline-none"
+                style={{ background: '#F9FAFB', border: '1px solid #e5e7eb', fontSize: '16px', color: '#1a1a1a' }} />
+            </div>
+          ))}
+          {/* Opening balance */}
+          <div>
+            <label className="block text-xs font-semibold mb-1.5" style={{ color: '#6b7280' }}>الرصيد الافتتاحي</label>
+            <div className="flex rounded-xl p-1 mb-2" style={{ background: '#F3F4F6' }}>
+              {[{ id: 'none', label: 'بدون', color: '#9ca3af', bg: 'rgba(156,163,175,0.12)', border: 'rgba(156,163,175,0.3)' },
+                { id: 'credit', label: 'دائن', color: '#34d399', bg: 'rgba(16,185,129,0.12)', border: 'rgba(16,185,129,0.3)' },
+                { id: 'owes', label: 'مدين', color: '#f87171', bg: 'rgba(239,68,68,0.12)', border: 'rgba(239,68,68,0.3)' },
+              ].map(({ id, label, color, bg, border }) => (
+                <button key={id} type="button" onClick={() => setBalanceSign(id)}
+                  className="flex-1 py-2 px-1 rounded-lg text-xs font-semibold transition-all touch-manipulation"
+                  style={{ background: balanceSign === id ? bg : 'transparent', color: balanceSign === id ? color : '#4a5568', border: balanceSign === id ? `1px solid ${border}` : '1px solid transparent' }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            {balanceSign !== 'none' && (
+              <input type="number" inputMode="decimal" min="0" value={balanceAmount} onChange={e => setBalanceAmount(e.target.value)} placeholder="0"
+                className="w-full px-4 py-3 rounded-xl outline-none"
+                style={{ background: '#F9FAFB', border: `2px solid ${balanceSign === 'credit' ? '#10b981' : '#ef4444'}`, fontSize: '16px', color: balanceSign === 'credit' ? '#10b981' : '#ef4444' }} />
+            )}
+          </div>
+          {error && <p className="text-xs text-center" style={{ color: '#f87171' }}>{error}</p>}
+        </div>
+        <div className="px-5 py-3 flex-shrink-0" style={{ borderTop: '1px solid #f0f0f0', background: '#FAFAFA' }}>
+          <button onClick={handleSubmit} disabled={!canSubmit}
+            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-white text-base touch-manipulation"
+            style={{ background: canSubmit ? 'linear-gradient(135deg, #065f46 0%, #10b981 100%)' : '#F3F4F6', color: canSubmit ? 'white' : '#9ca3af', opacity: canSubmit ? 1 : 0.6 }}>
+            {submitting ? <Loader2 size={18} className="animate-spin" /> : <UserPlus size={18} />}
+            إضافة العميل
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// ─── FundingSheet ─────────────────────────────────────────────────────────────
+
+function FundingSheet({ client, onClose, onDone }) {
+  const api = useApi();
+  const [amount, setAmount] = useState('');
+  const [notes, setNotes] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const numeric = parseFloat((amount || '').replace(',', '.')) || 0;
+
+  const submit = async () => {
+    if (numeric <= 0) return;
+    setSubmitting(true); setError('');
+    try { await api.post(`/api/clients/${client.id}/funding`, { amount: numeric, notes: notes.trim() || null }); onDone(); }
+    catch (err) { setError(err.message || 'فشل الإيداع'); }
+    finally { setSubmitting(false); }
+  };
+
+  return (
+    <motion.div className="fixed inset-0 z-[60]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+      <div className="absolute inset-0 backdrop-blur-sm" style={{ background: 'rgba(0,0,0,0.75)' }} onClick={submitting ? undefined : onClose} />
+      <motion.div className="absolute inset-x-0 bottom-0 rounded-t-3xl flex flex-col"
+        style={{ background: 'white', maxHeight: '70vh', paddingBottom: 'env(safe-area-inset-bottom, 0px)', boxShadow: '0 -4px 24px rgba(0,0,0,0.12)' }}
+        initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 28 }}>
+        <div className="flex justify-center pt-3 pb-1"><div className="w-10 h-1 rounded-full" style={{ background: '#e5e7eb' }} /></div>
+        <div className="flex items-center justify-between px-5 py-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: 'rgba(37,99,235,0.15)' }}><PlusCircle size={16} style={{ color: '#60a5fa' }} /></div>
+            <div><h2 className="text-base font-bold" style={{ color: '#1a1a1a' }}>إيداع رصيد</h2><p className="text-xs" style={{ color: '#9ca3af' }}>{client.name}</p></div>
+          </div>
+          <button onClick={onClose} disabled={submitting} className="w-9 h-9 flex items-center justify-center rounded-full" style={{ background: '#F3F4F6', opacity: submitting ? 0.4 : 1 }}><X size={18} style={{ color: '#6b7280' }} /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto scroll-touch px-5 pb-3 space-y-3">
+          <div>
+            <label className="block text-xs font-semibold mb-1.5" style={{ color: '#6b7280' }}>المبلغ <span style={{ color: '#f87171' }}>*</span></label>
+            <input type="number" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0" autoFocus
+              className="w-full px-4 py-3 rounded-xl outline-none text-right font-bold"
+              style={{ background: '#F9FAFB', border: '1px solid #e5e7eb', fontSize: '20px', color: '#1a1a1a' }} />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold mb-1.5" style={{ color: '#6b7280' }}>ملاحظات (اختياري)</label>
+            <input type="text" value={notes} onChange={e => setNotes(e.target.value)} placeholder="ملاحظات..."
+              className="w-full px-4 py-2.5 rounded-xl outline-none"
+              style={{ background: '#F9FAFB', border: '1px solid #e5e7eb', fontSize: '15px', color: '#1a1a1a' }} />
+          </div>
+          {error && <div className="rounded-xl p-3 text-xs" style={{ background: 'rgba(239,68,68,0.08)', color: '#f87171' }}>{error}</div>}
+        </div>
+        <div className="px-5 py-3 flex gap-2" style={{ borderTop: '1px solid #f0f0f0' }}>
+          <button onClick={onClose} disabled={submitting} className="flex-1 py-3 rounded-2xl text-sm font-semibold" style={{ background: '#F3F4F6', color: '#6b7280' }}>إلغاء</button>
+          <button onClick={submit} disabled={submitting || numeric <= 0}
+            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-bold text-white text-sm touch-manipulation"
+            style={{ background: numeric > 0 && !submitting ? 'linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%)' : '#F3F4F6', color: numeric > 0 && !submitting ? 'white' : '#9ca3af', opacity: numeric > 0 && !submitting ? 1 : 0.6 }}>
+            <PlusCircle size={16} />
+            {submitting ? 'جارٍ...' : 'إيداع الرصيد'}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// ─── EditClientSheet ──────────────────────────────────────────────────────────
+
+function EditClientSheet({ client, onClose, onDone }) {
+  const api = useApi();
+  const [name,    setName]    = useState(client.name    || '');
+  const [phone,   setPhone]   = useState(client.phone   || '');
+  const [email,   setEmail]   = useState(client.email   || '');
+  const [address, setAddress] = useState(client.address || '');
+  const [notes,   setNotes]   = useState(client.notes   || '');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const canSubmit = name.trim().length > 0 && !submitting;
+
+  const submit = async () => {
+    if (!canSubmit) return;
+    setSubmitting(true); setError('');
+    try { await api.patch(`/api/clients/${client.id}`, { name: name.trim(), phone: phone.trim(), email: email.trim(), address: address.trim(), notes: notes.trim() }); onDone(); }
+    catch (err) { setError(err?.message || 'فشل التحديث'); }
+    finally { setSubmitting(false); }
+  };
+
+  return (
+    <motion.div className="fixed inset-0 z-[60]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={submitting ? undefined : onClose} />
+      <motion.div className="absolute inset-x-0 bottom-0 rounded-t-3xl flex flex-col"
+        style={{ background: 'white', maxHeight: '92vh', paddingBottom: 'env(safe-area-inset-bottom, 0px)', boxShadow: '0 -4px 24px rgba(0,0,0,0.12)' }}
+        initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 28 }}>
+        <div className="flex justify-center pt-3 pb-1"><div className="w-10 h-1 rounded-full" style={{ background: '#e5e7eb' }} /></div>
+        <div className="flex items-center justify-between px-5 py-3">
+          <h2 className="text-lg font-bold" style={{ color: '#1a1a1a' }}>تعديل بيانات العميل</h2>
+          <button onClick={onClose} disabled={submitting} className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: '#F3F4F6', opacity: submitting ? 0.4 : 1 }}><X size={18} style={{ color: '#6b7280' }} /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto scroll-touch px-5 pb-3 space-y-3">
+          {[
+            { v: name,    set: setName,    label: 'الاسم', required: true, type: 'text' },
+            { v: phone,   set: setPhone,   label: 'الهاتف', type: 'tel' },
+            { v: email,   set: setEmail,   label: 'البريد الإلكتروني', type: 'email' },
+            { v: address, set: setAddress, label: 'العنوان', type: 'text' },
+            { v: notes,   set: setNotes,   label: 'ملاحظات', type: 'text' },
+          ].map((f, i) => (
+            <div key={i}>
+              <label className="block text-xs font-semibold mb-1.5" style={{ color: '#6b7280' }}>{f.label}{f.required && <span style={{ color: '#f87171' }}> *</span>}</label>
+              <input type={f.type} value={f.v} onChange={e => f.set(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl outline-none"
+                style={{ background: '#F9FAFB', border: '1px solid #e5e7eb', fontSize: '16px', color: '#1a1a1a' }} />
+            </div>
+          ))}
+          {error && <p className="text-xs text-center" style={{ color: '#f87171' }}>{error}</p>}
+        </div>
+        <div className="px-5 py-3" style={{ borderTop: '1px solid #f0f0f0' }}>
+          <button onClick={submit} disabled={!canSubmit}
+            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-white text-base touch-manipulation"
+            style={{ background: canSubmit ? 'linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%)' : '#F3F4F6', color: canSubmit ? 'white' : '#9ca3af', opacity: canSubmit ? 1 : 0.6 }}>
+            {submitting ? <Loader2 size={18} className="animate-spin" /> : <Edit2 size={16} />}
+            {submitting ? 'جارٍ الحفظ...' : 'حفظ التغييرات'}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// ─── AdjustBalanceSheet ───────────────────────────────────────────────────────
+
+function AdjustBalanceSheet({ client, onClose, onDone }) {
+  const api = useApi();
+  const [direction, setDirection] = useState('credit');
+  const [amount, setAmount] = useState('');
+  const [reason, setReason] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const numeric  = parseFloat((amount || '').replace(',', '.')) || 0;
+  const canSubmit = numeric > 0 && reason.trim().length > 0 && !submitting;
+
+  const submit = async () => {
+    if (!canSubmit) return;
+    setSubmitting(true); setError('');
+    try { await api.post(`/api/clients/${client.id}/adjust`, { amount: direction === 'credit' ? numeric : -numeric, reason: reason.trim() }); onDone(); }
+    catch (err) { setError(err?.message || 'فشل التعديل'); }
+    finally { setSubmitting(false); }
+  };
+
+  return (
+    <motion.div className="fixed inset-0 z-[60]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={submitting ? undefined : onClose} />
+      <motion.div className="absolute inset-x-0 bottom-0 rounded-t-3xl flex flex-col"
+        style={{ background: 'white', maxHeight: '85vh', paddingBottom: 'env(safe-area-inset-bottom, 0px)', boxShadow: '0 -4px 24px rgba(0,0,0,0.12)' }}
+        initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 28 }}>
+        <div className="flex justify-center pt-3 pb-1"><div className="w-10 h-1 rounded-full" style={{ background: '#e5e7eb' }} /></div>
+        <div className="flex items-center justify-between px-5 py-3">
+          <h2 className="text-lg font-bold" style={{ color: '#1a1a1a' }}>تعديل الرصيد (أدمن)</h2>
+          <button onClick={onClose} disabled={submitting} className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: '#F3F4F6', opacity: submitting ? 0.4 : 1 }}><X size={18} style={{ color: '#6b7280' }} /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto scroll-touch px-5 pb-3 space-y-3">
+          <p className="text-xs leading-relaxed" style={{ color: '#6b7280' }}>تعديل استثنائي للرصيد — يجب إدخال سبب واضح للتدقيق.</p>
+          <div className="flex rounded-xl p-1" style={{ background: '#F3F4F6' }}>
+            {[{ id: 'credit', label: 'إضافة رصيد', color: '#34d399', bg: 'rgba(16,185,129,0.15)', border: 'rgba(16,185,129,0.3)' },
+              { id: 'debit',  label: 'خصم رصيد',   color: '#f87171', bg: 'rgba(239,68,68,0.15)',   border: 'rgba(239,68,68,0.3)' }].map(({ id, label, color, bg, border }) => (
+              <button key={id} onClick={() => setDirection(id)}
+                className="flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all touch-manipulation"
+                style={{ background: direction === id ? bg : 'transparent', color: direction === id ? color : '#4a5568', border: direction === id ? `1px solid ${border}` : '1px solid transparent' }}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <input type="number" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00"
+            className="w-full px-4 py-3 rounded-xl outline-none text-2xl font-bold text-right"
+            style={{ background: '#F9FAFB', border: `2px solid ${direction === 'credit' ? '#10b981' : '#ef4444'}`, color: direction === 'credit' ? '#10b981' : '#ef4444' }} />
+          <div>
+            <label className="block text-xs font-semibold mb-1.5" style={{ color: '#6b7280' }}>سبب التعديل <span style={{ color: '#f87171' }}>*</span></label>
+            <textarea value={reason} onChange={e => setReason(e.target.value)} rows={2} placeholder="اذكر سبب التعديل..."
+              className="w-full px-4 py-3 rounded-xl outline-none resize-none"
+              style={{ background: '#F9FAFB', border: '1px solid #e5e7eb', fontSize: '15px', color: '#1a1a1a' }} />
+          </div>
+          {error && <p className="text-xs text-center" style={{ color: '#f87171' }}>{error}</p>}
+        </div>
+        <div className="px-5 py-3" style={{ borderTop: '1px solid #f0f0f0' }}>
+          <button onClick={submit} disabled={!canSubmit}
+            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-white text-base touch-manipulation"
+            style={{
+              background: canSubmit ? (direction === 'credit' ? 'linear-gradient(135deg, #065f46 0%, #10b981 100%)' : 'linear-gradient(135deg, #7f1d1d 0%, #dc2626 100%)') : '#F3F4F6',
+              opacity: canSubmit ? 1 : 0.5,
+            }}>
+            {submitting ? <Loader2 size={18} className="animate-spin" /> : <AlertTriangle size={16} />}
+            {submitting ? 'جارٍ...' : 'تطبيق التعديل'}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
