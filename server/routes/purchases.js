@@ -148,4 +148,82 @@ router.post('/', (req, res) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// PATCH /api/purchases/:id  — edit an existing purchase
+// Reverses old quantities/balance, replaces items, applies new quantities/balance
+// ---------------------------------------------------------------------------
+router.patch('/:id', (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!id) return res.status(400).json({ success: false, error: 'Invalid id' });
+
+  const { date, paid_amount, discount, payment_method, notes, items } = req.body;
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ success: false, error: 'items must not be empty' });
+  }
+
+  try {
+    const result = db.transaction(() => {
+      const existing = db.prepare('SELECT * FROM purchases WHERE id = ?').get(id);
+      if (!existing) throw new Error('Purchase not found');
+
+      const oldItems = db.prepare('SELECT * FROM purchase_items WHERE purchase_id = ?').all(id);
+
+      // Reverse old product quantities
+      const revQty = db.prepare('UPDATE products SET quantity = quantity - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+      for (const it of oldItems) revQty.run(it.quantity, it.product_id);
+
+      // Reverse old supplier balance effect
+      if (existing.supplier_id) {
+        const oldOwed = existing.total - existing.paid_amount;
+        if (oldOwed !== 0)
+          db.prepare('UPDATE suppliers SET balance = COALESCE(balance,0) + ? WHERE id = ?').run(oldOwed, existing.supplier_id);
+      }
+
+      // Delete old items
+      db.prepare('DELETE FROM purchase_items WHERE purchase_id = ?').run(id);
+
+      const newDate    = date           || existing.date;
+      const newDisc    = discount       != null ? parseFloat(discount)    : existing.discount;
+      const newPaid    = paid_amount    != null ? parseFloat(paid_amount) : existing.paid_amount;
+      const newMethod  = payment_method || existing.payment_method;
+      const newNotes   = notes          != null ? notes                   : existing.notes;
+
+      const subtotal  = items.reduce((s, it) => s + it.quantity * it.unit_price, 0);
+      const total     = Math.max(0, subtotal - (newDisc || 0));
+      const paid      = Math.min(newPaid || 0, total);
+      const status    = deriveStatus(total, paid);
+
+      db.prepare(`
+        UPDATE purchases
+        SET date=?, subtotal=?, discount=?, total=?, paid_amount=?, status=?,
+            payment_method=?, notes=?
+        WHERE id=?
+      `).run(newDate, subtotal, newDisc || 0, total, paid, status, newMethod, newNotes, id);
+
+      const insertItem = db.prepare('INSERT INTO purchase_items (purchase_id, product_id, quantity, unit_price, total) VALUES (?,?,?,?,?)');
+      const addQty     = db.prepare('UPDATE products SET quantity = quantity + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+
+      for (const it of items) {
+        const lineTotal = it.quantity * it.unit_price;
+        insertItem.run(id, it.product_id, it.quantity, it.unit_price, lineTotal);
+        addQty.run(it.quantity, it.product_id);
+      }
+
+      if (existing.supplier_id) {
+        const newOwed = total - paid;
+        if (newOwed !== 0)
+          db.prepare('UPDATE suppliers SET balance = COALESCE(balance,0) - ? WHERE id = ?').run(newOwed, existing.supplier_id);
+      }
+
+      return { id, total, status };
+    })();
+
+    return res.json({ success: true, ...result });
+  } catch (err) {
+    console.error('[purchases] PATCH error:', err.message);
+    return res.status(err.message === 'Purchase not found' ? 404 : 500)
+      .json({ success: false, error: err.message });
+  }
+});
+
 module.exports = router;
