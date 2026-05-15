@@ -430,6 +430,14 @@ const initDatabase = (db) => {
     console.log('[schema] products selling_price2/3 migration:', e.message);
   }
 
+  // Suppliers extended fields migration
+  try {
+    const supCols = db.prepare("PRAGMA table_info(suppliers)").all().map(c => c.name);
+    if (!supCols.includes('supplier_code'))  db.exec('ALTER TABLE suppliers ADD COLUMN supplier_code TEXT');
+    if (!supCols.includes('tax_number'))     db.exec('ALTER TABLE suppliers ADD COLUMN tax_number TEXT');
+    if (!supCols.includes('commercial_reg')) db.exec('ALTER TABLE suppliers ADD COLUMN commercial_reg TEXT');
+  } catch (e) { console.log('[schema] suppliers extended fields migration:', e.message); }
+
   // Seed a default admin if users table is empty (fresh deploy, no desktop sync yet)
   try {
     const count = db.prepare('SELECT COUNT(*) AS n FROM users').get().n;

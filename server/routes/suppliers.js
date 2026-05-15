@@ -172,7 +172,7 @@ router.get('/:id', (req, res) => {
  * method='opening_balance' and sets the balance in the same transaction.
  */
 router.post('/', (req, res) => {
-  const { name, phone, address, email, notes } = req.body;
+  const { name, phone, address, email, notes, supplier_code, tax_number, commercial_reg } = req.body;
   const initialBalance = money(req.body?.initial_balance);
 
   if (!name || !name.trim()) {
@@ -182,14 +182,17 @@ router.post('/', (req, res) => {
   try {
     const txn = db.transaction(() => {
       const result = db.prepare(`
-        INSERT INTO suppliers (name, phone, address, email, notes, balance)
-        VALUES (?, ?, ?, ?, ?, 0)
+        INSERT INTO suppliers (name, phone, address, email, notes, supplier_code, tax_number, commercial_reg, balance)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
       `).run(
         name.trim(),
         phone || null,
         address || null,
         email || null,
-        notes || null
+        notes || null,
+        supplier_code || null,
+        tax_number || null,
+        commercial_reg || null
       );
       const newId = result.lastInsertRowid;
       db.prepare('UPDATE suppliers SET remote_id = ? WHERE id = ?').run(String(newId), newId);
@@ -247,11 +250,14 @@ router.patch('/:id', (req, res) => {
     const existing = db.prepare('SELECT * FROM suppliers WHERE id = ?').get(id);
     if (!existing) return res.status(404).json({ success: false, error: 'Supplier not found' });
 
-    const name    = req.body.name    !== undefined ? (req.body.name || '').trim() : existing.name;
-    const phone   = req.body.phone   !== undefined ? (req.body.phone   || null) : existing.phone;
-    const address = req.body.address !== undefined ? (req.body.address || null) : existing.address;
-    const email   = req.body.email   !== undefined ? (req.body.email   || null) : existing.email;
-    const notes   = req.body.notes   !== undefined ? (req.body.notes   || null) : existing.notes;
+    const name           = req.body.name           !== undefined ? (req.body.name || '').trim() : existing.name;
+    const phone          = req.body.phone          !== undefined ? (req.body.phone          || null) : existing.phone;
+    const address        = req.body.address        !== undefined ? (req.body.address        || null) : existing.address;
+    const email          = req.body.email          !== undefined ? (req.body.email          || null) : existing.email;
+    const notes          = req.body.notes          !== undefined ? (req.body.notes          || null) : existing.notes;
+    const supplier_code  = req.body.supplier_code  !== undefined ? (req.body.supplier_code  || null) : existing.supplier_code;
+    const tax_number     = req.body.tax_number     !== undefined ? (req.body.tax_number     || null) : existing.tax_number;
+    const commercial_reg = req.body.commercial_reg !== undefined ? (req.body.commercial_reg || null) : existing.commercial_reg;
 
     if (!name) {
       return res.status(400).json({ success: false, error: 'Supplier name is required' });
@@ -260,9 +266,10 @@ router.patch('/:id', (req, res) => {
     db.prepare(`
       UPDATE suppliers SET
         name = ?, phone = ?, address = ?, email = ?, notes = ?,
+        supplier_code = ?, tax_number = ?, commercial_reg = ?,
         updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `).run(name, phone, address, email, notes, id);
+    `).run(name, phone, address, email, notes, supplier_code, tax_number, commercial_reg, id);
 
     db.prepare(`
       INSERT INTO sync_log (entity_type, entity_id, action, synced)
