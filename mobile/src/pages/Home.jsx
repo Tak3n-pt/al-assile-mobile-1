@@ -49,7 +49,7 @@ const TILES = [
     iconColor: '#3949AB',
   },
   {
-    path: '/cart',
+    path: '/sales',
     icon: ShoppingCart,
     label: 'المبيعات',
     sub: 'بيع جديد',
