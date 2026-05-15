@@ -111,6 +111,25 @@ const PRODUCT_SELECT = `
 `;
 
 /**
+ * GET /api/products/:id
+ * Single product by id.
+ */
+router.get('/:id', (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isInteger(id) || id < 1) {
+    return res.status(400).json({ success: false, error: 'Invalid product id' });
+  }
+  try {
+    const product = db.prepare(PRODUCT_SELECT).get(id);
+    if (!product) return res.status(404).json({ success: false, error: 'Product not found' });
+    return res.json({ success: true, data: product });
+  } catch (err) {
+    console.error('[products] GET /:id error:', err.message);
+    return res.status(500).json({ success: false, error: 'Failed to fetch product' });
+  }
+});
+
+/**
  * POST /api/products
  * Create a new product from the mobile app.
  */

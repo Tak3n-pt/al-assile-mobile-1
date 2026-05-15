@@ -392,24 +392,16 @@ function AddProductDialog({ barcode: initBarcode, api, onClose, onAdded }) {
           </select>
         </div>
 
-        {/* Unit box */}
-        <div style={{ ...rowStyle, background:'#f7f7f7', borderRadius:8, padding:'0.6rem 0.75rem' }}>
-          <span style={{ ...labelStyle, marginBottom:'0.4rem' }}>الوحدة</span>
-          <div style={{ display:'flex', alignItems:'center', gap:'0.5rem' }}>
-            <select
-              value={unit}
-              onChange={e => setUnit(e.target.value)}
-              style={{ flex:1, border:'none', borderBottom:'1px solid #ccc', outline:'none', fontSize:'0.88rem', background:'transparent', padding:'0.3rem 0', textAlign:'right' }}
-            >
-              {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
-            </select>
-            <input
-              type="number"
-              defaultValue="0"
-              placeholder="0"
-              style={{ width:60, border:'2px solid #2b5be8', borderRadius:6, outline:'none', fontSize:'0.88rem', textAlign:'center', padding:'0.25rem' }}
-            />
-          </div>
+        {/* Unit */}
+        <div style={rowStyle}>
+          <span style={labelStyle}>الوحدة</span>
+          <select
+            value={unit}
+            onChange={e => setUnit(e.target.value)}
+            style={{ ...inputStyle, cursor:'pointer' }}
+          >
+            {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+          </select>
         </div>
 
         {/* Buttons: اضافه RIGHT (first DOM) | تراجع LEFT (second DOM) */}
