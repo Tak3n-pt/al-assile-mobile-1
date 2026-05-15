@@ -935,9 +935,10 @@ export default function Sales() {
         <>
           <div onClick={() => setShowMenu(false)} style={{position:'fixed',inset:0,zIndex:40}}/>
           <div style={{
-            position:'absolute',top:52,right:0,zIndex:50,
+            position:'fixed',top:52,right:0,zIndex:50,
             background:'white',minWidth:250,
             boxShadow:'0 6px 24px rgba(0,0,0,0.18)',
+            maxHeight:'calc(100vh - 60px)',overflowY:'auto',
           }}>
             {menuItems.map((item, i) => (
               <button key={i}
