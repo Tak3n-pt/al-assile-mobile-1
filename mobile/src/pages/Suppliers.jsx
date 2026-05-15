@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowRight, Search, Plus, X, Truck, Phone,
   Wallet, History, Trash2, AlertTriangle, Loader2, Edit2,
-  Save, ChevronLeft,
+  Save, ChevronLeft, FileText, Users,
 } from 'lucide-react';
 import { useApi } from '../hooks/useApi.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
@@ -689,11 +689,23 @@ function SupplierDetailSheet({ supplierId, onClose, onChanged, isAdmin, onEditRe
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-const VIEWS = ['list', 'balances', 'remaining'];
+const MENU_ITEMS = [
+  { id: 'add',           label: 'اضافة مورد جديد',                                icon: Plus,     iconColor: '#27ae60', iconBg: '#e8f8ed' },
+  { id: 'balances',      label: 'الارصدة الافتتاحيه والمبالغ النقدية للموردين',   icon: Wallet,   iconColor: '#1565C0', iconBg: '#e3f0fd' },
+  { id: 'remaining_inv', label: 'المبالغ المتبقية للموردين من الفواتير الاجل',    icon: Users,    iconColor: '#e65100', iconBg: '#fff3e0' },
+  { id: 'remaining_rep', label: 'المبالغ المتبقية للموردين - تقرير',              icon: FileText, iconColor: '#546e7a', iconBg: '#f5f5f5' },
+  { id: 'with_balance',  label: 'الموردين المتبقي عندهم أرصدة - تقرير',          icon: FileText, iconColor: '#546e7a', iconBg: '#f5f5f5' },
+  { id: 'check',         label: 'فحص ارصدة الموردين',                            icon: FileText, iconColor: '#546e7a', iconBg: '#f5f5f5' },
+  { id: 'list',          label: 'عرض الموردين',                                  icon: Search,   iconColor: '#546e7a', iconBg: '#f5f5f5' },
+];
+
 const VIEW_TITLES = {
-  list:      'عرض الموردين',
-  balances:  'الارصدة الافتتاحيه والمبالغ النقدية للموردين',
-  remaining: 'المبالغ المتبقية للموردين',
+  list:          'عرض الموردين',
+  balances:      'الارصدة الافتتاحيه والمبالغ النقدية للموردين',
+  remaining_inv: 'المبالغ المتبقية للموردين من الفواتير الاجل',
+  remaining_rep: 'المبالغ المتبقية للموردين - تقرير',
+  with_balance:  'الموردين المتبقي عندهم أرصدة - تقرير',
+  check:         'فحص ارصدة الموردين',
 };
 
 export default function Suppliers() {
@@ -702,15 +714,13 @@ export default function Suppliers() {
   const { user } = useAuth();
   const isAdmin  = user?.role === 'admin';
 
+  const [view,       setView]       = useState('menu');
   const [suppliers,  setSuppliers]  = useState([]);
-  const [loading,    setLoading]    = useState(true);
+  const [loading,    setLoading]    = useState(false);
   const [query,      setQuery]      = useState('');
-  const [viewIdx,    setViewIdx]    = useState(0);
   const [selectedId, setSelectedId] = useState(null);
   const [pressedId,  setPressedId]  = useState(null);
-  const [formState,  setFormState]  = useState(null); // null | {supplier?}
-
-  const view = VIEWS[viewIdx];
+  const [formState,  setFormState]  = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -721,322 +731,246 @@ export default function Suppliers() {
     finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { load(); }, []);
+  const handleMenuSelect = id => {
+    if (id === 'add') { setFormState({}); return; }
+    setView(id);
+    setQuery('');
+    load();
+  };
 
+  const goMenu = () => { setView('menu'); setQuery(''); };
+
+  // filtered + per-view data
   const filtered = suppliers.filter(s => {
     if (!query) return true;
     const q = query.toLowerCase();
     return (s.name || '').toLowerCase().includes(q) || (s.phone || '').includes(query);
   });
 
-  const colStyle = (flex, textAlign = 'right') => ({
-    flex,
-    minWidth: 0,
-    fontSize: '0.82rem',
-    padding: '0.55rem 0.5rem',
-    textAlign,
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
+  const viewData = (() => {
+    if (view === 'remaining_inv') return filtered.filter(s => (s.balance || 0) < 0);
+    if (view === 'with_balance')  return filtered.filter(s => (s.balance || 0) > 0);
+    if (view === 'remaining_rep') return filtered.filter(s => (s.balance || 0) !== 0);
+    return filtered;
+  })();
+
+  // shared table helpers
+  const col = (flex, align = 'right') => ({
+    flex, minWidth: 0, fontSize: '0.82rem', padding: '0.55rem 0.5rem',
+    textAlign: align, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
   });
-
-  const headerCol = (flex, label, textAlign = 'right', color = '#555') => (
-    <div style={{ ...colStyle(flex, textAlign), fontWeight: '700', color, background: '#e8e8e8' }}>
-      {label}
-    </div>
+  const hcol = (flex, label, align = 'right', color = '#555') => (
+    <div style={{ ...col(flex, align), fontWeight: '700', color, background: '#e8e8e8' }}>{label}</div>
   );
-
-  const renderHeaderRow = () => (
-    <div style={{ display: 'flex', borderBottom: '1.5px solid #ccc', background: '#e8e8e8' }}>
-      {view === 'list' && (
-        <>
-          {headerCol(2.5, 'بيانات المورد')}
-          {headerCol(1.5, 'رقم الهاتف', 'center')}
-          <div style={{ width: '24px', flexShrink: 0 }} />
-        </>
-      )}
-      {view === 'balances' && (
-        <>
-          {headerCol(2, 'بيانات المورد')}
-          {headerCol(1, 'له', 'center', '#c62828')}
-          {headerCol(1, 'عليه', 'center', '#2e7d32')}
-          <div style={{ width: '24px', flexShrink: 0 }} />
-        </>
-      )}
-      {view === 'remaining' && (
-        <>
-          {headerCol(2, 'بيانات المورد')}
-          {headerCol(1.5, 'المبلغ الباقي', 'center')}
-          <div style={{ width: '24px', flexShrink: 0 }} />
-        </>
-      )}
-    </div>
-  );
-
-  const rowHandlers = id => ({
-    onClick:      () => setSelectedId(id),
-    onMouseDown:  () => setPressedId(id),
-    onMouseUp:    () => setPressedId(null),
-    onMouseLeave: () => setPressedId(null),
-    onTouchStart: () => setPressedId(id),
-    onTouchEnd:   () => setPressedId(null),
-  });
-
-  const chevronCell = (
+  const chevron = (
     <div style={{ width: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
       <ChevronLeft size={13} style={{ color: '#bbb' }} />
     </div>
   );
+  const rowH = id => ({
+    onClick: () => setSelectedId(id),
+    onMouseDown: () => setPressedId(id), onMouseUp: () => setPressedId(null), onMouseLeave: () => setPressedId(null),
+    onTouchStart: () => setPressedId(id), onTouchEnd: () => setPressedId(null),
+  });
+  const rowBg = id => ({ background: pressedId === id ? '#f0f4ff' : 'white' });
 
-  const renderRow = s => {
-    const b = s.balance || 0;
-    const isPressed = pressedId === s.id;
-    const rowStyle = {
-      display: 'flex',
-      borderBottom: '1px solid #ececec',
-      background: isPressed ? '#f0f4ff' : 'white',
-      cursor: 'pointer',
-      transition: 'background 0.08s',
-      alignItems: 'center',
-    };
-    const nameCell = (
-      <div style={{ ...colStyle(view === 'list' ? 2.5 : 2), fontWeight: '600', color: '#1a1a1a' }}>
-        {s.name}
+  // shared header bar
+  const AppHeader = ({ title, onBack }) => (
+    <div style={{ background: 'linear-gradient(135deg,#3949AB 0%,#5C6BC0 100%)', padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', flexShrink: 0, boxShadow: '0 3px 12px rgba(57,73,171,0.4)' }}>
+      <button onClick={onBack} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+        <ArrowRight size={20} color="white" />
+      </button>
+      <span style={{ flex: 1, color: 'white', fontSize: '0.92rem', fontWeight: '700', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '0 0.4rem' }}>
+        {title}
+      </span>
+      <div style={{ width: '36px', flexShrink: 0 }} />
+    </div>
+  );
+
+  const wrap = {
+    dir: 'rtl',
+    style: { height: '100%', background: '#f0f2f5', display: 'flex', flexDirection: 'column', fontFamily: "'Cairo','Tajawal','Noto Sans Arabic',sans-serif", overflow: 'hidden' },
+  };
+
+  // ── MENU VIEW ────────────────────────────────────────────────────────────────
+  if (view === 'menu') {
+    return (
+      <div {...wrap}>
+        <AppHeader title="الموردين" onBack={() => navigate('/')} />
+        <div style={{ flex: 1, overflowY: 'auto', padding: '0.75rem' }}>
+          <div style={{ background: 'white', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 1px 6px rgba(0,0,0,0.09)' }}>
+            {MENU_ITEMS.map((item, idx) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => handleMenuSelect(item.id)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '0.75rem',
+                    width: '100%', padding: '0.9rem 1rem',
+                    background: 'white', border: 'none',
+                    borderBottom: idx < MENU_ITEMS.length - 1 ? '1px solid #f0f0f0' : 'none',
+                    cursor: 'pointer',
+                    fontFamily: "'Cairo','Tajawal',sans-serif",
+                    transition: 'background 0.1s',
+                  }}
+                  onMouseDown={e => { e.currentTarget.style.background = '#f8f9fa'; }}
+                  onMouseUp={e => { e.currentTarget.style.background = 'white'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'white'; }}
+                  onTouchStart={e => { e.currentTarget.style.background = '#f8f9fa'; }}
+                  onTouchEnd={e => { e.currentTarget.style.background = 'white'; }}
+                >
+                  {/* label — first DOM = visual RIGHT in RTL */}
+                  <span style={{ flex: 1, fontSize: '0.9rem', fontWeight: '500', color: '#1a1a1a', textAlign: 'right' }}>
+                    {item.label}
+                  </span>
+                  {/* icon — last DOM = visual LEFT in RTL */}
+                  <div style={{ width: '38px', height: '38px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: item.iconBg, flexShrink: 0 }}>
+                    <Icon size={18} style={{ color: item.iconColor }} />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <AnimatePresence>
+          {formState !== null && (
+            <motion.div key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <SupplierForm supplier={null} onClose={() => setFormState(null)} onSaved={() => setFormState(null)} />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     );
+  }
 
-    if (view === 'list') {
-      return (
-        <div key={s.id} style={rowStyle} {...rowHandlers(s.id)}>
-          {nameCell}
-          <div style={{ ...colStyle(1.5, 'center'), color: '#555', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px' }}>
-            {s.phone ? (
-              <><Phone size={10} style={{ flexShrink: 0, color: '#888' }} />{s.phone}</>
-            ) : <span style={{ color: '#ccc' }}>—</span>}
-          </div>
-          {chevronCell}
+  // ── DATA VIEWS ───────────────────────────────────────────────────────────────
+  const renderTable = () => {
+    if (view === 'list') return (
+      <>
+        <div style={{ display: 'flex', borderBottom: '1.5px solid #ccc', background: '#e8e8e8' }}>
+          {hcol(2.5, 'بيانات المورد')}
+          {hcol(1.5, 'رقم الهاتف', 'center')}
+          <div style={{ width: '24px', flexShrink: 0 }} />
         </div>
-      );
-    }
+        {viewData.map(s => (
+          <div key={s.id} style={{ display: 'flex', borderBottom: '1px solid #ececec', ...rowBg(s.id), cursor: 'pointer', alignItems: 'center', transition: 'background 0.08s' }} {...rowH(s.id)}>
+            <div style={{ ...col(2.5), fontWeight: '600', color: '#1a1a1a' }}>{s.name}</div>
+            <div style={{ ...col(1.5, 'center'), color: '#555', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px' }}>
+              {s.phone ? <><Phone size={10} style={{ color: '#888', flexShrink: 0 }} />{s.phone}</> : <span style={{ color: '#ccc' }}>—</span>}
+            </div>
+            {chevron}
+          </div>
+        ))}
+      </>
+    );
 
-    if (view === 'balances') {
-      const heOwes = b < 0 ? Math.abs(b).toFixed(2) : '0.00';
-      const weOwes = b > 0 ? b.toFixed(2)           : '0.00';
-      return (
-        <div key={s.id} style={rowStyle} {...rowHandlers(s.id)}>
-          {nameCell}
-          <div style={{ ...colStyle(1, 'center'), color: b < 0 ? '#c62828' : '#bbb', fontWeight: b < 0 ? '700' : '400' }}>
-            {heOwes}
-          </div>
-          <div style={{ ...colStyle(1, 'center'), color: b > 0 ? '#2e7d32' : '#bbb', fontWeight: b > 0 ? '700' : '400' }}>
-            {weOwes}
-          </div>
-          {chevronCell}
+    if (view === 'balances') return (
+      <>
+        <div style={{ display: 'flex', borderBottom: '1.5px solid #ccc', background: '#e8e8e8' }}>
+          {hcol(2, 'بيانات المورد')}
+          {hcol(1, 'له', 'center', '#c62828')}
+          {hcol(1, 'عليه', 'center', '#2e7d32')}
+          <div style={{ width: '24px', flexShrink: 0 }} />
         </div>
-      );
-    }
+        {viewData.map(s => {
+          const b = s.balance || 0;
+          return (
+            <div key={s.id} style={{ display: 'flex', borderBottom: '1px solid #ececec', ...rowBg(s.id), cursor: 'pointer', alignItems: 'center', transition: 'background 0.08s' }} {...rowH(s.id)}>
+              <div style={{ ...col(2), fontWeight: '600', color: '#1a1a1a' }}>{s.name}</div>
+              <div style={{ ...col(1, 'center'), color: b < 0 ? '#c62828' : '#bbb', fontWeight: b < 0 ? '700' : '400' }}>{b < 0 ? Math.abs(b).toFixed(2) : '0.00'}</div>
+              <div style={{ ...col(1, 'center'), color: b > 0 ? '#2e7d32' : '#bbb', fontWeight: b > 0 ? '700' : '400' }}>{b > 0 ? b.toFixed(2) : '0.00'}</div>
+              {chevron}
+            </div>
+          );
+        })}
+      </>
+    );
 
-    // remaining
-    const remaining = Math.abs(b).toFixed(2);
+    // remaining_inv, remaining_rep, with_balance, check — all show name + balance amount
     return (
-      <div key={s.id} style={rowStyle} {...rowHandlers(s.id)}>
-        {nameCell}
-        <div style={{ ...colStyle(1.5, 'center'), color: b < 0 ? '#c62828' : b > 0 ? '#2e7d32' : '#bbb', fontWeight: b !== 0 ? '700' : '400' }}>
-          {remaining}
+      <>
+        <div style={{ display: 'flex', borderBottom: '1.5px solid #ccc', background: '#e8e8e8' }}>
+          {hcol(2.5, 'بيانات المورد')}
+          {hcol(1.5, 'المبلغ', 'center')}
+          <div style={{ width: '24px', flexShrink: 0 }} />
         </div>
-        {chevronCell}
-      </div>
+        {viewData.map(s => {
+          const b = s.balance || 0;
+          return (
+            <div key={s.id} style={{ display: 'flex', borderBottom: '1px solid #ececec', ...rowBg(s.id), cursor: 'pointer', alignItems: 'center', transition: 'background 0.08s' }} {...rowH(s.id)}>
+              <div style={{ ...col(2.5), fontWeight: '600', color: '#1a1a1a' }}>{s.name}</div>
+              <div style={{ ...col(1.5, 'center'), color: b < 0 ? '#c62828' : b > 0 ? '#2e7d32' : '#bbb', fontWeight: b !== 0 ? '700' : '400' }}>
+                {Math.abs(b).toFixed(2)}
+              </div>
+              {chevron}
+            </div>
+          );
+        })}
+      </>
     );
   };
 
   return (
-    <div
-      dir="rtl"
-      style={{
-        height: '100%',
-        background: '#f5f5f5',
-        display: 'flex',
-        flexDirection: 'column',
-        fontFamily: "'Cairo','Tajawal','Noto Sans Arabic',sans-serif",
-        overflow: 'hidden',
-      }}
-    >
-      {/* ===== HEADER ===== */}
-      <div style={{
-        background: 'linear-gradient(135deg, #3949AB 0%, #5C6BC0 100%)',
-        padding: '0.75rem 1rem',
-        display: 'flex',
-        alignItems: 'center',
-        flexShrink: 0,
-        boxShadow: '0 3px 12px rgba(57,73,171,0.4)',
-      }}>
-        {/* Back — first DOM = visual RIGHT in RTL */}
-        <button
-          onClick={() => navigate('/')}
-          style={{
-            background: 'rgba(255,255,255,0.15)', border: 'none',
-            borderRadius: '50%', width: '36px', height: '36px',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer', flexShrink: 0,
-          }}
-        >
-          <ArrowRight size={20} color="white" />
-        </button>
-        <span style={{
-          flex: 1, color: 'white', fontSize: '0.95rem', fontWeight: '700',
-          textAlign: 'center',
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          padding: '0 0.5rem',
-        }}>
-          {VIEW_TITLES[view]}
-        </span>
-        <div style={{ width: '36px', flexShrink: 0 }} />
-      </div>
+    <div {...wrap}>
+      <AppHeader title={VIEW_TITLES[view]} onBack={goMenu} />
 
-      {/* ===== SEARCH + CONTROLS ===== */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '0.5rem',
-        padding: '0.6rem 0.75rem',
-        background: '#f5f5f5',
-        flexShrink: 0,
-      }}>
-        {/* Orange add button — first DOM = visual RIGHT in RTL */}
+      {/* Search + add (list view only) */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 0.75rem', background: '#f0f2f5', flexShrink: 0 }}>
+        {/* add button (list only) — first DOM = visual RIGHT in RTL */}
         {view === 'list' && (
-          <button
-            onClick={() => setFormState({})}
-            style={{
-              background: '#FF6B00',
-              border: 'none',
-              borderRadius: '50%',
-              width: '38px', height: '38px',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', flexShrink: 0,
-              boxShadow: '0 2px 6px rgba(255,107,0,0.4)',
-            }}
-          >
+          <button onClick={() => setFormState({})} style={{ background: '#FF6B00', border: 'none', borderRadius: '50%', width: '38px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, boxShadow: '0 2px 6px rgba(255,107,0,0.4)' }}>
             <Plus size={20} color="white" />
           </button>
         )}
-
-        {/* Search input */}
         <div style={{ flex: 1, position: 'relative' }}>
           <Search size={14} style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: '#999' }} />
-          <input
-            type="text"
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            placeholder="بحث..."
-            style={{
-              width: '100%',
-              paddingRight: '30px',
-              paddingLeft: query ? '28px' : '10px',
-              paddingTop: '0.45rem',
-              paddingBottom: '0.45rem',
-              border: '1.5px solid #ddd',
-              borderRadius: '8px',
-              fontSize: '0.85rem',
-              background: 'white',
-              outline: 'none',
-              fontFamily: "'Cairo','Tajawal',sans-serif",
-              color: '#1a1a1a',
-              boxSizing: 'border-box',
-            }}
-          />
+          <input type="text" value={query} onChange={e => setQuery(e.target.value)} placeholder="بحث..."
+            style={{ width: '100%', paddingRight: '30px', paddingLeft: query ? '28px' : '10px', paddingTop: '0.45rem', paddingBottom: '0.45rem', border: '1.5px solid #ddd', borderRadius: '8px', fontSize: '0.85rem', background: 'white', outline: 'none', fontFamily: "'Cairo','Tajawal',sans-serif", color: '#1a1a1a', boxSizing: 'border-box' }} />
           {query && (
-            <button
-              onClick={() => setQuery('')}
-              style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 0 }}
-            >
+            <button onClick={() => setQuery('')} style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 0 }}>
               <X size={13} style={{ color: '#999' }} />
             </button>
           )}
         </div>
-
-        {/* تقرير button — last DOM = visual LEFT */}
-        <button
-          onClick={() => setViewIdx(i => (i + 1) % VIEWS.length)}
-          style={{
-            background: 'white',
-            border: '1.5px solid #3949AB',
-            borderRadius: '8px',
-            color: '#3949AB',
-            padding: '0.4rem 0.75rem',
-            fontSize: '0.8rem',
-            fontWeight: '700',
-            cursor: 'pointer',
-            flexShrink: 0,
-            fontFamily: "'Cairo','Tajawal',sans-serif",
-          }}
-        >
-          تقرير
-        </button>
       </div>
 
-      {/* ===== TABLE ===== */}
-      <div style={{ flex: 1, overflowY: 'auto', background: '#f5f5f5' }}>
+      {/* Table */}
+      <div style={{ flex: 1, overflowY: 'auto', background: '#f0f2f5' }}>
         {loading ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '120px' }}>
             <Loader2 size={28} style={{ color: '#3949AB', animation: 'spin 1s linear infinite' }} />
           </div>
         ) : (
           <div style={{ background: 'white', margin: '0 0.75rem', borderRadius: '10px', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.07)' }}>
-            {renderHeaderRow()}
-            {filtered.length === 0 ? (
+            {viewData.length === 0 ? (
               <div style={{ padding: '2rem', textAlign: 'center', color: '#999' }}>
                 <Truck size={36} style={{ display: 'block', margin: '0 auto 8px', color: '#ccc' }} />
                 لا يوجد موردون
               </div>
-            ) : (
-              filtered.map(renderRow)
-            )}
+            ) : renderTable()}
           </div>
         )}
       </div>
 
-      {/* ===== BLUE INFO TOAST ===== */}
-      <div style={{
-        background: '#1565C0',
-        color: 'white',
-        padding: '0.55rem 1rem',
-        fontSize: '0.78rem',
-        textAlign: 'center',
-        flexShrink: 0,
-        fontWeight: '500',
-      }}>
+      {/* Blue info bar */}
+      <div style={{ background: '#1565C0', color: 'white', padding: '0.55rem 1rem', fontSize: '0.78rem', textAlign: 'center', flexShrink: 0, fontWeight: '500' }}>
         تنبيه / انقر على اسم المورد لتفاصيل اكثر
       </div>
 
-      {/* ===== DETAIL SHEET ===== */}
       <AnimatePresence>
         {selectedId !== null && (
-          <SupplierDetailSheet
-            supplierId={selectedId}
-            onClose={() => setSelectedId(null)}
-            onChanged={() => load()}
-            isAdmin={isAdmin}
-            onEditRequest={supplier => {
-              setSelectedId(null);
-              setFormState({ supplier });
-            }}
-          />
+          <SupplierDetailSheet supplierId={selectedId} onClose={() => setSelectedId(null)} onChanged={load} isAdmin={isAdmin}
+            onEditRequest={supplier => { setSelectedId(null); setFormState({ supplier }); }} />
         )}
       </AnimatePresence>
 
-      {/* ===== SUPPLIER FORM ===== */}
       <AnimatePresence>
         {formState !== null && (
           <motion.div key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <SupplierForm
-              supplier={formState.supplier || null}
-              onClose={() => setFormState(null)}
-              onSaved={() => {
-                setFormState(null);
-                setSelectedId(null);
-                load();
-              }}
-            />
+            <SupplierForm supplier={formState.supplier || null} onClose={() => setFormState(null)}
+              onSaved={() => { setFormState(null); setSelectedId(null); load(); }} />
           </motion.div>
         )}
       </AnimatePresence>
