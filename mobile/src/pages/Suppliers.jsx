@@ -749,8 +749,8 @@ export default function Suppliers() {
 
   const viewData = (() => {
     if (view === 'remaining_inv') return filtered.filter(s => (s.balance || 0) < 0);
-    if (view === 'with_balance')  return filtered.filter(s => (s.balance || 0) > 0);
-    if (view === 'remaining_rep') return filtered.filter(s => (s.balance || 0) !== 0);
+    if (view === 'with_balance')  return filtered.filter(s => (s.balance || 0) !== 0);
+    if (view === 'remaining_rep') return filtered.filter(s => (s.balance || 0) < 0);
     return filtered;
   })();
 
@@ -796,7 +796,17 @@ export default function Suppliers() {
   if (view === 'menu') {
     return (
       <div {...wrap}>
-        <AppHeader title="الموردين" onBack={() => navigate('/')} />
+        {/* White menu header matching screenshot */}
+        <div style={{ background: 'white', padding: '0.9rem 1rem', display: 'flex', alignItems: 'center', flexShrink: 0, borderBottom: '1px solid #f0f0f0' }}>
+          {/* Icon first DOM = visual RIGHT in RTL */}
+          <div style={{ width: '58px', height: '58px', borderRadius: '50%', background: '#e8eaf6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <Truck size={34} style={{ color: '#3949AB' }} />
+          </div>
+          <span style={{ flex: 1, color: '#1a1a1a', fontSize: '1.15rem', fontWeight: '800', textAlign: 'center', fontFamily: "'Cairo','Tajawal',sans-serif" }}>
+            الموردين
+          </span>
+          <div style={{ width: '58px', flexShrink: 0 }} />
+        </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '0.75rem' }}>
           <div style={{ background: 'white', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 1px 6px rgba(0,0,0,0.09)' }}>
             {MENU_ITEMS.map((item, idx) => {
@@ -820,14 +830,14 @@ export default function Suppliers() {
                   onTouchStart={e => { e.currentTarget.style.background = '#f8f9fa'; }}
                   onTouchEnd={e => { e.currentTarget.style.background = 'white'; }}
                 >
-                  {/* label — first DOM = visual RIGHT in RTL */}
-                  <span style={{ flex: 1, fontSize: '0.9rem', fontWeight: '500', color: '#1a1a1a', textAlign: 'right' }}>
-                    {item.label}
-                  </span>
-                  {/* icon — last DOM = visual LEFT in RTL */}
+                  {/* icon — first DOM = visual RIGHT in RTL */}
                   <div style={{ width: '38px', height: '38px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: item.iconBg, flexShrink: 0 }}>
                     <Icon size={18} style={{ color: item.iconColor }} />
                   </div>
+                  {/* label — last DOM = visual LEFT in RTL */}
+                  <span style={{ flex: 1, fontSize: '0.9rem', fontWeight: '500', color: '#1a1a1a', textAlign: 'right' }}>
+                    {item.label}
+                  </span>
                 </button>
               );
             })}
@@ -866,34 +876,46 @@ export default function Suppliers() {
       </>
     );
 
-    if (view === 'balances') return (
-      <>
-        <div style={{ display: 'flex', borderBottom: '1.5px solid #ccc', background: '#e8e8e8' }}>
-          {hcol(2, 'بيانات المورد')}
-          {hcol(1, 'له', 'center', '#c62828')}
-          {hcol(1, 'عليه', 'center', '#2e7d32')}
-          <div style={{ width: '24px', flexShrink: 0 }} />
-        </div>
-        {viewData.map(s => {
-          const b = s.balance || 0;
-          return (
-            <div key={s.id} style={{ display: 'flex', borderBottom: '1px solid #ececec', ...rowBg(s.id), cursor: 'pointer', alignItems: 'center', transition: 'background 0.08s' }} {...rowH(s.id)}>
-              <div style={{ ...col(2), fontWeight: '600', color: '#1a1a1a' }}>{s.name}</div>
-              <div style={{ ...col(1, 'center'), color: b < 0 ? '#c62828' : '#bbb', fontWeight: b < 0 ? '700' : '400' }}>{b < 0 ? Math.abs(b).toFixed(2) : '0.00'}</div>
-              <div style={{ ...col(1, 'center'), color: b > 0 ? '#2e7d32' : '#bbb', fontWeight: b > 0 ? '700' : '400' }}>{b > 0 ? b.toFixed(2) : '0.00'}</div>
-              {chevron}
-            </div>
-          );
-        })}
-      </>
-    );
+    // balances, with_balance, check — له/عليه dual columns
+    if (view === 'balances' || view === 'with_balance' || view === 'check') {
+      const totalLah  = viewData.reduce((sum, s) => { const b = s.balance || 0; return sum + (b < 0 ? Math.abs(b) : 0); }, 0);
+      const totalAlay = viewData.reduce((sum, s) => { const b = s.balance || 0; return sum + (b > 0 ? b : 0); }, 0);
+      return (
+        <>
+          <div style={{ display: 'flex', borderBottom: '1.5px solid #ccc', background: '#e8e8e8' }}>
+            {hcol(2, 'بيانات المورد')}
+            {hcol(1, 'له', 'center', '#c62828')}
+            {hcol(1, 'عليه', 'center', '#2e7d32')}
+            <div style={{ width: '24px', flexShrink: 0 }} />
+          </div>
+          {viewData.map(s => {
+            const b = s.balance || 0;
+            return (
+              <div key={s.id} style={{ display: 'flex', borderBottom: '1px solid #ececec', ...rowBg(s.id), cursor: 'pointer', alignItems: 'center', transition: 'background 0.08s' }} {...rowH(s.id)}>
+                <div style={{ ...col(2), fontWeight: '600', color: '#1a1a1a' }}>{s.name}</div>
+                <div style={{ ...col(1, 'center'), color: b < 0 ? '#c62828' : '#bbb', fontWeight: b < 0 ? '700' : '400' }}>{b < 0 ? Math.abs(b).toFixed(2) : '—'}</div>
+                <div style={{ ...col(1, 'center'), color: b > 0 ? '#2e7d32' : '#bbb', fontWeight: b > 0 ? '700' : '400' }}>{b > 0 ? b.toFixed(2) : '—'}</div>
+                {chevron}
+              </div>
+            );
+          })}
+          <div style={{ display: 'flex', borderTop: '2px solid #ccc', background: '#f0f0f0' }}>
+            <div style={{ ...col(2), fontWeight: '700', color: '#333' }}>الإجمالي</div>
+            <div style={{ ...col(1, 'center'), color: '#c62828', fontWeight: '700' }}>{totalLah.toFixed(2)}</div>
+            <div style={{ ...col(1, 'center'), color: '#2e7d32', fontWeight: '700' }}>{totalAlay.toFixed(2)}</div>
+            <div style={{ width: '24px', flexShrink: 0 }} />
+          </div>
+        </>
+      );
+    }
 
-    // remaining_inv, remaining_rep, with_balance, check — all show name + balance amount
+    // remaining_inv, remaining_rep — single amount column (balance < 0 only)
+    const totalAmt = viewData.reduce((sum, s) => sum + Math.abs(s.balance || 0), 0);
     return (
       <>
         <div style={{ display: 'flex', borderBottom: '1.5px solid #ccc', background: '#e8e8e8' }}>
           {hcol(2.5, 'بيانات المورد')}
-          {hcol(1.5, 'المبلغ', 'center')}
+          {hcol(1.5, 'المبلغ المتبقي', 'center', '#c62828')}
           <div style={{ width: '24px', flexShrink: 0 }} />
         </div>
         {viewData.map(s => {
@@ -901,13 +923,16 @@ export default function Suppliers() {
           return (
             <div key={s.id} style={{ display: 'flex', borderBottom: '1px solid #ececec', ...rowBg(s.id), cursor: 'pointer', alignItems: 'center', transition: 'background 0.08s' }} {...rowH(s.id)}>
               <div style={{ ...col(2.5), fontWeight: '600', color: '#1a1a1a' }}>{s.name}</div>
-              <div style={{ ...col(1.5, 'center'), color: b < 0 ? '#c62828' : b > 0 ? '#2e7d32' : '#bbb', fontWeight: b !== 0 ? '700' : '400' }}>
-                {Math.abs(b).toFixed(2)}
-              </div>
+              <div style={{ ...col(1.5, 'center'), color: '#c62828', fontWeight: '700' }}>{Math.abs(b).toFixed(2)}</div>
               {chevron}
             </div>
           );
         })}
+        <div style={{ display: 'flex', borderTop: '2px solid #ccc', background: '#f0f0f0' }}>
+          <div style={{ ...col(2.5), fontWeight: '700', color: '#333' }}>الإجمالي</div>
+          <div style={{ ...col(1.5, 'center'), color: '#c62828', fontWeight: '700' }}>{totalAmt.toFixed(2)}</div>
+          <div style={{ width: '24px', flexShrink: 0 }} />
+        </div>
       </>
     );
   };
