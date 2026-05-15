@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowRight, Search, Plus, X, Truck, Phone,
   Wallet, History, Trash2, AlertTriangle, Loader2, Edit2,
-  Save,
+  Save, ChevronLeft,
 } from 'lucide-react';
 import { useApi } from '../hooks/useApi.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
@@ -55,7 +55,7 @@ function SupplierForm({ supplier, onClose, onSaved }) {
       const res = isEdit
         ? await api.patch(`/api/suppliers/${supplier.id}`, body)
         : await api.post('/api/suppliers', body);
-      onSaved(res?.data || res);
+      onSaved(res);
     } catch (err) {
       setError(err?.message || 'فشل الحفظ');
     } finally {
@@ -567,8 +567,8 @@ function SupplierDetailSheet({ supplierId, onClose, onChanged, isAdmin, onEditRe
         api.get(`/api/suppliers/${supplierId}`),
         api.get(`/api/suppliers/${supplierId}/payments`),
       ]);
-      setSupplier(supRes?.data || supRes);
-      setPayments(Array.isArray(payRes?.data) ? payRes.data : []);
+      setSupplier(supRes);
+      setPayments(Array.isArray(payRes) ? payRes : []);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   }, [supplierId]);
@@ -707,6 +707,7 @@ export default function Suppliers() {
   const [query,      setQuery]      = useState('');
   const [viewIdx,    setViewIdx]    = useState(0);
   const [selectedId, setSelectedId] = useState(null);
+  const [pressedId,  setPressedId]  = useState(null);
   const [formState,  setFormState]  = useState(null); // null | {supplier?}
 
   const view = VIEWS[viewIdx];
@@ -730,6 +731,7 @@ export default function Suppliers() {
 
   const colStyle = (flex, textAlign = 'right') => ({
     flex,
+    minWidth: 0,
     fontSize: '0.82rem',
     padding: '0.55rem 0.5rem',
     textAlign,
@@ -738,44 +740,64 @@ export default function Suppliers() {
     whiteSpace: 'nowrap',
   });
 
-  const headerCol = (flex, label, textAlign = 'right') => (
-    <div style={{ ...colStyle(flex, textAlign), fontWeight: '700', color: '#555', background: '#e8e8e8' }}>
+  const headerCol = (flex, label, textAlign = 'right', color = '#555') => (
+    <div style={{ ...colStyle(flex, textAlign), fontWeight: '700', color, background: '#e8e8e8' }}>
       {label}
     </div>
   );
 
-  // Column definitions per view
   const renderHeaderRow = () => (
     <div style={{ display: 'flex', borderBottom: '1.5px solid #ccc', background: '#e8e8e8' }}>
       {view === 'list' && (
         <>
           {headerCol(2.5, 'بيانات المورد')}
           {headerCol(1.5, 'رقم الهاتف', 'center')}
+          <div style={{ width: '24px', flexShrink: 0 }} />
         </>
       )}
       {view === 'balances' && (
         <>
           {headerCol(2, 'بيانات المورد')}
-          {headerCol(1, 'له', 'center')}
-          {headerCol(1, 'عليه', 'center')}
+          {headerCol(1, 'له', 'center', '#c62828')}
+          {headerCol(1, 'عليه', 'center', '#2e7d32')}
+          <div style={{ width: '24px', flexShrink: 0 }} />
         </>
       )}
       {view === 'remaining' && (
         <>
           {headerCol(2, 'بيانات المورد')}
           {headerCol(1.5, 'المبلغ الباقي', 'center')}
+          <div style={{ width: '24px', flexShrink: 0 }} />
         </>
       )}
     </div>
   );
 
+  const rowHandlers = id => ({
+    onClick:      () => setSelectedId(id),
+    onMouseDown:  () => setPressedId(id),
+    onMouseUp:    () => setPressedId(null),
+    onMouseLeave: () => setPressedId(null),
+    onTouchStart: () => setPressedId(id),
+    onTouchEnd:   () => setPressedId(null),
+  });
+
+  const chevronCell = (
+    <div style={{ width: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+      <ChevronLeft size={13} style={{ color: '#bbb' }} />
+    </div>
+  );
+
   const renderRow = s => {
     const b = s.balance || 0;
+    const isPressed = pressedId === s.id;
     const rowStyle = {
       display: 'flex',
       borderBottom: '1px solid #ececec',
-      background: 'white',
+      background: isPressed ? '#f0f4ff' : 'white',
       cursor: 'pointer',
+      transition: 'background 0.08s',
+      alignItems: 'center',
     };
     const nameCell = (
       <div style={{ ...colStyle(view === 'list' ? 2.5 : 2), fontWeight: '600', color: '#1a1a1a' }}>
@@ -785,29 +807,31 @@ export default function Suppliers() {
 
     if (view === 'list') {
       return (
-        <div key={s.id} style={rowStyle} onClick={() => setSelectedId(s.id)}>
+        <div key={s.id} style={rowStyle} {...rowHandlers(s.id)}>
           {nameCell}
-          <div style={{ ...colStyle(1.5, 'center'), color: '#444', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+          <div style={{ ...colStyle(1.5, 'center'), color: '#555', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px' }}>
             {s.phone ? (
-              <><Phone size={11} style={{ flexShrink: 0 }} />{s.phone}</>
-            ) : '—'}
+              <><Phone size={10} style={{ flexShrink: 0, color: '#888' }} />{s.phone}</>
+            ) : <span style={{ color: '#ccc' }}>—</span>}
           </div>
+          {chevronCell}
         </div>
       );
     }
 
     if (view === 'balances') {
-      const heOwes  = b < 0 ? Math.abs(b).toFixed(2) : '0.00';  // له = we owe supplier
-      const weOwes  = b > 0 ? b.toFixed(2)           : '0.00';  // عليه = supplier owes us
+      const heOwes = b < 0 ? Math.abs(b).toFixed(2) : '0.00';
+      const weOwes = b > 0 ? b.toFixed(2)           : '0.00';
       return (
-        <div key={s.id} style={rowStyle} onClick={() => setSelectedId(s.id)}>
+        <div key={s.id} style={rowStyle} {...rowHandlers(s.id)}>
           {nameCell}
-          <div style={{ ...colStyle(1, 'center'), color: b < 0 ? '#e53935' : '#999', fontWeight: b < 0 ? '600' : '400' }}>
+          <div style={{ ...colStyle(1, 'center'), color: b < 0 ? '#c62828' : '#bbb', fontWeight: b < 0 ? '700' : '400' }}>
             {heOwes}
           </div>
-          <div style={{ ...colStyle(1, 'center'), color: b > 0 ? '#2e7d32' : '#999', fontWeight: b > 0 ? '600' : '400' }}>
+          <div style={{ ...colStyle(1, 'center'), color: b > 0 ? '#2e7d32' : '#bbb', fontWeight: b > 0 ? '700' : '400' }}>
             {weOwes}
           </div>
+          {chevronCell}
         </div>
       );
     }
@@ -815,11 +839,12 @@ export default function Suppliers() {
     // remaining
     const remaining = Math.abs(b).toFixed(2);
     return (
-      <div key={s.id} style={rowStyle} onClick={() => setSelectedId(s.id)}>
+      <div key={s.id} style={rowStyle} {...rowHandlers(s.id)}>
         {nameCell}
-        <div style={{ ...colStyle(1.5, 'center'), color: b < 0 ? '#e53935' : b > 0 ? '#2e7d32' : '#999', fontWeight: b !== 0 ? '600' : '400' }}>
+        <div style={{ ...colStyle(1.5, 'center'), color: b < 0 ? '#c62828' : b > 0 ? '#2e7d32' : '#bbb', fontWeight: b !== 0 ? '700' : '400' }}>
           {remaining}
         </div>
+        {chevronCell}
       </div>
     );
   };
