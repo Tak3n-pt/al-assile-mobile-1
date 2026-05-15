@@ -415,6 +415,20 @@ const initDatabase = (db) => {
     console.log('[schema] products.category migration:', e.message);
   }
 
+  // Seed a default admin if users table is empty (fresh deploy, no desktop sync yet)
+  try {
+    const count = db.prepare('SELECT COUNT(*) AS n FROM users').get().n;
+    if (count === 0) {
+      db.prepare(`
+        INSERT INTO users (id, username, password_hash, name, role, is_active)
+        VALUES (1, 'admin', '$2a$10$AVjk5k/jnATNZafz4YnCgufV9jo9wuQDSwdHrsRh4nrgmSyifjBfy', 'Admin', 'admin', 1)
+      `).run();
+      console.log('[schema] Default admin user seeded (username: admin, password: admin123)');
+    }
+  } catch (e) {
+    console.log('[schema] User seed skipped:', e.message);
+  }
+
   console.log('[schema] Database initialized successfully');
 };
 
