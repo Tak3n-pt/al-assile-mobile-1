@@ -9,7 +9,6 @@ function todayStr() {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
-/* ── Barcode icon ──────────────────────────────────────────────────────────── */
 function BarcodeIcon({ size = 26 }) {
   const bars = [
     { x:1,w:2},{x:5,w:1},{x:8,w:3},{x:13,w:1},
@@ -22,7 +21,6 @@ function BarcodeIcon({ size = 26 }) {
   );
 }
 
-/* ── Hamburger ─────────────────────────────────────────────────────────────── */
 function HamburgerIcon() {
   return (
     <div style={{display:'flex',flexDirection:'column',gap:5,padding:'2px 0'}}>
@@ -33,7 +31,6 @@ function HamburgerIcon() {
   );
 }
 
-/* ── 3×3 dots grid ─────────────────────────────────────────────────────────── */
 function DotsGrid() {
   return (
     <svg width={22} height={22} viewBox="0 0 22 22" fill="none">
@@ -44,7 +41,6 @@ function DotsGrid() {
   );
 }
 
-/* ── Inline editable cell ──────────────────────────────────────────────────── */
 function EditCell({ value, onChange }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft]     = useState(String(value));
@@ -81,12 +77,6 @@ function EditCell({ value, onChange }) {
   );
 }
 
-/* ── Purchase item row ─────────────────────────────────────────────────────── */
-/*
-  RTL flex: first DOM child = visual RIGHT
-  Screenshot order (right → left): المنتج | التكلفه | الكمية | الإجمالي
-  DOM order must be:               المنتج  | التكلفه  | الكمية  | الإجمالي
-*/
 function ItemRow({ item, onQtyChange, onPriceChange, onRemove }) {
   const lineTotal = (item.unit_price * item.quantity).toFixed(2);
   return (
@@ -94,7 +84,6 @@ function ItemRow({ item, onQtyChange, onPriceChange, onRemove }) {
       display:'flex', alignItems:'center', borderBottom:'1px solid #f0f0f0',
       background:'white', minHeight:44,
     }}>
-      {/* المنتج — rightmost in RTL (first in DOM) */}
       <div style={{flex:1, display:'flex', alignItems:'center', padding:'0.4rem 0.5rem 0.4rem 0.25rem', gap:'0.4rem'}}>
         <span style={{flex:1, fontSize:'0.85rem', color:'#1a1a1a', textAlign:'right', paddingRight:'0.25rem'}}>
           {item.name}
@@ -103,15 +92,12 @@ function ItemRow({ item, onQtyChange, onPriceChange, onRemove }) {
           <X size={14} color="#dc2626"/>
         </button>
       </div>
-      {/* التكلفه */}
       <div style={{width:'22%', padding:'0.4rem 0.25rem'}}>
         <EditCell value={item.unit_price} onChange={onPriceChange}/>
       </div>
-      {/* الكمية */}
       <div style={{width:'18%', padding:'0.4rem 0.25rem'}}>
         <EditCell value={item.quantity} onChange={v => v>0 ? onQtyChange(v) : onRemove()}/>
       </div>
-      {/* الإجمالي — leftmost in RTL (last in DOM) */}
       <div style={{width:'23%', textAlign:'center', padding:'0.4rem 0.25rem', fontSize:'0.82rem', color:'#444'}}>
         {lineTotal}
       </div>
@@ -119,132 +105,342 @@ function ItemRow({ item, onQtyChange, onPriceChange, onRemove }) {
   );
 }
 
-/* ── Reprint sheet ─────────────────────────────────────────────────────────── */
-function ReprintSheet({ purchaseId, api, onClose }) {
-  const [purchase, setPurchase] = useState(null);
-  const [loading, setLoading]   = useState(true);
-
-  useEffect(() => {
-    api.get(`/api/purchases/${purchaseId}`)
-      .then(d => setPurchase(d))
-      .catch(() => setPurchase(null))
-      .finally(() => setLoading(false));
-  }, [purchaseId]);
-
+/* ── Center-modal wrapper ──────────────────────────────────────────────────── */
+function DialogOverlay({ children, onClose }) {
   return (
-    <div style={{position:'fixed',inset:0,zIndex:60,display:'flex',flexDirection:'column',justifyContent:'flex-end'}}>
-      <div onClick={onClose} style={{flex:1,background:'rgba(0,0,0,0.5)'}}/>
-      <div dir="rtl" style={{background:'white',borderRadius:'16px 16px 0 0',maxHeight:'80vh',display:'flex',flexDirection:'column'}}>
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'1rem',borderBottom:'1px solid #f0f0f0'}}>
-          <button onClick={onClose} style={{background:'none',border:'none',cursor:'pointer'}}><X size={20} color="#666"/></button>
-          <span style={{fontWeight:'700',fontSize:'1rem'}}>فاتورة #{purchaseId}</span>
-        </div>
-        <div style={{overflowY:'auto',flex:1,padding:'1rem'}}>
-          {loading ? (
-            <p style={{textAlign:'center',color:'#888'}}>جارٍ التحميل...</p>
-          ) : !purchase ? (
-            <p style={{textAlign:'center',color:'#dc2626'}}>تعذّر تحميل الفاتورة</p>
-          ) : (
-            <>
-              <div style={{display:'flex',justifyContent:'space-between',marginBottom:'0.5rem'}}>
-                <span style={{color:'#888',fontSize:'0.85rem'}}>{purchase.date}</span>
-                <span style={{fontWeight:'600'}}>فاتورة #{purchase.id}</span>
-              </div>
-              {(purchase.items||[]).map((it,i) => (
-                <div key={i} style={{display:'flex',justifyContent:'space-between',padding:'0.5rem 0',borderBottom:'1px solid #f5f5f5'}}>
-                  <span style={{color:'#444',fontSize:'0.85rem'}}>{(it.unit_price*it.quantity).toFixed(2)}</span>
-                  <span style={{fontSize:'0.9rem'}}>{it.product_name} × {it.quantity}</span>
-                </div>
-              ))}
-              <div style={{display:'flex',justifyContent:'space-between',paddingTop:'0.75rem',fontWeight:'700',fontSize:'1rem'}}>
-                <span style={{color:'#2b5be8'}}>{purchase.total?.toFixed(2)} ريال</span>
-                <span>الإجمالي</span>
-              </div>
-            </>
-          )}
-        </div>
+    <div
+      style={{
+        position:'fixed', inset:0, zIndex:60,
+        display:'flex', alignItems:'center', justifyContent:'center',
+        background:'rgba(0,0,0,0.52)',
+      }}
+      onClick={onClose}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background:'white', borderRadius:14,
+          width:'calc(100% - 40px)', maxWidth:380,
+          maxHeight:'90vh', overflowY:'auto',
+          boxShadow:'0 8px 32px rgba(0,0,0,0.22)',
+        }}
+      >
+        {children}
       </div>
     </div>
   );
 }
 
-/* ── Edit-purchase sheet ───────────────────────────────────────────────────── */
-function EditPurchaseSheet({ api, onClose, onLoad }) {
-  const [purchases, setPurchases] = useState([]);
-  const [loading, setLoading]     = useState(true);
-
-  useEffect(() => {
-    api.get('/api/purchases')
-      .then(d => setPurchases(Array.isArray(d) ? d : []))
-      .catch(() => setPurchases([]))
-      .finally(() => setLoading(false));
-  }, []);
-
+/* ── Reusable: number-input dialog (reprint / edit / import) ──────────────── */
+function NumberInputDialog({ title, subtitle, confirmLabel = 'متابعة', onConfirm, onClose }) {
+  const [val, setVal] = useState('');
+  const ok = val.trim() !== '' && parseInt(val, 10) > 0;
   return (
-    <div style={{position:'fixed',inset:0,zIndex:60,display:'flex',flexDirection:'column',justifyContent:'flex-end'}}>
-      <div onClick={onClose} style={{flex:1,background:'rgba(0,0,0,0.5)'}}/>
-      <div dir="rtl" style={{background:'white',borderRadius:'16px 16px 0 0',maxHeight:'70vh',display:'flex',flexDirection:'column'}}>
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'1rem',borderBottom:'1px solid #f0f0f0'}}>
-          <button onClick={onClose} style={{background:'none',border:'none',cursor:'pointer'}}><X size={20} color="#666"/></button>
-          <span style={{fontWeight:'700',fontSize:'1rem'}}>تعديل فاتورة مشتريات</span>
+    <DialogOverlay onClose={onClose}>
+      <div dir="rtl" style={{ padding:'1.5rem 1.25rem 1.25rem' }}>
+        <div style={{ fontWeight:'700', fontSize:'1.05rem', textAlign:'center', marginBottom:'0.3rem' }}>
+          {title}
         </div>
-        <div style={{overflowY:'auto',flex:1}}>
-          {loading ? (
-            <p style={{textAlign:'center',padding:'2rem',color:'#888'}}>جارٍ التحميل...</p>
-          ) : purchases.length===0 ? (
-            <p style={{textAlign:'center',padding:'2rem',color:'#888'}}>لا توجد فواتير</p>
-          ) : purchases.map(p=>(
-            <button key={p.id} onClick={() => onLoad(p.id)}
-              style={{display:'flex',justifyContent:'space-between',alignItems:'center',width:'100%',
-                      padding:'0.85rem 1rem',background:'none',border:'none',
-                      borderBottom:'1px solid #f5f5f5',cursor:'pointer',textAlign:'right'}}>
-              <span style={{color:'#888',fontSize:'0.8rem'}}>{(p.total||0).toFixed(2)} ريال</span>
-              <span style={{color:'#1a1a1a',fontSize:'0.9rem'}}>#{p.id} · {p.date}</span>
-            </button>
-          ))}
+        <div style={{ fontSize:'0.83rem', color:'#666', textAlign:'center', marginBottom:'1.1rem' }}>
+          {subtitle}
+        </div>
+        <input
+          type="number"
+          inputMode="numeric"
+          value={val}
+          onChange={e => setVal(e.target.value)}
+          placeholder="0"
+          style={{
+            display:'block', width:'100%', boxSizing:'border-box',
+            border:'none', borderBottom:'2px solid #2b5be8',
+            outline:'none', fontSize:'1.15rem', textAlign:'center',
+            padding:'0.45rem 0', marginBottom:'1.35rem',
+            background:'transparent',
+          }}
+        />
+        {/* RTL: primary (right, first DOM) | تراجع (left, second DOM) */}
+        <div style={{ display:'flex', gap:'0.65rem' }}>
+          <button
+            onClick={() => ok && onConfirm(parseInt(val, 10))}
+            disabled={!ok}
+            style={{
+              flex:1, padding:'0.65rem',
+              background: ok ? '#2b5be8' : '#b0b8d0',
+              color:'white', border:'none', borderRadius:8,
+              fontSize:'0.9rem', fontWeight:'700',
+              cursor: ok ? 'pointer' : 'not-allowed',
+            }}
+          >
+            {confirmLabel}
+          </button>
+          <button
+            onClick={onClose}
+            style={{
+              flex:1, padding:'0.65rem',
+              background:'#f0f0f0', color:'#333',
+              border:'none', borderRadius:8,
+              fontSize:'0.9rem', fontWeight:'600', cursor:'pointer',
+            }}
+          >
+            تراجع
+          </button>
         </div>
       </div>
-    </div>
+    </DialogOverlay>
   );
 }
 
-/* ── Import-from-purchase sheet ────────────────────────────────────────────── */
-function ImportSheet({ api, onClose, onImport }) {
-  const [purchases, setPurchases] = useState([]);
-  const [loading, setLoading]     = useState(true);
+/* ── Reprint dialog — step 1: enter ID, step 2: show invoice ─────────────── */
+function ReprintDialog({ api, onClose }) {
+  const [purchaseId, setPurchaseId] = useState(null);
+  const [purchase, setPurchase]     = useState(null);
+  const [loading, setLoading]       = useState(false);
+  const [err, setErr]               = useState('');
 
-  useEffect(() => {
-    api.get('/api/purchases')
-      .then(d => setPurchases(Array.isArray(d) ? d : []))
-      .catch(() => setPurchases([]))
-      .finally(() => setLoading(false));
-  }, []);
+  async function handleConfirm(id) {
+    setPurchaseId(id);
+    setLoading(true); setErr('');
+    try {
+      const d = await api.get(`/api/purchases/${id}`);
+      setPurchase(d);
+    } catch {
+      setErr('تعذّر تحميل الفاتورة');
+    }
+    setLoading(false);
+  }
+
+  if (!purchaseId) {
+    return (
+      <NumberInputDialog
+        title="اعاده طباعه فاتورة"
+        subtitle="ادخل رقم الفاتورة"
+        onConfirm={handleConfirm}
+        onClose={onClose}
+      />
+    );
+  }
 
   return (
-    <div style={{position:'fixed',inset:0,zIndex:60,display:'flex',flexDirection:'column',justifyContent:'flex-end'}}>
-      <div onClick={onClose} style={{flex:1,background:'rgba(0,0,0,0.5)'}}/>
-      <div dir="rtl" style={{background:'white',borderRadius:'16px 16px 0 0',maxHeight:'70vh',display:'flex',flexDirection:'column'}}>
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'1rem',borderBottom:'1px solid #f0f0f0'}}>
-          <button onClick={onClose} style={{background:'none',border:'none',cursor:'pointer'}}><X size={20} color="#666"/></button>
-          <span style={{fontWeight:'700',fontSize:'1rem'}}>استيراد البيانات من طلب شراء</span>
+    <DialogOverlay onClose={onClose}>
+      <div dir="rtl" style={{ padding:'1rem' }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'0.75rem' }}>
+          <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer' }}>
+            <X size={20} color="#666"/>
+          </button>
+          <span style={{ fontWeight:'700', fontSize:'1rem' }}>فاتورة #{purchaseId}</span>
         </div>
-        <div style={{overflowY:'auto',flex:1}}>
-          {loading ? (
-            <p style={{textAlign:'center',padding:'2rem',color:'#888'}}>جارٍ التحميل...</p>
-          ) : purchases.length===0 ? (
-            <p style={{textAlign:'center',padding:'2rem',color:'#888'}}>لا توجد فواتير سابقة</p>
-          ) : purchases.map(p=>(
-            <button key={p.id} onClick={() => onImport(p.id)}
-              style={{display:'flex',justifyContent:'space-between',alignItems:'center',width:'100%',
-                      padding:'0.85rem 1rem',background:'none',border:'none',
-                      borderBottom:'1px solid #f5f5f5',cursor:'pointer',textAlign:'right'}}>
-              <span style={{color:'#888',fontSize:'0.8rem'}}>{(p.total||0).toFixed(2)} ريال · {p.supplier_name||'بدون مورد'}</span>
-              <span style={{color:'#1a1a1a',fontSize:'0.9rem'}}>#{p.id} · {p.date}</span>
+        {loading ? (
+          <p style={{ textAlign:'center', color:'#888', padding:'1.5rem 0' }}>جارٍ التحميل...</p>
+        ) : err ? (
+          <p style={{ textAlign:'center', color:'#dc2626', padding:'1.5rem 0' }}>{err}</p>
+        ) : purchase ? (
+          <>
+            <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'0.5rem' }}>
+              <span style={{ color:'#888', fontSize:'0.83rem' }}>{purchase.date}</span>
+              <span style={{ fontWeight:'600' }}>فاتورة #{purchase.id}</span>
+            </div>
+            {(purchase.items||[]).map((it,i) => (
+              <div key={i} style={{ display:'flex', justifyContent:'space-between', padding:'0.45rem 0', borderBottom:'1px solid #f5f5f5' }}>
+                <span style={{ color:'#444', fontSize:'0.83rem' }}>{(it.unit_price*it.quantity).toFixed(2)}</span>
+                <span style={{ fontSize:'0.88rem' }}>{it.product_name} × {it.quantity}</span>
+              </div>
+            ))}
+            <div style={{ display:'flex', justifyContent:'space-between', paddingTop:'0.75rem', fontWeight:'700', fontSize:'1rem' }}>
+              <span style={{ color:'#2b5be8' }}>{purchase.total?.toFixed(2)} ريال</span>
+              <span>الإجمالي</span>
+            </div>
+            <button
+              onClick={onClose}
+              style={{ display:'block', width:'100%', marginTop:'1rem', padding:'0.65rem', background:'#2b5be8', color:'white', border:'none', borderRadius:8, fontSize:'0.9rem', fontWeight:'700', cursor:'pointer' }}
+            >
+              إغلاق
             </button>
-          ))}
+          </>
+        ) : null}
+      </div>
+    </DialogOverlay>
+  );
+}
+
+/* ── Add-product dialog ───────────────────────────────────────────────────── */
+const UNITS     = ['قطعة','كيلو','لتر','علبة','كرتون','دستة','حبة'];
+const CATEGORIES = ['عام','مواد غذائية','مشروبات','منظفات','أدوات','إلكترونيات'];
+
+function AddProductDialog({ barcode: initBarcode, api, onClose, onAdded }) {
+  const [barcode, setBarcode]     = useState(initBarcode || '');
+  const [name, setName]           = useState('');
+  const [sellPrice, setSellPrice] = useState('');
+  const [buyPrice, setBuyPrice]   = useState('');
+  const [unit, setUnit]           = useState('قطعة');
+  const [category, setCategory]   = useState('عام');
+  const [saving, setSaving]       = useState(false);
+  const [err, setErr]             = useState('');
+
+  const inputStyle = {
+    display:'block', width:'100%', boxSizing:'border-box',
+    border:'none', borderBottom:'1px solid #ccc',
+    outline:'none', fontSize:'0.92rem',
+    padding:'0.45rem 0', background:'transparent',
+    textAlign:'right',
+  };
+  const labelStyle = {
+    fontSize:'0.75rem', color:'#888', display:'block', marginBottom:'0.15rem',
+  };
+  const rowStyle = { marginBottom:'0.85rem' };
+
+  async function handleAdd() {
+    if (!name.trim()) { setErr('اسم المنتج مطلوب'); return; }
+    setSaving(true); setErr('');
+    try {
+      const payload = {
+        name: name.trim(),
+        barcode: barcode.trim() || null,
+        selling_price: parseFloat(sellPrice) || 0,
+        purchase_price: parseFloat(buyPrice) || 0,
+        unit,
+        category,
+        quantity: 0,
+      };
+      const result = await api.post('/api/products', payload);
+      onAdded(result);
+      onClose();
+    } catch (e) {
+      setErr(e.message || 'خطأ في الإضافة');
+    }
+    setSaving(false);
+  }
+
+  return (
+    <DialogOverlay onClose={onClose}>
+      <div dir="rtl" style={{ padding:'1.25rem 1.1rem 1rem' }}>
+        <div style={{ fontWeight:'700', fontSize:'1rem', textAlign:'center', marginBottom:'0.25rem' }}>
+          إضافة منتج جديد
+        </div>
+        {initBarcode && (
+          <div style={{ fontSize:'0.8rem', color:'#888', textAlign:'center', marginBottom:'0.85rem' }}>
+            هذا المنتج غير موجود في المخزن، هل تريد إضافته؟
+          </div>
+        )}
+
+        {err && (
+          <div style={{ background:'#fef2f2', color:'#dc2626', fontSize:'0.8rem', padding:'0.4rem 0.6rem', borderRadius:6, marginBottom:'0.75rem', textAlign:'center' }}>
+            {err}
+          </div>
+        )}
+
+        {/* Barcode row: input RIGHT (first DOM), icon LEFT (second DOM) */}
+        <div style={{ ...rowStyle, display:'flex', alignItems:'flex-end', gap:'0.5rem' }}>
+          <div style={{ flex:1 }}>
+            <span style={labelStyle}>الباركود</span>
+            <input
+              value={barcode}
+              onChange={e => setBarcode(e.target.value)}
+              placeholder="اختياري"
+              style={inputStyle}
+            />
+          </div>
+          <button
+            style={{ background:'none', border:'1px solid #ccc', borderRadius:6, padding:'0.3rem 0.45rem', cursor:'pointer', lineHeight:1, flexShrink:0, marginBottom:2 }}
+          >
+            <BarcodeIcon size={20}/>
+          </button>
+        </div>
+
+        <div style={rowStyle}>
+          <span style={labelStyle}>اسم المنتج *</span>
+          <input
+            value={name}
+            onChange={e => setName(e.target.value)}
+            placeholder="ادخل اسم المنتج"
+            style={inputStyle}
+          />
+        </div>
+
+        {/* TAX / sell price row */}
+        <div style={{ ...rowStyle, display:'flex', gap:'0.75rem' }}>
+          <div style={{ flex:1 }}>
+            <span style={labelStyle}>سعر البيع</span>
+            <input
+              type="number"
+              value={sellPrice}
+              onChange={e => setSellPrice(e.target.value)}
+              placeholder="0"
+              style={{ ...inputStyle, textAlign:'center' }}
+            />
+          </div>
+          <div style={{ flex:1 }}>
+            <span style={labelStyle}>سعر الشراء</span>
+            <input
+              type="number"
+              value={buyPrice}
+              onChange={e => setBuyPrice(e.target.value)}
+              placeholder="0"
+              style={{ ...inputStyle, textAlign:'center' }}
+            />
+          </div>
+        </div>
+
+        {/* التصنيف */}
+        <div style={rowStyle}>
+          <span style={labelStyle}>التصنيف</span>
+          <select
+            value={category}
+            onChange={e => setCategory(e.target.value)}
+            style={{ ...inputStyle, cursor:'pointer' }}
+          >
+            {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+
+        {/* Unit box */}
+        <div style={{ ...rowStyle, background:'#f7f7f7', borderRadius:8, padding:'0.6rem 0.75rem' }}>
+          <span style={{ ...labelStyle, marginBottom:'0.4rem' }}>الوحدة</span>
+          <div style={{ display:'flex', alignItems:'center', gap:'0.5rem' }}>
+            <select
+              value={unit}
+              onChange={e => setUnit(e.target.value)}
+              style={{ flex:1, border:'none', borderBottom:'1px solid #ccc', outline:'none', fontSize:'0.88rem', background:'transparent', padding:'0.3rem 0', textAlign:'right' }}
+            >
+              {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+            </select>
+            <input
+              type="number"
+              defaultValue="0"
+              placeholder="0"
+              style={{ width:60, border:'2px solid #2b5be8', borderRadius:6, outline:'none', fontSize:'0.88rem', textAlign:'center', padding:'0.25rem' }}
+            />
+          </div>
+        </div>
+
+        {/* Buttons: اضافه RIGHT (first DOM) | تراجع LEFT (second DOM) */}
+        <div style={{ display:'flex', gap:'0.65rem', marginTop:'0.25rem' }}>
+          <button
+            onClick={handleAdd}
+            disabled={saving}
+            style={{
+              flex:1, padding:'0.65rem',
+              background: saving ? '#9ab4f5' : '#2b5be8',
+              color:'white', border:'none', borderRadius:8,
+              fontSize:'0.9rem', fontWeight:'700',
+              cursor: saving ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {saving ? '...' : 'إضافه'}
+          </button>
+          <button
+            onClick={onClose}
+            style={{
+              flex:1, padding:'0.65rem',
+              background:'#f0f0f0', color:'#333',
+              border:'none', borderRadius:8,
+              fontSize:'0.9rem', fontWeight:'600', cursor:'pointer',
+            }}
+          >
+            تراجع
+          </button>
         </div>
       </div>
-    </div>
+    </DialogOverlay>
   );
 }
 
@@ -253,8 +449,8 @@ function ImportSheet({ api, onClose, onImport }) {
    RTL FLEX RULE: first DOM child = visual RIGHT, last DOM child = visual LEFT
    ══════════════════════════════════════════════════════════════════════════════ */
 export default function Purchases() {
-  const navigate  = useNavigate();
-  const api       = useApi();
+  const navigate = useNavigate();
+  const api      = useApi();
 
   const [editingId, setEditingId]     = useState(null);
   const [date, setDate]               = useState(todayStr());
@@ -269,9 +465,13 @@ export default function Purchases() {
 
   const [showMenu, setShowMenu]       = useState(false);
   const [showScanner, setShowScanner] = useState(false);
-  const [showEditSheet, setShowEditSheet]   = useState(false);
-  const [showImport, setShowImport]   = useState(false);
-  const [showReprint, setShowReprint] = useState(false);
+
+  /* dialog state */
+  const [showAddProduct, setShowAddProduct]     = useState(false);
+  const [addProductBarcode, setAddProductBarcode] = useState('');
+  const [showReprint, setShowReprint]           = useState(false);
+  const [showEditDialog, setShowEditDialog]     = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
 
   const dateRef = useRef(null);
 
@@ -307,10 +507,19 @@ export default function Purchases() {
   function removeItem(idx)          { setItems(p => p.filter((_,i) => i!==idx)); }
 
   function handleScan(barcode) {
-    const found = products.find(p => p.barcode === barcode);
-    if (found) addProduct(found);
-    else       setSearch(barcode);
     setShowScanner(false);
+    const found = products.find(p => p.barcode === barcode);
+    if (found) {
+      addProduct(found);
+    } else {
+      setAddProductBarcode(barcode);
+      setShowAddProduct(true);
+    }
+  }
+
+  function handleProductAdded(newProduct) {
+    setProducts(prev => [...prev, newProduct]);
+    addProduct(newProduct);
   }
 
   const total     = items.reduce((s,i) => s + i.unit_price * i.quantity, 0);
@@ -341,7 +550,7 @@ export default function Purchases() {
   }
 
   async function loadForEdit(id) {
-    setShowEditSheet(false);
+    setShowEditDialog(false);
     try {
       const data = await api.get(`/api/purchases/${id}`);
       setEditingId(data.id);
@@ -357,7 +566,7 @@ export default function Purchases() {
   }
 
   async function importFromPurchase(id) {
-    setShowImport(false);
+    setShowImportDialog(false);
     try {
       const data = await api.get(`/api/purchases/${id}`);
       const imported = (data.items||[]).map(it => ({
@@ -378,30 +587,25 @@ export default function Purchases() {
     } catch (err) { setError(err.message||'تعذّر الاستيراد'); }
   }
 
-  /* ── MENU ACTIONS ────────────────────────────────────────────────────────── */
   const menuItems = [
     {
       label: 'اضافه منتج جديد',
-      action: () => navigate('/products/list', { state: { action: 'add' } }),
+      action: () => { setAddProductBarcode(''); setShowAddProduct(true); },
     },
     {
       label: 'اعاده طباعه الفاتورة',
-      action: () => {
-        if (savedId) setShowReprint(true);
-        else setError('لا توجد فاتورة محفوظة في هذه الجلسة');
-      },
+      action: () => setShowReprint(true),
     },
     {
       label: 'تعديل فاتورة مشتريات',
-      action: () => setShowEditSheet(true),
+      action: () => setShowEditDialog(true),
     },
     {
       label: 'استيراد البيانات من طلب شراء',
-      action: () => setShowImport(true),
+      action: () => setShowImportDialog(true),
     },
   ];
 
-  /* ── RENDER ──────────────────────────────────────────────────────────────── */
   return (
     <div dir="rtl" style={{
       height:'100%', display:'flex', flexDirection:'column',
@@ -409,31 +613,24 @@ export default function Purchases() {
       position:'relative', overflow:'hidden',
     }}>
 
-      {/* ══ HEADER
-           RTL dom order: hamburger (visual right) | title | back arrow (visual left)
-      ══════════════════════════════════════════════════════════════════════════ */}
+      {/* HEADER: hamburger (right) | title | back arrow (left) */}
       <div style={{
         background:'#2b5be8', display:'flex', alignItems:'center',
         padding:'0.55rem 0.75rem', flexShrink:0,
         boxShadow:'0 2px 8px rgba(43,91,232,0.4)',
       }}>
-        {/* hamburger — visual RIGHT (first in RTL flex) */}
         <button onClick={() => setShowMenu(v=>!v)} style={{background:'none',border:'none',cursor:'pointer',padding:'0.3rem',lineHeight:1}}>
           <HamburgerIcon/>
         </button>
-
-        {/* title — centre */}
         <h1 style={{flex:1,textAlign:'center',color:'white',fontSize:'1.05rem',fontWeight:'700',margin:0}}>
           {editingId ? `تعديل فاتورة #${editingId}` : 'المشتريات'}
         </h1>
-
-        {/* back arrow — visual LEFT (last in RTL flex) */}
         <button onClick={() => navigate('/')} style={{background:'none',border:'none',cursor:'pointer',padding:'0.3rem',lineHeight:1}}>
           <ArrowLeft size={22} color="white"/>
         </button>
       </div>
 
-      {/* ══ HAMBURGER DROPDOWN ══════════════════════════════════════════════ */}
+      {/* HAMBURGER DROPDOWN */}
       {showMenu && (
         <>
           <div onClick={() => setShowMenu(false)} style={{position:'fixed',inset:0,zIndex:40}}/>
@@ -458,17 +655,12 @@ export default function Purchases() {
         </>
       )}
 
-      {/* ══ DATE ROW
-           RTL: label "تاريخ الفاتورة" (visual right, first) | date value (visual left, last)
-      ══════════════════════════════════════════════════════════════════════════ */}
+      {/* DATE ROW */}
       <div style={{display:'flex',background:'#e0e0e0',flexShrink:0,borderBottom:'1px solid #ccc'}}>
-        {/* تاريخ الفاتورة label — visual RIGHT (first in RTL) */}
         <div style={{padding:'0.6rem 1rem',fontSize:'0.9rem',color:'#333',fontWeight:'600',display:'flex',alignItems:'center',flexShrink:0}}>
           تاريخ الفاتورة
         </div>
-        {/* divider */}
         <div style={{width:1,background:'#bbb',margin:'0.3rem 0'}}/>
-        {/* date value — visual LEFT (last in RTL) */}
         <button
           onClick={() => {
             try { dateRef.current?.showPicker(); }
@@ -481,15 +673,12 @@ export default function Purchases() {
           style={{position:'absolute',opacity:0,width:0,height:0,pointerEvents:'none'}}/>
       </div>
 
-      {/* ══ SAVE / SEARCH / SCAN ROW
-           RTL: barcode icon (visual right, first) | search (middle) | save btn (visual left, last)
-      ══════════════════════════════════════════════════════════════════════════ */}
+      {/* SEARCH / SCAN / SAVE ROW */}
       <div style={{
         display:'flex', alignItems:'center', background:'white',
         padding:'0.45rem 0.5rem', gap:'0.5rem', flexShrink:0,
         borderBottom:'1px solid #e8e8e8', boxShadow:'0 1px 4px rgba(0,0,0,0.06)',
       }}>
-        {/* barcode icon — visual RIGHT (first in RTL) */}
         <button onClick={() => setShowScanner(true)} style={{
           background:'none', border:'1px solid #ccc', borderRadius:6,
           padding:'0.3rem 0.4rem', cursor:'pointer', flexShrink:0, lineHeight:1,
@@ -497,7 +686,6 @@ export default function Purchases() {
           <BarcodeIcon size={26}/>
         </button>
 
-        {/* search — middle, flex:1 */}
         <div style={{flex:1,position:'relative'}}>
           <input
             value={search}
@@ -512,7 +700,6 @@ export default function Purchases() {
               boxSizing:'border-box',
             }}
           />
-          {/* search dropdown */}
           {showDrop && searchResults.length>0 && (
             <div style={{
               position:'absolute', top:'100%', right:0, left:0, zIndex:35,
@@ -534,7 +721,6 @@ export default function Purchases() {
           )}
         </div>
 
-        {/* save button — visual LEFT (last in RTL) */}
         <button onClick={handleSave} disabled={saving} style={{
           background: saving ? '#9ab4f5' : '#2b5be8', border:'none', borderRadius:6,
           padding:'0.45rem 0.75rem', display:'flex', alignItems:'center', gap:'0.35rem',
@@ -545,7 +731,7 @@ export default function Purchases() {
         </button>
       </div>
 
-      {/* ══ ERROR / SUCCESS BANNERS ═════════════════════════════════════════ */}
+      {/* ERROR / SUCCESS BANNERS */}
       {error && (
         <div style={{background:'#fef2f2',padding:'0.4rem 1rem',display:'flex',justifyContent:'space-between',alignItems:'center',borderBottom:'1px solid #fca5a5',flexShrink:0}}>
           <button onClick={() => setError('')} style={{background:'none',border:'none',cursor:'pointer'}}><X size={14} color="#dc2626"/></button>
@@ -561,9 +747,7 @@ export default function Purchases() {
         </div>
       )}
 
-      {/* ══ TABLE HEADER
-           RTL: المنتج (visual right, first) | التكلفه | الكمية | الإجمالي (visual left, last)
-      ══════════════════════════════════════════════════════════════════════════ */}
+      {/* TABLE HEADER */}
       <div style={{display:'flex',background:'#ebebeb',borderBottom:'1px solid #ddd',flexShrink:0,padding:'0.35rem 0.5rem'}}>
         <span style={{flex:1,         textAlign:'right',  fontSize:'0.78rem',color:'#555',fontWeight:'700',paddingRight:'0.5rem'}}>المنتج</span>
         <span style={{width:'22%',    textAlign:'center', fontSize:'0.78rem',color:'#555',fontWeight:'700'}}>التكلفه</span>
@@ -571,7 +755,7 @@ export default function Purchases() {
         <span style={{width:'23%',    textAlign:'center', fontSize:'0.78rem',color:'#555',fontWeight:'700'}}>الإجمالي</span>
       </div>
 
-      {/* ══ ITEMS LIST ══════════════════════════════════════════════════════ */}
+      {/* ITEMS LIST */}
       <div style={{flex:1,overflowY:'auto',background:'#fafafa'}}>
         {items.map((item, idx) => (
           <ItemRow
@@ -584,10 +768,7 @@ export default function Purchases() {
         ))}
       </div>
 
-      {/* ══ FLOATING DOTS FAB — bottom RIGHT corner ═════════════════════════
-           CSS `right` is a physical property; right:16 = physical right edge,
-           which is the VISUAL right in both LTR and RTL.
-      ══════════════════════════════════════════════════════════════════════════ */}
+      {/* FLOATING DOTS FAB */}
       <button
         onClick={() => navigate('/products/list')}
         style={{
@@ -599,28 +780,19 @@ export default function Purchases() {
         <DotsGrid/>
       </button>
 
-      {/* ══ BOTTOM BAR
-           RTL: إجمالي (visual right, first) | green total | ريال ع.ق | count box (visual left, last)
-      ══════════════════════════════════════════════════════════════════════════ */}
+      {/* BOTTOM BAR */}
       <div style={{
         display:'flex', alignItems:'center', background:'white',
         borderTop:'1px solid #e0e0e0', padding:'0.5rem 0.75rem',
         flexShrink:0, gap:'0.5rem',
       }}>
-        {/* إجمالي label — visual RIGHT (first in RTL) */}
         <span style={{fontSize:'0.9rem',fontWeight:'700',color:'#222',flexShrink:0}}>إجمالي</span>
-
-        {/* green total box */}
         <div style={{flex:1,background:'#c8efc8',borderRadius:20,padding:'0.4rem 0.75rem',textAlign:'center'}}>
           <span style={{color:'#c0392b',fontWeight:'700',fontSize:'1rem'}}>
             {total.toFixed(2)}
           </span>
         </div>
-
-        {/* currency */}
         <span style={{fontSize:'0.8rem',color:'#555',fontWeight:'500',flexShrink:0}}>ريال ع.ق</span>
-
-        {/* item count box — visual LEFT (last in RTL) */}
         <div style={{
           background:'white', border:'1px solid #e0e0e0', borderRadius:20,
           padding:'0.28rem 0.7rem', minWidth:52, textAlign:'center',
@@ -630,17 +802,38 @@ export default function Purchases() {
         </div>
       </div>
 
-      {/* ══ OVERLAYS ════════════════════════════════════════════════════════ */}
+      {/* OVERLAYS */}
       <BarcodeScanner isOpen={showScanner} onScan={handleScan} onClose={() => setShowScanner(false)}/>
 
-      {showReprint && savedId && (
-        <ReprintSheet purchaseId={savedId} api={api} onClose={() => setShowReprint(false)}/>
+      {showAddProduct && (
+        <AddProductDialog
+          barcode={addProductBarcode}
+          api={api}
+          onClose={() => setShowAddProduct(false)}
+          onAdded={handleProductAdded}
+        />
       )}
-      {showEditSheet && (
-        <EditPurchaseSheet api={api} onClose={() => setShowEditSheet(false)} onLoad={loadForEdit}/>
+
+      {showReprint && (
+        <ReprintDialog api={api} onClose={() => setShowReprint(false)}/>
       )}
-      {showImport && (
-        <ImportSheet api={api} onClose={() => setShowImport(false)} onImport={importFromPurchase}/>
+
+      {showEditDialog && (
+        <NumberInputDialog
+          title="تعديل فاتورة مشتريات"
+          subtitle="ادخل رقم الفاتورة"
+          onConfirm={loadForEdit}
+          onClose={() => setShowEditDialog(false)}
+        />
+      )}
+
+      {showImportDialog && (
+        <NumberInputDialog
+          title="استيراد البيانات من طلب شراء"
+          subtitle="ادخل رقم طلب شراء"
+          onConfirm={importFromPurchase}
+          onClose={() => setShowImportDialog(false)}
+        />
       )}
     </div>
   );
