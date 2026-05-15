@@ -18,6 +18,8 @@ router.get('/', (req, res) => {
         name,
         description,
         selling_price,
+        COALESCE(selling_price2, 0) AS selling_price2,
+        COALESCE(selling_price3, 0) AS selling_price3,
         purchase_price,
         unit,
         barcode,
@@ -51,7 +53,10 @@ router.get('/barcode/:barcode', (req, res) => {
   try {
     const product = db.prepare(`
       SELECT
-        id, name, description, selling_price, purchase_price,
+        id, name, description, selling_price,
+        COALESCE(selling_price2, 0) AS selling_price2,
+        COALESCE(selling_price3, 0) AS selling_price3,
+        purchase_price,
         unit, barcode, is_favorite, is_active, quantity,
         min_stock_alert, is_resale, category, created_at, updated_at,
         CASE WHEN image_data IS NOT NULL AND image_data != '' THEN 1 ELSE 0 END AS has_image
@@ -103,7 +108,10 @@ router.get('/:id/image', (req, res) => {
 });
 
 const PRODUCT_SELECT = `
-  SELECT id, name, description, selling_price, purchase_price,
+  SELECT id, name, description, selling_price,
+         COALESCE(selling_price2, 0) AS selling_price2,
+         COALESCE(selling_price3, 0) AS selling_price3,
+         purchase_price,
          unit, barcode, is_favorite, is_active, quantity,
          min_stock_alert, is_resale, category, created_at, updated_at,
          CASE WHEN image_data IS NOT NULL AND image_data != '' THEN 1 ELSE 0 END AS has_image
@@ -134,7 +142,7 @@ router.get('/:id', (req, res) => {
  * Create a new product from the mobile app.
  */
 router.post('/', (req, res) => {
-  const { name, description, selling_price, purchase_price,
+  const { name, description, selling_price, selling_price2, selling_price3, purchase_price,
           unit, barcode, category, is_favorite, quantity, min_stock_alert } = req.body || {};
 
   if (!name || !String(name).trim()) {
@@ -144,14 +152,16 @@ router.post('/', (req, res) => {
   try {
     const result = db.prepare(`
       INSERT INTO products (
-        name, description, selling_price, purchase_price,
+        name, description, selling_price, selling_price2, selling_price3, purchase_price,
         unit, barcode, category, is_favorite,
         quantity, min_stock_alert, is_active, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
     `).run(
       String(name).trim(),
       description || null,
       parseFloat(selling_price) || 0,
+      parseFloat(selling_price2) || 0,
+      parseFloat(selling_price3) || 0,
       parseFloat(purchase_price) || 0,
       unit || 'pcs',
       barcode || null,
@@ -188,27 +198,29 @@ router.patch('/:id', (req, res) => {
 
     const b = req.body || {};
     const v = {
-      name:            b.name            !== undefined ? String(b.name).trim()             : existing.name,
-      description:     b.description     !== undefined ? b.description                      : existing.description,
-      selling_price:   b.selling_price   !== undefined ? parseFloat(b.selling_price)  || 0  : existing.selling_price,
-      purchase_price:  b.purchase_price  !== undefined ? parseFloat(b.purchase_price) || 0  : existing.purchase_price,
-      unit:            b.unit            !== undefined ? b.unit                               : existing.unit,
-      barcode:         b.barcode         !== undefined ? b.barcode                            : existing.barcode,
-      category:        b.category        !== undefined ? b.category                           : existing.category,
-      is_favorite:     b.is_favorite     !== undefined ? (b.is_favorite ? 1 : 0)             : existing.is_favorite,
-      quantity:        b.quantity        !== undefined ? parseFloat(b.quantity)        || 0  : existing.quantity,
-      min_stock_alert: b.min_stock_alert !== undefined ? parseFloat(b.min_stock_alert) || 0  : existing.min_stock_alert,
+      name:             b.name             !== undefined ? String(b.name).trim()              : existing.name,
+      description:      b.description      !== undefined ? b.description                       : existing.description,
+      selling_price:    b.selling_price    !== undefined ? parseFloat(b.selling_price)   || 0  : existing.selling_price,
+      selling_price2:   b.selling_price2   !== undefined ? parseFloat(b.selling_price2)  || 0  : (existing.selling_price2 || 0),
+      selling_price3:   b.selling_price3   !== undefined ? parseFloat(b.selling_price3)  || 0  : (existing.selling_price3 || 0),
+      purchase_price:   b.purchase_price   !== undefined ? parseFloat(b.purchase_price)  || 0  : existing.purchase_price,
+      unit:             b.unit             !== undefined ? b.unit                                : existing.unit,
+      barcode:          b.barcode          !== undefined ? b.barcode                             : existing.barcode,
+      category:         b.category         !== undefined ? b.category                            : existing.category,
+      is_favorite:      b.is_favorite      !== undefined ? (b.is_favorite ? 1 : 0)              : existing.is_favorite,
+      quantity:         b.quantity         !== undefined ? parseFloat(b.quantity)         || 0  : existing.quantity,
+      min_stock_alert:  b.min_stock_alert  !== undefined ? parseFloat(b.min_stock_alert)  || 0  : existing.min_stock_alert,
     };
 
     db.prepare(`
       UPDATE products SET
-        name = ?, description = ?, selling_price = ?, purchase_price = ?,
-        unit = ?, barcode = ?, category = ?, is_favorite = ?,
+        name = ?, description = ?, selling_price = ?, selling_price2 = ?, selling_price3 = ?,
+        purchase_price = ?, unit = ?, barcode = ?, category = ?, is_favorite = ?,
         quantity = ?, min_stock_alert = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `).run(
-      v.name, v.description, v.selling_price, v.purchase_price,
-      v.unit, v.barcode, v.category, v.is_favorite,
+      v.name, v.description, v.selling_price, v.selling_price2, v.selling_price3,
+      v.purchase_price, v.unit, v.barcode, v.category, v.is_favorite,
       v.quantity, v.min_stock_alert, id
     );
 

@@ -415,6 +415,21 @@ const initDatabase = (db) => {
     console.log('[schema] products.category migration:', e.message);
   }
 
+  // Migration: add selling_price2 and selling_price3 for 3-tier pricing.
+  try {
+    const cols = db.prepare('PRAGMA table_info(products)').all().map(c => c.name);
+    if (!cols.includes('selling_price2')) {
+      db.exec('ALTER TABLE products ADD COLUMN selling_price2 REAL DEFAULT 0');
+      console.log('[schema] Migration: added selling_price2 to products');
+    }
+    if (!cols.includes('selling_price3')) {
+      db.exec('ALTER TABLE products ADD COLUMN selling_price3 REAL DEFAULT 0');
+      console.log('[schema] Migration: added selling_price3 to products');
+    }
+  } catch (e) {
+    console.log('[schema] products selling_price2/3 migration:', e.message);
+  }
+
   // Seed a default admin if users table is empty (fresh deploy, no desktop sync yet)
   try {
     const count = db.prepare('SELECT COUNT(*) AS n FROM users').get().n;

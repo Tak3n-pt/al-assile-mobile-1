@@ -751,6 +751,210 @@ router.post('/:id/return', (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// PATCH /api/sales/:id  -  Edit an existing sale (replace items + header)
+// ---------------------------------------------------------------------------
+
+/**
+ * Body: same shape as POST. All items in the sale are replaced atomically:
+ *   old items → stock restored → new items → stock deducted.
+ * Client balance is reversed then re-applied.
+ */
+router.patch('/:id', (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isInteger(id) || id < 1) {
+    return res.status(400).json({ success: false, error: 'Invalid sale id' });
+  }
+
+  const {
+    client_id      = null,
+    date,
+    paid_amount    = 0,
+    discount       = 0,
+    payment_method = 'cash',
+    notes          = null,
+    items          = [],
+  } = req.body || {};
+
+  if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return res.status(400).json({ success: false, error: 'date must be YYYY-MM-DD' });
+  }
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ success: false, error: 'items array must not be empty' });
+  }
+  for (let i = 0; i < items.length; i++) {
+    const err = validateItem(items[i], i);
+    if (err) return res.status(400).json({ success: false, error: err });
+  }
+
+  const editSale = db.transaction(() => {
+    const existing = db.prepare('SELECT * FROM sales WHERE id = ?').get(id);
+    if (!existing) throw new Error('SALE_NOT_FOUND');
+    if (isDesktopOrigin(existing)) throw new Error('DESKTOP_SALE_READONLY');
+
+    // 1. Restore stock from old items
+    const oldItems = db.prepare('SELECT product_id, quantity FROM sale_items WHERE sale_id = ?').all(id);
+    const restoreQty = db.prepare(
+      'UPDATE products SET quantity = quantity + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+    );
+    for (const it of oldItems) restoreQty.run(it.quantity, it.product_id);
+
+    // 2. Reverse old client balance impact
+    if (existing.client_id) {
+      if (existing.total > existing.paid_amount) {
+        const debt = existing.total - existing.paid_amount;
+        db.prepare('UPDATE clients SET balance = balance + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+          .run(debt, existing.client_id);
+      } else if (existing.paid_amount > existing.total) {
+        const credit = existing.paid_amount - existing.total;
+        db.prepare('UPDATE clients SET balance = balance - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+          .run(credit, existing.client_id);
+      }
+    }
+
+    // 3. Compute new totals
+    const subtotal = items.reduce((s, it) => s + it.quantity * it.unit_price, 0);
+    const total = Math.max(0, subtotal - (parseFloat(discount) || 0));
+    const effectivePaid = parseFloat(paid_amount) || 0;
+    const status = effectivePaid >= total ? 'paid' : effectivePaid > 0 ? 'partial' : 'pending';
+    const newDate = date || existing.date;
+    const newClientId = client_id !== undefined ? (client_id || null) : existing.client_id;
+
+    // 4. Delete old items and insert new
+    db.prepare('DELETE FROM sale_items WHERE sale_id = ?').run(id);
+
+    const getProduct = db.prepare('SELECT id, name, quantity FROM products WHERE id = ?');
+    const insertItem = db.prepare(
+      'INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, total) VALUES (?, ?, ?, ?, ?)'
+    );
+    const deductQty = db.prepare(
+      'UPDATE products SET quantity = quantity - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+    );
+
+    for (const item of items) {
+      const product = getProduct.get(item.product_id);
+      if (!product) throw new Error(`Product ID ${item.product_id} not found`);
+      if (product.quantity < item.quantity) {
+        throw new Error(`Insufficient stock for "${product.name}": ${product.quantity} available`);
+      }
+      insertItem.run(id, item.product_id, item.quantity, item.unit_price, item.quantity * item.unit_price);
+      deductQty.run(item.quantity, item.product_id);
+    }
+
+    // 5. Update sale header
+    db.prepare(`
+      UPDATE sales SET
+        client_id = ?, date = ?, subtotal = ?, discount = ?, total = ?,
+        paid_amount = ?, status = ?, payment_method = ?, notes = ?
+      WHERE id = ?
+    `).run(
+      newClientId,
+      newDate,
+      subtotal,
+      parseFloat(discount) || 0,
+      total,
+      effectivePaid,
+      status,
+      payment_method || existing.payment_method || 'cash',
+      notes !== undefined ? notes : existing.notes,
+      id
+    );
+
+    // 6. Apply new client balance impact
+    if (newClientId) {
+      if (total > effectivePaid) {
+        const debt = total - effectivePaid;
+        db.prepare('UPDATE clients SET balance = balance - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+          .run(debt, newClientId);
+      } else if (effectivePaid > total) {
+        const credit = effectivePaid - total;
+        db.prepare('UPDATE clients SET balance = balance + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+          .run(credit, newClientId);
+      }
+    }
+
+    // 7. Log update
+    db.prepare("INSERT INTO sync_log (entity_type, entity_id, action, synced) VALUES ('sale', ?, 'update', 0)").run(id);
+
+    const updated = db.prepare(`
+      SELECT s.*, c.name AS client_name, c.phone AS client_phone
+      FROM sales s LEFT JOIN clients c ON s.client_id = c.id WHERE s.id = ?
+    `).get(id);
+    const updatedItems = db.prepare(`
+      SELECT si.*, p.name AS product_name, p.unit AS product_unit
+      FROM sale_items si LEFT JOIN products p ON si.product_id = p.id
+      WHERE si.sale_id = ?
+    `).all(id);
+    return { ...updated, items: updatedItems };
+  });
+
+  try {
+    const sale = editSale();
+    return res.json({ success: true, data: sale });
+  } catch (err) {
+    if (err.message === 'SALE_NOT_FOUND') return res.status(404).json({ success: false, error: 'Sale not found' });
+    if (err.message === 'DESKTOP_SALE_READONLY') return res.status(403).json({ success: false, error: 'Desktop sales are read-only' });
+    console.error('[sales] PATCH /:id error:', err.message);
+    const status = err.message.includes('Insufficient') || err.message.includes('not found') ? 400 : 500;
+    return res.status(status).json({ success: false, error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/sales/report  -  Sales report with date range + payment filter
+// ---------------------------------------------------------------------------
+
+/**
+ * Query params:
+ *   ?from=YYYY-MM-DD   (required)
+ *   ?to=YYYY-MM-DD     (required)
+ *   ?q=               (optional, sale ID or client name)
+ *   ?methods=         (optional, comma-separated: cash,credit,card,check)
+ */
+router.get('/report', (req, res) => {
+  const { from, to, q = '', methods = '' } = req.query;
+  if (!from || !/^\d{4}-\d{2}-\d{2}$/.test(from)) {
+    return res.status(400).json({ success: false, error: 'from date is required (YYYY-MM-DD)' });
+  }
+  if (!to || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+    return res.status(400).json({ success: false, error: 'to date is required (YYYY-MM-DD)' });
+  }
+
+  try {
+    const methodList = methods ? methods.split(',').map(m => m.trim()).filter(Boolean) : [];
+    const searchQ = q.trim();
+
+    let sql = `
+      SELECT s.id, s.client_id, s.date, s.subtotal, s.discount, s.total,
+             s.paid_amount, s.status, s.payment_method, s.notes, s.created_at,
+             c.name AS client_name, c.phone AS client_phone,
+             (SELECT COUNT(*) FROM sale_items WHERE sale_id = s.id) AS item_count
+      FROM sales s
+      LEFT JOIN clients c ON s.client_id = c.id
+      WHERE s.date BETWEEN ? AND ?
+        AND s.status != 'return'
+    `;
+    const params = [from, to];
+
+    if (methodList.length > 0) {
+      sql += ` AND s.payment_method IN (${methodList.map(() => '?').join(',')})`;
+      params.push(...methodList);
+    }
+    if (searchQ) {
+      sql += ` AND (CAST(s.id AS TEXT) = ? OR c.name LIKE ?)`;
+      params.push(searchQ, `%${searchQ}%`);
+    }
+
+    sql += ' ORDER BY s.date DESC, s.created_at DESC';
+
+    const sales = db.prepare(sql).all(...params);
+    return res.json({ success: true, data: sales });
+  } catch (err) {
+    console.error('[sales] GET /report error:', err.message);
+    return res.status(500).json({ success: false, error: 'Failed to fetch sales report' });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // PATCH /api/sales/:id/deliver
 // Mark a sale as delivered (sets delivered_at = now, optionally stores notes)
 // ---------------------------------------------------------------------------
