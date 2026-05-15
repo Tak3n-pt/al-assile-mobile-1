@@ -156,9 +156,18 @@ router.patch('/:id', (req, res) => {
   const id = parseInt(req.params.id, 10);
   if (!id) return res.status(400).json({ success: false, error: 'Invalid id' });
 
-  const { date, paid_amount, discount, payment_method, notes, items } = req.body;
+  const { date, paid_amount, discount, payment_method, notes, items, supplier_id } = req.body;
   if (!Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ success: false, error: 'items must not be empty' });
+  }
+  if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return res.status(400).json({ success: false, error: 'date must be YYYY-MM-DD' });
+  }
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i];
+    if (!it.product_id || it.quantity <= 0 || it.unit_price < 0) {
+      return res.status(400).json({ success: false, error: `Item ${i + 1}: invalid product_id, quantity, or unit_price` });
+    }
   }
 
   try {
@@ -182,11 +191,12 @@ router.patch('/:id', (req, res) => {
       // Delete old items
       db.prepare('DELETE FROM purchase_items WHERE purchase_id = ?').run(id);
 
-      const newDate    = date           || existing.date;
-      const newDisc    = discount       != null ? parseFloat(discount)    : existing.discount;
-      const newPaid    = paid_amount    != null ? parseFloat(paid_amount) : existing.paid_amount;
-      const newMethod  = payment_method || existing.payment_method;
-      const newNotes   = notes          != null ? notes                   : existing.notes;
+      const newDate       = date           || existing.date;
+      const newDisc       = discount       != null ? parseFloat(discount)    : existing.discount;
+      const newPaid       = paid_amount    != null ? parseFloat(paid_amount) : existing.paid_amount;
+      const newMethod     = payment_method || existing.payment_method;
+      const newNotes      = notes          != null ? notes                   : existing.notes;
+      const newSupplierId = supplier_id    != null ? supplier_id             : existing.supplier_id;
 
       const subtotal  = items.reduce((s, it) => s + it.quantity * it.unit_price, 0);
       const total     = Math.max(0, subtotal - (newDisc || 0));
@@ -196,9 +206,9 @@ router.patch('/:id', (req, res) => {
       db.prepare(`
         UPDATE purchases
         SET date=?, subtotal=?, discount=?, total=?, paid_amount=?, status=?,
-            payment_method=?, notes=?
+            payment_method=?, notes=?, supplier_id=?
         WHERE id=?
-      `).run(newDate, subtotal, newDisc || 0, total, paid, status, newMethod, newNotes, id);
+      `).run(newDate, subtotal, newDisc || 0, total, paid, status, newMethod, newNotes, newSupplierId, id);
 
       const insertItem = db.prepare('INSERT INTO purchase_items (purchase_id, product_id, quantity, unit_price, total) VALUES (?,?,?,?,?)');
       const addQty     = db.prepare('UPDATE products SET quantity = quantity + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
@@ -209,10 +219,10 @@ router.patch('/:id', (req, res) => {
         addQty.run(it.quantity, it.product_id);
       }
 
-      if (existing.supplier_id) {
+      if (newSupplierId) {
         const newOwed = total - paid;
         if (newOwed !== 0)
-          db.prepare('UPDATE suppliers SET balance = COALESCE(balance,0) - ? WHERE id = ?').run(newOwed, existing.supplier_id);
+          db.prepare('UPDATE suppliers SET balance = COALESCE(balance,0) - ? WHERE id = ?').run(newOwed, newSupplierId);
       }
 
       return { id, total, status };
