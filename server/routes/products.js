@@ -113,7 +113,9 @@ const PRODUCT_SELECT = `
          COALESCE(selling_price3, 0) AS selling_price3,
          purchase_price,
          unit, barcode, is_favorite, is_active, quantity,
-         min_stock_alert, is_resale, category, created_at, updated_at,
+         min_stock_alert, is_resale, category,
+         expiry_date, tax_rate, unit_package, higher_package, box_color,
+         created_at, updated_at,
          CASE WHEN image_data IS NOT NULL AND image_data != '' THEN 1 ELSE 0 END AS has_image
   FROM products WHERE id = ?
 `;
@@ -142,8 +144,11 @@ router.get('/:id', (req, res) => {
  * Create a new product from the mobile app.
  */
 router.post('/', (req, res) => {
-  const { name, description, selling_price, selling_price2, selling_price3, purchase_price,
-          unit, barcode, category, is_favorite, quantity, min_stock_alert } = req.body || {};
+  const {
+    name, description, selling_price, selling_price2, selling_price3, purchase_price,
+    unit, barcode, category, is_favorite, quantity, min_stock_alert,
+    expiry_date, tax_rate, unit_package, higher_package, box_color, image_data,
+  } = req.body || {};
 
   if (!name || !String(name).trim()) {
     return res.status(400).json({ success: false, error: 'Product name is required' });
@@ -154,8 +159,10 @@ router.post('/', (req, res) => {
       INSERT INTO products (
         name, description, selling_price, selling_price2, selling_price3, purchase_price,
         unit, barcode, category, is_favorite,
-        quantity, min_stock_alert, is_active, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
+        quantity, min_stock_alert,
+        expiry_date, tax_rate, unit_package, higher_package, box_color, image_data,
+        is_active, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
     `).run(
       String(name).trim(),
       description || null,
@@ -168,7 +175,13 @@ router.post('/', (req, res) => {
       category || null,
       is_favorite ? 1 : 0,
       parseFloat(quantity) || 0,
-      parseFloat(min_stock_alert) || 0
+      parseFloat(min_stock_alert) || 0,
+      expiry_date || null,
+      parseFloat(tax_rate) || 0,
+      parseFloat(unit_package) || 0,
+      higher_package || null,
+      box_color || null,
+      image_data || null
     );
 
     const product = db.prepare(PRODUCT_SELECT).get(result.lastInsertRowid);
@@ -210,18 +223,30 @@ router.patch('/:id', (req, res) => {
       is_favorite:      b.is_favorite      !== undefined ? (b.is_favorite ? 1 : 0)              : existing.is_favorite,
       quantity:         b.quantity         !== undefined ? parseFloat(b.quantity)         || 0  : existing.quantity,
       min_stock_alert:  b.min_stock_alert  !== undefined ? parseFloat(b.min_stock_alert)  || 0  : existing.min_stock_alert,
+      expiry_date:      b.expiry_date      !== undefined ? (b.expiry_date || null)               : (existing.expiry_date || null),
+      tax_rate:         b.tax_rate         !== undefined ? parseFloat(b.tax_rate)         || 0  : (existing.tax_rate || 0),
+      unit_package:     b.unit_package     !== undefined ? parseFloat(b.unit_package)     || 0  : (existing.unit_package || 0),
+      higher_package:   b.higher_package   !== undefined ? (b.higher_package || null)            : (existing.higher_package || null),
+      box_color:        b.box_color        !== undefined ? (b.box_color || null)                 : (existing.box_color || null),
+      image_data:       b.image_data       !== undefined ? (b.image_data || null)                : existing.image_data,
     };
 
     db.prepare(`
       UPDATE products SET
         name = ?, description = ?, selling_price = ?, selling_price2 = ?, selling_price3 = ?,
         purchase_price = ?, unit = ?, barcode = ?, category = ?, is_favorite = ?,
-        quantity = ?, min_stock_alert = ?, updated_at = CURRENT_TIMESTAMP
+        quantity = ?, min_stock_alert = ?,
+        expiry_date = ?, tax_rate = ?, unit_package = ?, higher_package = ?, box_color = ?,
+        image_data = ?,
+        updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `).run(
       v.name, v.description, v.selling_price, v.selling_price2, v.selling_price3,
       v.purchase_price, v.unit, v.barcode, v.category, v.is_favorite,
-      v.quantity, v.min_stock_alert, id
+      v.quantity, v.min_stock_alert,
+      v.expiry_date, v.tax_rate, v.unit_package, v.higher_package, v.box_color,
+      v.image_data,
+      id
     );
 
     const updated = db.prepare(PRODUCT_SELECT).get(id);

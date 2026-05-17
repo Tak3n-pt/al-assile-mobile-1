@@ -450,6 +450,20 @@ const initDatabase = (db) => {
     console.log('[schema] products selling_price2/3 migration:', e.message);
   }
 
+  // Migration: add expiry, tax, package, and display-color columns to products.
+  // Mobile-only extras driven by the add-product form. Optional / nullable so
+  // desktop-pushed rows that don't carry these fields stay valid.
+  try {
+    const cols = db.prepare('PRAGMA table_info(products)').all().map(c => c.name);
+    if (!cols.includes('expiry_date'))    db.exec('ALTER TABLE products ADD COLUMN expiry_date DATE');
+    if (!cols.includes('tax_rate'))       db.exec('ALTER TABLE products ADD COLUMN tax_rate REAL DEFAULT 0');
+    if (!cols.includes('unit_package'))   db.exec('ALTER TABLE products ADD COLUMN unit_package REAL DEFAULT 0');
+    if (!cols.includes('higher_package')) db.exec('ALTER TABLE products ADD COLUMN higher_package TEXT');
+    if (!cols.includes('box_color'))      db.exec('ALTER TABLE products ADD COLUMN box_color TEXT');
+  } catch (e) {
+    console.log('[schema] products extra columns migration:', e.message);
+  }
+
   // Suppliers extended fields migration
   try {
     const supCols = db.prepare("PRAGMA table_info(suppliers)").all().map(c => c.name);

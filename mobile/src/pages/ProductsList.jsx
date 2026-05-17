@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, X, ShoppingCart, RefreshCw, Package, ScanBarcode, LogOut, ChevronRight, ArrowRight, Upload } from 'lucide-react';
+import { Search, X, ShoppingCart, RefreshCw, Package, ScanBarcode, LogOut, ChevronRight, ArrowRight, Upload, Save, Plus, Play, Image as ImageIcon, Camera } from 'lucide-react';
 import { formatCurrency } from '../utils/currency.js';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useApi } from '../hooks/useApi.jsx';
@@ -582,28 +582,192 @@ export default function ProductsList() {
 }
 
 // ─────────────────────────────────────────────────────────────
-// AddProductSheet
+// AddProductSheet — full-screen light form matching the screenshot:
+//   black header bar with floppy save icon (right), barcode + scan,
+//   name, description, 3 selling prices row, cost, qty, reorder
+//   threshold, expiry date, tax, category, unit card (+, package,
+//   higher package), display-box color, image upload.
 // ─────────────────────────────────────────────────────────────
+const COLOR_CHOICES = [
+  { value: 'yellow', label: 'أصفر',     hex: '#fde047' },
+  { value: 'red',    label: 'أحمر',     hex: '#f87171' },
+  { value: 'green',  label: 'أخضر',     hex: '#86efac' },
+  { value: 'blue',   label: 'أزرق',     hex: '#93c5fd' },
+  { value: 'orange', label: 'برتقالي',  hex: '#fdba74' },
+  { value: 'gray',   label: 'رمادي',    hex: '#d1d5db' },
+];
+
+const TAX_CHOICES = [
+  { value: '0',  label: 'معفى' },
+  { value: '9',  label: '9 %' },
+  { value: '19', label: '19 %' },
+];
+
+const HIGHER_PACKAGE_CHOICES = ['علبة', 'كرتون', 'كيس', 'جراب', 'دزينة'];
+const DEFAULT_UNITS         = ['قطعة', 'كغ', 'غ', 'لتر', 'علبة', 'متر'];
+
+const APF_FIELD_BORDER = '1.5px solid #90caf9';
+
+const apfLabel = { display: 'block', fontSize: '0.85rem', color: '#374151', marginBottom: '4px', fontWeight: '600', textAlign: 'right' };
+const apfInput = {
+  width: '100%', border: APF_FIELD_BORDER, borderRadius: '8px', background: 'white',
+  textAlign: 'right', padding: '0.6rem 0.75rem', fontSize: '0.95rem',
+  fontFamily: "'Cairo','Tajawal',sans-serif", outline: 'none', color: '#1a1a1a', boxSizing: 'border-box',
+};
+const apfNumberInput = { ...apfInput, textAlign: 'center', color: '#e91e63', fontWeight: '700' };
+
+// Lightweight dropdown shown as a "---" placeholder when nothing is picked.
+function APFDropdown({ value, onChange, options, placeholder = '---' }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, [open]);
+  const display = options.find(o => o.value === value)?.label;
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button type="button" onClick={() => setOpen(o => !o)}
+        style={{
+          width: '100%', background: 'transparent', border: 'none',
+          padding: '0.35rem 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          cursor: 'pointer', fontFamily: "'Cairo','Tajawal',sans-serif",
+        }}>
+        <ChevronRight size={18} color="#9ca3af" style={{ transform: 'rotate(90deg)' }} />
+        <span style={{ color: display ? '#1a1a1a' : '#9ca3af', fontSize: '1rem', fontWeight: display ? '600' : '400' }}>{display || placeholder}</span>
+      </button>
+      <div style={{ borderBottom: '1px solid #9ca3af' }} />
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 2px)', insetInlineStart: 0, insetInlineEnd: 0,
+          background: 'white', border: '1px solid #cfd8dc', borderRadius: '8px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.08)', zIndex: 20, maxHeight: '220px', overflowY: 'auto',
+        }}>
+          {options.map(opt => (
+            <button key={opt.value} type="button"
+              onClick={() => { onChange(opt.value); setOpen(false); }}
+              style={{
+                display: 'block', width: '100%', textAlign: 'right',
+                background: opt.value === value ? '#e3f2fd' : 'white', border: 'none',
+                borderBottom: '1px solid #f1f5f9', padding: '0.5rem 0.8rem',
+                fontSize: '0.92rem', color: '#1a1a1a', cursor: 'pointer',
+                fontFamily: "'Cairo','Tajawal',sans-serif",
+              }}>
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Bordered date row used for expiry — label right (white), date button left (grey).
+function APFDateRow({ label, value, onChange }) {
+  return (
+    <div style={{ border: APF_FIELD_BORDER, borderRadius: '8px', background: 'white', display: 'flex', alignItems: 'center', overflow: 'hidden' }}>
+      <span style={{ flex: 1, textAlign: 'right', padding: '0.65rem 0.85rem', fontSize: '0.95rem', color: '#1a1a1a', fontWeight: '600' }}>{label}</span>
+      <label style={{ background: '#e0e0e0', padding: '0.65rem 0.95rem', cursor: 'pointer', fontSize: '0.95rem', color: '#1a1a1a', position: 'relative', minWidth: '7rem', textAlign: 'center' }}>
+        {value || '----'}
+        <input type="date" value={value || ''} onChange={e => onChange(e.target.value)}
+          style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }} />
+      </label>
+    </div>
+  );
+}
+
+// Image upload widget: gallery button on the right, image preview in the middle,
+// camera button on the left. Cancel below. DOM order honors the RTL layout
+// (first child = visual right).
+function APFImageUpload({ value, onChange }) {
+  const cameraRef  = useRef(null);
+  const galleryRef = useRef(null);
+  function readFile(e) {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    const r = new FileReader();
+    r.onload = () => onChange(r.result);
+    r.readAsDataURL(f);
+    e.target.value = ''; // allow re-pick of the same file
+  }
+  const btn = {
+    background: '#e0e0e0', border: 'none', borderRadius: '6px',
+    padding: '0.55rem 0.85rem', fontSize: '0.88rem', color: '#1a1a1a',
+    fontFamily: "'Cairo','Tajawal',sans-serif", cursor: 'pointer', whiteSpace: 'nowrap',
+  };
+  return (
+    <div style={{ marginTop: '0.5rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', gap: '0.5rem' }}>
+        <button type="button" onClick={() => galleryRef.current?.click()} style={btn}>من الاستديو</button>
+        <div style={{ width: '120px', height: '150px', border: '1px solid #d1d5db', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f3f4f6', overflow: 'hidden' }}>
+          {value
+            ? <img src={value} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            : <ImageIcon size={60} color="#9ca3af" />}
+        </div>
+        <button type="button" onClick={() => cameraRef.current?.click()} style={btn}>من الكامرا</button>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'center', marginTop: '0.5rem' }}>
+        <button type="button" onClick={() => onChange(null)} style={{ ...btn, padding: '0.5rem 1.5rem' }}>
+          إلغاء الصورة
+        </button>
+      </div>
+      <input ref={cameraRef}  type="file" accept="image/*" capture="environment" onChange={readFile} style={{ display: 'none' }} />
+      <input ref={galleryRef} type="file" accept="image/*"                         onChange={readFile} style={{ display: 'none' }} />
+    </div>
+  );
+}
+
 function AddProductSheet({ visible, onClose, onSaved, products }) {
   const api = useApi();
-  const EMPTY = { name: '', description: '', selling_price: '', purchase_price: '',
-                  unit: 'pcs', barcode: '', category: '', is_favorite: false,
-                  quantity: '', min_stock_alert: '' };
+  const EMPTY = {
+    name: '', description: '', barcode: '',
+    selling_price: '', selling_price2: '', selling_price3: '',
+    purchase_price: '',
+    quantity: '', min_stock_alert: '',
+    expiry_date: '',
+    tax_rate: '', category: '',
+    unit: '', unit_package: '', higher_package: '',
+    box_color: '',
+    image_data: null,
+  };
   const [form,   setForm]   = useState(EMPTY);
   const [cats,   setCats]   = useState([]);
+  const [units,  setUnits]  = useState([]);
   const [saving, setSaving] = useState(false);
   const [error,  setError]  = useState('');
+  const [showScanner, setShowScanner] = useState(false);
 
   useEffect(() => {
     if (!visible) return;
     setForm(EMPTY);
     setError('');
-    const fromLS = JSON.parse(localStorage.getItem('product_categories') || '[]');
-    const fromDB = [...new Set(products.map(p => p.category).filter(Boolean))];
+    const fromLS    = JSON.parse(localStorage.getItem('product_categories') || '[]');
+    const fromDB    = [...new Set(products.map(p => p.category).filter(Boolean))];
     setCats([...new Set([...fromLS, ...fromDB])]);
+    const customUnits = JSON.parse(localStorage.getItem('product_units') || '[]');
+    setUnits([...new Set([...DEFAULT_UNITS, ...customUnits])]);
   }, [visible]);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const handleAddUnit = () => {
+    const name = (window.prompt('اسم الوحدة الجديدة') || '').trim();
+    if (!name) return;
+    const next = [...new Set([...units, name])];
+    setUnits(next);
+    const customUnits = JSON.parse(localStorage.getItem('product_units') || '[]');
+    if (!customUnits.includes(name)) {
+      localStorage.setItem('product_units', JSON.stringify([...customUnits, name]));
+    }
+    set('unit', name);
+  };
+
+  const handleHigherPackageHelp = () => {
+    // Custom action for the red play icon — opens an inline help popup.
+    window.alert('العبوة الأعلى\n\nاختر العبوة الأكبر التي تحتوي على هذا المنتج\n(مثال: كرتون يحتوي 12 علبة).');
+  };
 
   const handleSave = async () => {
     if (!form.name.trim()) { setError('اسم المنتج مطلوب'); return; }
@@ -611,15 +775,22 @@ function AddProductSheet({ visible, onClose, onSaved, products }) {
     try {
       await api.post('/api/products', {
         name:            form.name.trim(),
-        description:     form.description  || null,
-        selling_price:   parseFloat(form.selling_price)   || 0,
-        purchase_price:  parseFloat(form.purchase_price)  || 0,
-        unit:            form.unit         || 'pcs',
-        barcode:         form.barcode      || null,
-        category:        form.category     || null,
-        is_favorite:     form.is_favorite  ? 1 : 0,
+        description:     form.description || null,
+        barcode:         form.barcode     || null,
+        selling_price:   parseFloat(form.selling_price)  || 0,
+        selling_price2:  parseFloat(form.selling_price2) || 0,
+        selling_price3:  parseFloat(form.selling_price3) || 0,
+        purchase_price:  parseFloat(form.purchase_price) || 0,
         quantity:        parseFloat(form.quantity)        || 0,
         min_stock_alert: parseFloat(form.min_stock_alert) || 0,
+        expiry_date:     form.expiry_date || null,
+        tax_rate:        parseFloat(form.tax_rate) || 0,
+        category:        form.category || null,
+        unit:            form.unit || 'pcs',
+        unit_package:    parseFloat(form.unit_package) || 0,
+        higher_package:  form.higher_package || null,
+        box_color:       form.box_color || null,
+        image_data:      form.image_data || null,
       });
       if (form.category) {
         const prev = JSON.parse(localStorage.getItem('product_categories') || '[]');
@@ -636,120 +807,174 @@ function AddProductSheet({ visible, onClose, onSaved, products }) {
     }
   };
 
-  const inputCls = 'w-full px-3 py-2.5 rounded-xl outline-none text-white placeholder-gray-600';
-  const inputStyle = { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', fontSize: '15px' };
-
   return (
     <AnimatePresence>
-      {visible && <>
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-          className="fixed inset-0 z-40" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose} />
+      {visible && (
         <motion.div
           initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-          transition={{ type: 'spring', damping: 26, stiffness: 280 }}
-          className="fixed inset-x-0 bottom-0 z-50 rounded-t-3xl flex flex-col"
-          style={{ background: '#0d1120', maxHeight: '92vh' }}
+          transition={{ type: 'spring', damping: 28, stiffness: 290 }}
+          style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'white', display: 'flex', flexDirection: 'column', fontFamily: "'Cairo','Tajawal',sans-serif" }}
           dir="rtl"
         >
-          <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
-            <div className="w-10 h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.2)' }} />
-          </div>
-          <div className="flex items-center justify-between px-5 py-3 flex-shrink-0"
-            style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-            <h2 className="text-base font-bold text-white">إضافة منتج جديد</h2>
-            <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full"
-              style={{ background: 'rgba(255,255,255,0.08)' }}>
-              <X size={16} color="white" />
+          {/* Black header — save floppy on the right, small close on the left */}
+          <div style={{ background: '#000', padding: '0.55rem 0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+            <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px' }}>
+              <X size={22} color="rgba(255,255,255,0.55)" />
             </button>
-          </div>
-
-          <div className="overflow-y-auto flex-1 px-5 py-4 space-y-3">
-            <div>
-              <label className="block text-xs font-semibold mb-1" style={{ color: '#9ca3af' }}>اسم المنتج *</label>
-              <input type="text" value={form.name} onChange={e => set('name', e.target.value)}
-                placeholder="أدخل اسم المنتج" className={inputCls} style={inputStyle} />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold mb-1" style={{ color: '#9ca3af' }}>سعر البيع</label>
-                <input type="number" inputMode="decimal" value={form.selling_price}
-                  onChange={e => set('selling_price', e.target.value)} placeholder="0"
-                  className={inputCls} style={inputStyle} />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold mb-1" style={{ color: '#9ca3af' }}>سعر الشراء</label>
-                <input type="number" inputMode="decimal" value={form.purchase_price}
-                  onChange={e => set('purchase_price', e.target.value)} placeholder="0"
-                  className={inputCls} style={inputStyle} />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold mb-1" style={{ color: '#9ca3af' }}>الوحدة</label>
-                <input type="text" value={form.unit} onChange={e => set('unit', e.target.value)}
-                  placeholder="pcs" className={inputCls} style={inputStyle} />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold mb-1" style={{ color: '#9ca3af' }}>الباركود</label>
-                <input type="text" value={form.barcode} onChange={e => set('barcode', e.target.value)}
-                  placeholder="اختياري" className={inputCls} style={inputStyle} />
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold mb-1" style={{ color: '#9ca3af' }}>التصنيف</label>
-              <input type="text" value={form.category} onChange={e => set('category', e.target.value)}
-                placeholder="اختياري" list="ap-cats"
-                className={inputCls} style={inputStyle} />
-              {cats.length > 0 && (
-                <datalist id="ap-cats">{cats.map(c => <option key={c} value={c} />)}</datalist>
-              )}
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold mb-1" style={{ color: '#9ca3af' }}>الكمية</label>
-                <input type="number" inputMode="decimal" value={form.quantity}
-                  onChange={e => set('quantity', e.target.value)} placeholder="0"
-                  className={inputCls} style={inputStyle} />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold mb-1" style={{ color: '#9ca3af' }}>حد التنبيه</label>
-                <input type="number" inputMode="decimal" value={form.min_stock_alert}
-                  onChange={e => set('min_stock_alert', e.target.value)} placeholder="0"
-                  className={inputCls} style={inputStyle} />
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold mb-1" style={{ color: '#9ca3af' }}>الوصف</label>
-              <textarea value={form.description} onChange={e => set('description', e.target.value)}
-                placeholder="اختياري" rows={2}
-                className="w-full px-3 py-2.5 rounded-xl outline-none text-white placeholder-gray-600 resize-none"
-                style={inputStyle} />
-            </div>
-            <div className="flex items-center justify-between py-1">
-              <span className="text-sm font-semibold" style={{ color: '#9ca3af' }}>منتج مفضّل ⭐</span>
-              <button type="button" onClick={() => set('is_favorite', !form.is_favorite)}
-                className="relative w-12 h-6 rounded-full transition-colors"
-                style={{ background: form.is_favorite ? '#D4A574' : 'rgba(255,255,255,0.1)' }}>
-                <span className="absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all duration-200"
-                  style={{ [form.is_favorite ? 'left' : 'right']: '2px' }} />
-              </button>
-            </div>
-            {error && <p className="text-xs" style={{ color: '#f87171' }}>{error}</p>}
-          </div>
-
-          <div className="px-5 py-4 flex-shrink-0" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
             <button onClick={handleSave} disabled={saving}
-              className="w-full py-3.5 rounded-2xl font-bold text-sm"
               style={{
-                background: saving ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg,#3949AB,#5C6BC0)',
-                color: saving ? '#4a5568' : 'white',
-                border: saving ? '1px solid rgba(255,255,255,0.07)' : 'none',
+                background: '#cfe9ff', border: 'none', borderRadius: '6px',
+                padding: '0.35rem 0.55rem', display: 'flex', alignItems: 'center', gap: '4px',
+                cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.7 : 1,
               }}>
-              {saving ? 'جارٍ الحفظ...' : 'حفظ المنتج'}
+              <span style={{ color: '#0d47a1', fontWeight: '700', fontSize: '0.9rem' }}>حفظ</span>
+              <Save size={18} color="#0d47a1" />
             </button>
           </div>
+
+          {/* Scrollable form body */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '0.75rem 1rem 2rem' }}>
+            {/* Barcode + scan button */}
+            <div>
+              <label style={apfLabel}>رقم المنتج (Barcode)</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <input type="text" value={form.barcode} onChange={e => set('barcode', e.target.value)}
+                  style={{ ...apfInput, textAlign: 'center', color: '#e91e63', fontWeight: '700', flex: 1 }} />
+                <button type="button" onClick={() => setShowScanner(true)}
+                  style={{ background: '#e0e0e0', border: 'none', borderRadius: '8px', padding: '0.65rem 1rem', cursor: 'pointer', fontSize: '0.95rem', color: '#1a1a1a', fontFamily: "'Cairo','Tajawal',sans-serif" }}>
+                  قراءة
+                </button>
+              </div>
+            </div>
+
+            {/* Name */}
+            <div style={{ marginTop: '0.75rem' }}>
+              <label style={apfLabel}>اسم المنتج</label>
+              <input type="text" value={form.name} onChange={e => set('name', e.target.value)} style={apfInput} />
+            </div>
+
+            {/* Description */}
+            <div style={{ marginTop: '0.75rem' }}>
+              <label style={apfLabel}>الوصف</label>
+              <textarea value={form.description} onChange={e => set('description', e.target.value)} rows={3}
+                style={{ ...apfInput, resize: 'vertical', minHeight: '72px' }} />
+            </div>
+
+            {/* 3 selling prices row */}
+            <div style={{ marginTop: '0.75rem', display: 'flex', gap: '0.5rem' }}>
+              {[
+                { key: 'selling_price',  label: 'سعر البيع' },
+                { key: 'selling_price2', label: 'سعر البيع2' },
+                { key: 'selling_price3', label: 'سعر البيع3' },
+              ].map(p => (
+                <div key={p.key} style={{ flex: 1 }}>
+                  <label style={{ ...apfLabel, textAlign: 'center', fontSize: '0.78rem' }}>{p.label}</label>
+                  <input type="number" inputMode="decimal" value={form[p.key]} onChange={e => set(p.key, e.target.value)}
+                    placeholder="0.0" style={apfNumberInput} />
+                </div>
+              ))}
+            </div>
+
+            {/* Cost */}
+            <div style={{ marginTop: '0.75rem' }}>
+              <label style={apfLabel}>سعر الشراء - التكلفة</label>
+              <input type="number" inputMode="decimal" value={form.purchase_price}
+                onChange={e => set('purchase_price', e.target.value)} placeholder="0.0" style={apfNumberInput} />
+            </div>
+
+            {/* Quantity */}
+            <div style={{ marginTop: '0.75rem' }}>
+              <label style={apfLabel}>الكمية</label>
+              <input type="number" inputMode="decimal" value={form.quantity}
+                onChange={e => set('quantity', e.target.value)} placeholder="0" style={apfNumberInput} />
+            </div>
+
+            {/* Reorder threshold */}
+            <div style={{ marginTop: '0.75rem' }}>
+              <label style={apfLabel}>حد الطلب(التنبية عند وصول المنتج للكمية)</label>
+              <input type="number" inputMode="decimal" value={form.min_stock_alert}
+                onChange={e => set('min_stock_alert', e.target.value)} placeholder="0" style={apfNumberInput} />
+            </div>
+
+            {/* Expiry date */}
+            <div style={{ marginTop: '0.75rem' }}>
+              <APFDateRow label="تاريخ الانتهاء" value={form.expiry_date} onChange={v => set('expiry_date', v)} />
+            </div>
+
+            {/* Tax */}
+            <div style={{ marginTop: '0.75rem' }}>
+              <label style={apfLabel}>الضريبة TAX</label>
+              <APFDropdown value={form.tax_rate} onChange={v => set('tax_rate', v)} options={TAX_CHOICES} />
+            </div>
+
+            {/* Category */}
+            <div style={{ marginTop: '0.75rem' }}>
+              <label style={apfLabel}>التصنيف</label>
+              <APFDropdown value={form.category} onChange={v => set('category', v)}
+                options={cats.map(c => ({ value: c, label: c }))} />
+            </div>
+
+            {/* Unit card */}
+            <div style={{ marginTop: '0.85rem', border: APF_FIELD_BORDER, borderRadius: '10px', padding: '0.75rem 0.9rem' }}>
+              {/* Unit row with + on the left */}
+              <label style={apfLabel}>الوحده</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <button type="button" onClick={handleAddUnit}
+                  style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px', display: 'inline-flex' }}>
+                  <Plus size={24} color="#22c55e" strokeWidth={3} />
+                </button>
+                <div style={{ flex: 1 }}>
+                  <APFDropdown value={form.unit} onChange={v => set('unit', v)}
+                    options={units.map(u => ({ value: u, label: u }))} />
+                </div>
+              </div>
+
+              {/* Unit package */}
+              <div style={{ marginTop: '0.85rem' }}>
+                <label style={apfLabel}>عبوه الوحده</label>
+                <input type="number" inputMode="decimal" value={form.unit_package}
+                  onChange={e => set('unit_package', e.target.value)} placeholder="0" style={apfNumberInput} />
+              </div>
+
+              {/* Higher package row with red play on the left */}
+              <div style={{ marginTop: '0.85rem' }}>
+                <label style={apfLabel}>العبوة الاعلى</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <button type="button" onClick={handleHigherPackageHelp}
+                    style={{ background: '#dc2626', border: 'none', borderRadius: '4px', padding: '4px 6px', cursor: 'pointer', display: 'inline-flex' }}>
+                    <Play size={16} color="white" fill="white" />
+                  </button>
+                  <div style={{ flex: 1 }}>
+                    <APFDropdown value={form.higher_package} onChange={v => set('higher_package', v)}
+                      options={HIGHER_PACKAGE_CHOICES.map(h => ({ value: h, label: h }))} />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Display box color */}
+            <div style={{ marginTop: '0.85rem' }}>
+              <label style={apfLabel}>لون المربع في قائمه العرض</label>
+              <APFDropdown value={form.box_color} onChange={v => set('box_color', v)}
+                options={COLOR_CHOICES.map(c => ({ value: c.value, label: c.label }))} />
+            </div>
+
+            {/* Image */}
+            <div style={{ marginTop: '0.85rem' }}>
+              <label style={apfLabel}>صوره المنتج اختياري</label>
+              <APFImageUpload value={form.image_data} onChange={v => set('image_data', v)} />
+            </div>
+
+            {error && <p style={{ color: '#d32f2f', textAlign: 'center', marginTop: '1rem', fontSize: '0.9rem' }}>{error}</p>}
+          </div>
+
+          <BarcodeScanner
+            isOpen={showScanner}
+            onScan={(code) => { set('barcode', code); setShowScanner(false); }}
+            onClose={() => setShowScanner(false)}
+          />
         </motion.div>
-      </>}
+      )}
     </AnimatePresence>
   );
 }
