@@ -816,11 +816,9 @@ function AddProductSheet({ visible, onClose, onSaved, products }) {
           style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'white', display: 'flex', flexDirection: 'column', fontFamily: "'Cairo','Tajawal',sans-serif" }}
           dir="rtl"
         >
-          {/* Black header — save floppy on the right, small close on the left */}
+          {/* Black header — save floppy on the right, small close on the left.
+              DOM order matters in RTL: first child renders RIGHT, last LEFT. */}
           <div style={{ background: '#000', padding: '0.55rem 0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-            <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px' }}>
-              <X size={22} color="rgba(255,255,255,0.55)" />
-            </button>
             <button onClick={handleSave} disabled={saving}
               style={{
                 background: '#cfe9ff', border: 'none', borderRadius: '6px',
@@ -829,6 +827,9 @@ function AddProductSheet({ visible, onClose, onSaved, products }) {
               }}>
               <span style={{ color: '#0d47a1', fontWeight: '700', fontSize: '0.9rem' }}>حفظ</span>
               <Save size={18} color="#0d47a1" />
+            </button>
+            <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px' }}>
+              <X size={22} color="rgba(255,255,255,0.55)" />
             </button>
           </div>
 
@@ -916,17 +917,17 @@ function AddProductSheet({ visible, onClose, onSaved, products }) {
 
             {/* Unit card */}
             <div style={{ marginTop: '0.85rem', border: APF_FIELD_BORDER, borderRadius: '10px', padding: '0.75rem 0.9rem' }}>
-              {/* Unit row with + on the left */}
+              {/* Unit row with + on the LEFT — dropdown first (right) then + (left) */}
               <label style={apfLabel}>الوحده</label>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <button type="button" onClick={handleAddUnit}
-                  style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px', display: 'inline-flex' }}>
-                  <Plus size={24} color="#22c55e" strokeWidth={3} />
-                </button>
                 <div style={{ flex: 1 }}>
                   <APFDropdown value={form.unit} onChange={v => set('unit', v)}
                     options={units.map(u => ({ value: u, label: u }))} />
                 </div>
+                <button type="button" onClick={handleAddUnit}
+                  style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px', display: 'inline-flex' }}>
+                  <Plus size={24} color="#22c55e" strokeWidth={3} />
+                </button>
               </div>
 
               {/* Unit package */}
@@ -936,18 +937,18 @@ function AddProductSheet({ visible, onClose, onSaved, products }) {
                   onChange={e => set('unit_package', e.target.value)} placeholder="0" style={apfNumberInput} />
               </div>
 
-              {/* Higher package row with red play on the left */}
+              {/* Higher package row with red play on the LEFT — dropdown first (right) then red play (left) */}
               <div style={{ marginTop: '0.85rem' }}>
                 <label style={apfLabel}>العبوة الاعلى</label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <button type="button" onClick={handleHigherPackageHelp}
-                    style={{ background: '#dc2626', border: 'none', borderRadius: '4px', padding: '4px 6px', cursor: 'pointer', display: 'inline-flex' }}>
-                    <Play size={16} color="white" fill="white" />
-                  </button>
                   <div style={{ flex: 1 }}>
                     <APFDropdown value={form.higher_package} onChange={v => set('higher_package', v)}
                       options={HIGHER_PACKAGE_CHOICES.map(h => ({ value: h, label: h }))} />
                   </div>
+                  <button type="button" onClick={handleHigherPackageHelp}
+                    style={{ background: '#dc2626', border: 'none', borderRadius: '4px', padding: '4px 6px', cursor: 'pointer', display: 'inline-flex' }}>
+                    <Play size={16} color="white" fill="white" />
+                  </button>
                 </div>
               </div>
             </div>
