@@ -1,215 +1,237 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowRight, Plus, X, Wallet, Trash2 } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth.jsx';
 
-const CATEGORIES = [
-  { value: 'rent',        label: 'الإيجار',        color: '#8b5cf6' },
-  { value: 'utilities',   label: 'فواتير',          color: '#3b82f6' },
-  { value: 'salary',      label: 'الرواتب',         color: '#10b981' },
-  { value: 'transport',   label: 'النقل',            color: '#f59e0b' },
-  { value: 'maintenance', label: 'الصيانة',         color: '#ef4444' },
-  { value: 'supplies',    label: 'مستلزمات',        color: '#06b6d4' },
-  { value: 'food',        label: 'طعام وشراب',      color: '#84cc16' },
-  { value: 'other',       label: 'أخرى',            color: '#6b7280' },
-];
-
-function fmt(n) {
-  return (n || 0).toLocaleString('fr-DZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
 function todayStr() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
 }
 
-export default function Expenses() {
-  const navigate = useNavigate();
-  const { token } = useAuth();
-  const [expenses, setExpenses] = useState([]);
-  const [loading,  setLoading]  = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [saving,   setSaving]   = useState(false);
-  const [error,    setError]    = useState('');
-  const [loadError, setLoadError] = useState('');
-  const [activeCategory, setActiveCategory] = useState('');
+// Free-form input with a suggestion dropdown drawn from `options`.
+// The user can pick a past value OR type a brand-new one.
+function Autocomplete({ value, onChange, options, placeholder }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
 
-  const [form, setForm] = useState({
-    amount: '', category: 'other', description: '',
-    date: todayStr(), payment_method: 'cash', notes: '',
-  });
+  useEffect(() => {
+    function onDocClick(e) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, []);
+
+  const filtered = (options || [])
+    .filter(o => !value || o.toLowerCase().includes(value.toLowerCase()))
+    .slice(0, 8);
+
+  return (
+    <div ref={wrapRef} style={{ position: 'relative' }}>
+      <input
+        type="text"
+        value={value}
+        onChange={e => { onChange(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        placeholder={placeholder}
+        style={{
+          width: '100%',
+          border: '1.5px solid #90caf9',
+          borderRadius: '8px',
+          background: 'white',
+          textAlign: 'right',
+          padding: '0.65rem 0.75rem',
+          fontSize: '0.95rem',
+          fontFamily: "'Cairo','Tajawal',sans-serif",
+          outline: 'none',
+          color: '#1a1a1a',
+          boxSizing: 'border-box',
+        }}
+      />
+      {open && filtered.length > 0 && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 4px)', insetInlineStart: 0, insetInlineEnd: 0,
+          background: 'white', border: '1px solid #cfd8dc', borderRadius: '8px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.08)', zIndex: 10, maxHeight: '180px', overflowY: 'auto',
+        }}>
+          {filtered.map(opt => (
+            <button
+              key={opt}
+              type="button"
+              onMouseDown={e => { e.preventDefault(); onChange(opt); setOpen(false); }}
+              style={{
+                display: 'block', width: '100%', textAlign: 'right',
+                background: 'white', border: 'none', borderBottom: '1px solid #f1f5f9',
+                padding: '0.55rem 0.8rem', fontSize: '0.9rem',
+                color: '#1a1a1a', cursor: 'pointer',
+                fontFamily: "'Cairo','Tajawal',sans-serif",
+              }}
+            >
+              {opt}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const PAYMENT_METHODS = [
+  { value: 'cash',  label: 'من الصندوق', color: '#10b981' },
+  { value: 'card',  label: 'بطاقة',       color: '#6b7280' },
+  { value: 'check', label: 'شيك',         color: '#6b7280' },
+];
+
+export default function Expenses() {
+  const { token } = useAuth();
+
+  const [account, setAccount]         = useState('');
+  const [description, setDescription] = useState('');
+  const [amount, setAmount]           = useState('');
+  const [paymentMethod, setPM]        = useState('cash');
+  const [date, setDate]               = useState(todayStr());
+
+  const [accountOptions, setAccountOptions]         = useState([]);
+  const [descriptionOptions, setDescriptionOptions] = useState([]);
+
+  const [saving, setSaving] = useState(false);
+  const [error,  setError]  = useState('');
+  const [okMsg,  setOkMsg]  = useState('');
 
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setLoadError('');
+  const loadOptions = useCallback(async () => {
     try {
-      const res  = await fetch('/api/expenses', { headers });
-      const json = await res.json();
-      if (json.success) setExpenses(json.data || []);
-    } catch { setLoadError('تعذّر تحميل البيانات'); }
-    setLoading(false);
+      const [a, d] = await Promise.all([
+        fetch('/api/expenses/accounts',     { headers }).then(r => r.json()),
+        fetch('/api/expenses/descriptions', { headers }).then(r => r.json()),
+      ]);
+      if (a.success) setAccountOptions(a.data || []);
+      if (d.success) setDescriptionOptions(d.data || []);
+    } catch {}
   }, [token]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { loadOptions(); }, [loadOptions]);
 
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setError('');
-    const amount = parseFloat(form.amount);
-    if (!amount || amount <= 0) return setError('أدخل مبلغاً صحيحاً');
+  const amt = parseFloat(amount) || 0;
+  const canSave = amt > 0 && !saving;
 
-    setSaving(true);
+  async function handleSave() {
+    if (!canSave) return;
+    setError(''); setOkMsg(''); setSaving(true);
     try {
       const res = await fetch('/api/expenses', {
         method: 'POST', headers,
-        body: JSON.stringify({ amount, category: form.category, description: form.description || null, date: form.date, payment_method: form.payment_method, notes: form.notes || null }),
+        body: JSON.stringify({
+          amount: amt,
+          category:       account.trim() || null,
+          description:    description.trim() || null,
+          date,
+          payment_method: paymentMethod,
+        }),
       });
       const json = await res.json();
-      if (!json.success) throw new Error(json.error || 'خطأ');
-      setShowForm(false);
-      setForm({ amount: '', category: 'other', description: '', date: todayStr(), payment_method: 'cash', notes: '' });
-      load();
-    } catch (err) { setError(err.message); }
+      if (!json.success) throw new Error(json.error || 'فشل الحفظ');
+      setOkMsg('تم حفظ المصروف');
+      setAccount(''); setDescription(''); setAmount(''); setPM('cash'); setDate(todayStr());
+      loadOptions();
+    } catch (err) {
+      setError(err.message);
+    }
     setSaving(false);
   }
 
-  async function handleDelete(id) {
-    if (!confirm('حذف هذا المصروف؟')) return;
-    try {
-      const res = await fetch(`/api/expenses/${id}`, { method: 'DELETE', headers });
-      if (!res.ok) throw new Error('server');
-      setExpenses(ex => ex.filter(e => e.id !== id));
-    } catch { setLoadError('تعذّر الحذف، حاول مجدداً'); }
-  }
-
-  const totalToday = expenses
-    .filter(e => e.date === todayStr())
-    .reduce((s, e) => s + (e.amount || 0), 0);
-
-  const filtered = activeCategory ? expenses.filter(e => e.category === activeCategory) : expenses;
+  const labelStyle = { display: 'block', fontSize: '0.85rem', color: '#555', marginBottom: '6px', fontWeight: '600' };
 
   return (
-    <div dir="rtl" style={{ minHeight: '100%', background: '#080c14', display: 'flex', flexDirection: 'column', fontFamily: "'Cairo','Tajawal',sans-serif" }}>
-      {/* Header */}
-      <div style={{ background: 'linear-gradient(135deg, #3949AB 0%, #5C6BC0 100%)', padding: '0.9rem 1rem', display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0, boxShadow: '0 3px 12px rgba(57,73,171,0.4)' }}>
-        <button onClick={() => navigate('/')} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: '38px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-          <ArrowRight size={20} color="white" />
-        </button>
-        <h1 style={{ flex: 1, fontSize: '1.05rem', fontWeight: '700', color: 'white', margin: 0 }}>المصروفات</h1>
-        <button onClick={() => setShowForm(true)} style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: '10px', padding: '0.5rem 1rem', color: 'white', fontWeight: '600', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-          <Plus size={16} /> جديد
-        </button>
+    <div dir="rtl" style={{ minHeight: '100%', background: 'white', display: 'flex', flexDirection: 'column', fontFamily: "'Cairo','Tajawal',sans-serif" }}>
+      {/* Header — centered title + icon on the right, no back arrow, no border */}
+      <div style={{ position: 'relative', padding: '1.1rem 1rem 0.5rem' }}>
+        <h1 style={{ textAlign: 'center', fontSize: '1.3rem', fontWeight: '700', color: '#1a1a1a', margin: 0 }}>المصروفات</h1>
+        <span style={{ position: 'absolute', top: '0.85rem', insetInlineEnd: '0.85rem', fontSize: '1.6rem' }}>💼</span>
       </div>
 
-      {/* Today summary bar */}
-      <div style={{ background: 'rgba(245,158,11,0.08)', borderBottom: '1px solid rgba(245,158,11,0.15)', padding: '0.6rem 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ color: '#9ca3af', fontSize: '0.82rem' }}>مجموع اليوم</span>
-        <span style={{ color: '#f59e0b', fontWeight: '700', fontSize: '0.95rem' }}>{fmt(totalToday)} دج</span>
-      </div>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '1rem' }}>
+        {/* Account */}
+        <label style={labelStyle}>الحساب</label>
+        <Autocomplete value={account} onChange={setAccount} options={accountOptions} placeholder="ابحث أو اكتب اسم الحساب" />
 
-      {/* Category chips */}
-      <div style={{ display: 'flex', gap: '0.5rem', padding: '0.75rem 1rem', overflowX: 'auto', flexShrink: 0 }}>
-        {CATEGORIES.map(c => (
-          <button key={c.value} onClick={() => setActiveCategory(v => v === c.value ? '' : c.value)} style={{ background: activeCategory === c.value ? `${c.color}20` : 'rgba(255,255,255,0.04)', border: `1px solid ${activeCategory === c.value ? c.color : c.color + '40'}`, borderRadius: '20px', padding: '0.3rem 0.75rem', color: c.color, fontSize: '0.78rem', fontWeight: '600', whiteSpace: 'nowrap', cursor: 'pointer' }}>
-            {c.label}
-          </button>
-        ))}
-      </div>
+        {/* Description */}
+        <div style={{ marginTop: '0.85rem' }}>
+          <label style={labelStyle}>البيان</label>
+          <Autocomplete value={description} onChange={setDescription} options={descriptionOptions} placeholder="ابحث أو اكتب البيان" />
+        </div>
 
-      {/* List */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '0 0.75rem 0.75rem' }}>
-        {loading ? (
-          <p style={{ color: '#4a5568', textAlign: 'center', marginTop: '3rem' }}>جارٍ التحميل...</p>
-        ) : loadError ? (
-          <p style={{ color: '#f87171', textAlign: 'center', marginTop: '3rem', fontSize: '0.9rem' }}>{loadError}</p>
-        ) : filtered.length === 0 ? (
-          <div style={{ textAlign: 'center', marginTop: '4rem' }}>
-            <Wallet size={48} color="#1e293b" />
-            <p style={{ color: '#3d5068', marginTop: '1rem' }}>لا توجد مصروفات بعد</p>
-          </div>
-        ) : filtered.map(exp => {
-          const cat = CATEGORIES.find(c => c.value === exp.category) || CATEGORIES[7];
-          return (
-            <div key={exp.id} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', padding: '0.85rem', marginBottom: '0.6rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: `${cat.color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <Wallet size={18} color={cat.color} />
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: cat.color, fontSize: '0.78rem', fontWeight: '600' }}>{cat.label}</span>
-                  <span style={{ color: '#f87171', fontWeight: '700' }}>{fmt(exp.amount)} دج</span>
-                </div>
-                {exp.description && <p style={{ color: '#9ca3af', fontSize: '0.8rem', margin: '0.1rem 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{exp.description}</p>}
-                <span style={{ color: '#3d5068', fontSize: '0.72rem' }}>{exp.date} · {{ cash: 'نقداً', check: 'شيك', transfer: 'تحويل' }[exp.payment_method] || exp.payment_method}</span>
-              </div>
-              <button onClick={() => handleDelete(exp.id)} style={{ background: 'rgba(239,68,68,0.08)', border: 'none', borderRadius: '8px', padding: '0.4rem', cursor: 'pointer', flexShrink: 0 }}>
-                <Trash2 size={15} color="#f87171" />
-              </button>
-            </div>
-          );
-        })}
-      </div>
+        {/* Amount */}
+        <div style={{ marginTop: '0.85rem' }}>
+          <label style={labelStyle}>ادخل المبلغ</label>
+          <input
+            type="number" inputMode="decimal" min="0" step="any"
+            value={amount} onChange={e => setAmount(e.target.value)} placeholder="0"
+            style={{
+              width: '100%', border: '1.5px solid #90caf9', borderRadius: '8px',
+              background: 'white', textAlign: 'center', padding: '0.7rem',
+              fontSize: '1.1rem', fontWeight: '700', color: '#e91e63',
+              fontFamily: "'Cairo','Tajawal',sans-serif", outline: 'none', boxSizing: 'border-box',
+            }}
+          />
+        </div>
 
-      {/* Add Form Modal */}
-      {showForm && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 50, display: 'flex', alignItems: 'flex-end' }}>
-          <div dir="rtl" style={{ background: '#0f172a', borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '85vh', overflowY: 'auto', padding: '1.25rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <h2 style={{ color: 'white', fontSize: '1rem', fontWeight: '700', margin: 0 }}>مصروف جديد</h2>
-              <button onClick={() => { setShowForm(false); setError(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={22} color="#9ca3af" /></button>
-            </div>
-
-            {error && <p style={{ color: '#f87171', fontSize: '0.85rem', marginBottom: '0.75rem' }}>{error}</p>}
-
-            <form onSubmit={handleSubmit}>
-              {/* Amount */}
-              <label style={{ color: '#9ca3af', fontSize: '0.8rem', display: 'block', marginBottom: '0.3rem' }}>المبلغ (دج) *</label>
-              <input type="number" min="0.01" step="any" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} placeholder="0.00" autoFocus
-                style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '0.75rem', color: 'white', fontSize: '1.1rem', fontWeight: '700', boxSizing: 'border-box', marginBottom: '0.9rem' }} />
-
-              {/* Category */}
-              <label style={{ color: '#9ca3af', fontSize: '0.8rem', display: 'block', marginBottom: '0.5rem' }}>التصنيف</label>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.4rem', marginBottom: '0.9rem' }}>
-                {CATEGORIES.map(c => (
-                  <button key={c.value} type="button" onClick={() => setForm(f => ({ ...f, category: c.value }))}
-                    style={{ background: form.category === c.value ? `${c.color}25` : 'rgba(255,255,255,0.04)', border: `1px solid ${form.category === c.value ? c.color : 'rgba(255,255,255,0.08)'}`, borderRadius: '8px', padding: '0.45rem 0.25rem', color: form.category === c.value ? c.color : '#6b7280', fontSize: '0.72rem', fontWeight: '600', cursor: 'pointer' }}>
-                    {c.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Description */}
-              <label style={{ color: '#9ca3af', fontSize: '0.8rem', display: 'block', marginBottom: '0.3rem' }}>الوصف</label>
-              <input type="text" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="وصف مختصر..."
-                style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '0.65rem', color: 'white', fontSize: '0.9rem', boxSizing: 'border-box', marginBottom: '0.9rem' }} />
-
-              {/* Date + Payment */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1.25rem' }}>
-                <div>
-                  <label style={{ color: '#9ca3af', fontSize: '0.8rem', display: 'block', marginBottom: '0.3rem' }}>التاريخ</label>
-                  <input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
-                    style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '0.65rem', color: 'white', fontSize: '0.9rem', boxSizing: 'border-box' }} />
-                </div>
-                <div>
-                  <label style={{ color: '#9ca3af', fontSize: '0.8rem', display: 'block', marginBottom: '0.3rem' }}>طريقة الدفع</label>
-                  <select value={form.payment_method} onChange={e => setForm(f => ({ ...f, payment_method: e.target.value }))}
-                    style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '0.65rem', color: 'white', fontSize: '0.9rem' }}>
-                    <option value="cash" style={{ background: '#1e293b' }}>نقداً</option>
-                    <option value="check" style={{ background: '#1e293b' }}>شيك</option>
-                    <option value="transfer" style={{ background: '#1e293b' }}>تحويل</option>
-                  </select>
-                </div>
-              </div>
-
-              <button type="submit" disabled={saving}
-                style={{ width: '100%', background: saving ? '#374151' : 'linear-gradient(135deg,#f59e0b,#d97706)', border: 'none', borderRadius: '12px', padding: '0.9rem', color: 'white', fontWeight: '700', fontSize: '1rem', cursor: saving ? 'not-allowed' : 'pointer' }}>
-                {saving ? 'جارٍ الحفظ...' : 'تسجيل المصروف'}
-              </button>
-            </form>
+        {/* Payment method */}
+        <div style={{ marginTop: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+          <span style={{ fontSize: '0.9rem', color: '#1a1a1a', fontWeight: '600' }}>طريقة الدفع</span>
+          <div style={{ display: 'flex', gap: '0.85rem' }}>
+            {PAYMENT_METHODS.map(p => (
+              <label key={p.value} style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '0.88rem', color: '#1a1a1a' }}>
+                <span>{p.label}</span>
+                <span style={{
+                  width: '18px', height: '18px', borderRadius: '50%',
+                  border: `2px solid ${paymentMethod === p.value ? p.color : '#9e9e9e'}`,
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'white',
+                }}>
+                  {paymentMethod === p.value && (
+                    <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: p.color }} />
+                  )}
+                </span>
+                <input
+                  type="radio" name="pm" value={p.value} checked={paymentMethod === p.value}
+                  onChange={() => setPM(p.value)} style={{ display: 'none' }}
+                />
+              </label>
+            ))}
           </div>
         </div>
-      )}
+
+        {/* Date */}
+        <div style={{ marginTop: '1.2rem', border: '1.5px solid #90caf9', borderRadius: '8px', background: 'white', display: 'flex', alignItems: 'center', overflow: 'hidden' }}>
+          <span style={{ flex: 1, textAlign: 'right', padding: '0.65rem 0.85rem', fontSize: '0.95rem', color: '#1a1a1a', fontWeight: '600' }}>التاريخ</span>
+          <label style={{ background: '#e0e0e0', padding: '0.65rem 0.95rem', cursor: 'pointer', fontSize: '0.95rem', color: '#1a1a1a', position: 'relative' }}>
+            {date}
+            <input
+              type="date" value={date} onChange={e => setDate(e.target.value)}
+              style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }}
+            />
+          </label>
+        </div>
+
+        {/* Messages */}
+        {error && <p style={{ color: '#d32f2f', textAlign: 'center', marginTop: '0.85rem', fontSize: '0.9rem' }}>{error}</p>}
+        {okMsg && <p style={{ color: '#2e7d32', textAlign: 'center', marginTop: '0.85rem', fontSize: '0.9rem' }}>{okMsg}</p>}
+
+        {/* Save */}
+        <button
+          onClick={handleSave} disabled={!canSave}
+          style={{
+            width: '100%', marginTop: '1.5rem',
+            background: canSave ? '#3949AB' : '#cfd8dc',
+            color: canSave ? 'white' : '#546e7a',
+            border: 'none', borderRadius: '8px',
+            padding: '0.85rem', fontSize: '1rem', fontWeight: '700',
+            cursor: canSave ? 'pointer' : 'not-allowed',
+            fontFamily: "'Cairo','Tajawal',sans-serif",
+          }}
+        >
+          {saving ? 'جارٍ الحفظ...' : 'حفظ'}
+        </button>
+      </div>
     </div>
   );
 }

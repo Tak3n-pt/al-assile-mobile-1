@@ -3,11 +3,9 @@ const db      = require('../database/connection');
 
 const router = express.Router();
 
-const VALID_CATEGORIES = ['rent', 'utilities', 'salary', 'transport', 'maintenance', 'supplies', 'food', 'other'];
-
 // ---------------------------------------------------------------------------
 // GET /api/expenses
-// Query params: ?start=YYYY-MM-DD  ?end=YYYY-MM-DD  ?category=other
+// Query params: ?start=YYYY-MM-DD  ?end=YYYY-MM-DD  ?category=...
 // ---------------------------------------------------------------------------
 router.get('/', (req, res) => {
   const { start, end, category } = req.query;
@@ -33,38 +31,95 @@ router.get('/', (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// GET /api/expenses/accounts   → distinct values of `category` (account names)
+// GET /api/expenses/descriptions → distinct values of `description`
+// Used to power the two autocomplete inputs on the Expenses form.
+// ---------------------------------------------------------------------------
+router.get('/accounts', (_req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT category AS name, COUNT(*) AS uses
+      FROM expenses
+      WHERE category IS NOT NULL AND TRIM(category) != ''
+      GROUP BY category
+      ORDER BY uses DESC, name ASC
+      LIMIT 200
+    `).all();
+    return res.json({ success: true, data: rows.map(r => r.name) });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: 'Failed to load accounts' });
+  }
+});
+
+router.get('/descriptions', (_req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT description AS name, COUNT(*) AS uses
+      FROM expenses
+      WHERE description IS NOT NULL AND TRIM(description) != ''
+      GROUP BY description
+      ORDER BY uses DESC, name ASC
+      LIMIT 200
+    `).all();
+    return res.json({ success: true, data: rows.map(r => r.name) });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: 'Failed to load descriptions' });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // POST /api/expenses
 // Body: { amount, category, description, date, payment_method, notes }
+//   category is free-form (the account name typed by the user).
+//   payment_method is free-form: 'cash' | 'card' | 'check' | etc.
 // ---------------------------------------------------------------------------
 router.post('/', (req, res) => {
   const {
     amount,
-    category       = 'other',
+    category       = null,
     description    = null,
     date,
     payment_method = 'cash',
     notes          = null,
   } = req.body;
 
-  if (!amount || typeof amount !== 'number' || amount <= 0) {
+  const amt = parseFloat(amount);
+  if (!amt || amt <= 0) {
     return res.status(400).json({ success: false, error: 'amount must be a positive number' });
   }
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return res.status(400).json({ success: false, error: 'date is required (YYYY-MM-DD)' });
   }
 
-  const cat = VALID_CATEGORIES.includes(category) ? category : 'other';
-
   try {
     const { lastInsertRowid } = db.prepare(`
       INSERT INTO expenses (amount, category, description, date, payment_method, notes, created_by)
       VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(amount, cat, description, date, payment_method, notes, req.user.userId);
+    `).run(amt, category || null, description || null, date, payment_method || 'cash', notes, req.user.userId);
 
     return res.status(201).json({ success: true, id: lastInsertRowid });
   } catch (err) {
     console.error('[expenses] POST / error:', err.message);
     return res.status(500).json({ success: false, error: 'Failed to create expense' });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/expenses/categories
+// Kept for Reports.jsx: union of legacy defaults + any custom values seen in DB.
+// ---------------------------------------------------------------------------
+router.get('/categories', (_req, res) => {
+  const defaults = ['rent', 'utilities', 'salary', 'transport', 'maintenance', 'supplies', 'food', 'other'];
+  try {
+    const rows = db.prepare(`
+      SELECT DISTINCT category FROM expenses
+      WHERE category IS NOT NULL AND TRIM(category) != ''
+    `).all();
+    const seen = new Set(defaults);
+    rows.forEach(r => seen.add(r.category));
+    return res.json({ success: true, data: Array.from(seen) });
+  } catch {
+    return res.json({ success: true, data: defaults });
   }
 });
 
@@ -83,13 +138,6 @@ router.delete('/:id', (req, res) => {
     console.error('[expenses] DELETE /:id error:', err.message);
     return res.status(500).json({ success: false, error: 'Failed to delete expense' });
   }
-});
-
-// ---------------------------------------------------------------------------
-// GET /api/expenses/categories  — list valid categories
-// ---------------------------------------------------------------------------
-router.get('/categories', (_req, res) => {
-  return res.json({ success: true, data: VALID_CATEGORIES });
 });
 
 module.exports = router;

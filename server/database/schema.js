@@ -404,6 +404,26 @@ const initDatabase = (db) => {
   `);
   db.exec('CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date)');
 
+  // ============================================
+  // CASH BOX ENTRIES — manual deposits / withdrawals to الصندوق
+  //   type='add' increases the safe; type='sub' decreases it.
+  //   The 3 inclusion toggles in settings decide whether sales/purchases/
+  //   expenses also factor into the balance shown.
+  // ============================================
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS cash_box_entries (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      type        TEXT    NOT NULL CHECK(type IN ('add','sub')),
+      amount      REAL    NOT NULL,
+      date        DATE    NOT NULL,
+      description TEXT,
+      created_by  INTEGER,
+      created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (created_by) REFERENCES users(id)
+    )
+  `);
+  db.exec('CREATE INDEX IF NOT EXISTS idx_cb_date ON cash_box_entries(date)');
+
   // Migration: add category column to products for mobile-side product management.
   try {
     const cols = db.prepare('PRAGMA table_info(products)').all().map(c => c.name);
