@@ -1206,191 +1206,230 @@ function AddCategorySheet({ visible, onClose, products }) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// ImportSheet  (CSV import)
+// ImportSheet — light full-screen page matching the screenshot:
+//   centered helper title, file picker row (input + بحث button),
+//   two-step red instructions with stylized save-as illustration
+//   and a sample-data Excel-style table, footer with help and
+//   mint استيراد buttons. Parses .xls / .xlsx / .csv via SheetJS.
 // ─────────────────────────────────────────────────────────────
 function ImportSheet({ visible, onClose, onImported }) {
   const api = useApi();
   const fileRef = useRef(null);
-  const [rows,      setRows]      = useState([]);
+  const [fileName, setFileName] = useState('');
+  const [rows,     setRows]     = useState([]);
   const [importing, setImporting] = useState(false);
-  const [done,      setDone]      = useState(null);
+  const [done,     setDone]     = useState(null);
+  const [error,    setError]    = useState('');
 
   useEffect(() => {
-    if (!visible) { setRows([]); setDone(null); }
+    if (!visible) { setFileName(''); setRows([]); setDone(null); setError(''); }
   }, [visible]);
 
-  const parseCSV = (text) => {
-    const lines = text.split(/\r?\n/).filter(l => l.trim());
-    if (lines.length < 2) return [];
-    const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, '').toLowerCase());
-    return lines.slice(1).map(line => {
-      const vals = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
-      const row = {};
-      headers.forEach((h, i) => { row[h] = vals[i] ?? ''; });
-      return row;
-    }).filter(r => (r['name'] || r['اسم المنتج'] || '').trim());
-  };
-
-  const handleFile = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = ev => setRows(parseCSV(ev.target.result));
-    reader.readAsText(file, 'UTF-8');
+  const handleFile = async (e) => {
+    const f = e.target.files?.[0];
     e.target.value = '';
+    if (!f) return;
+    setError(''); setDone(null);
+    try {
+      const XLSX = await import('xlsx'); // keeps parser out of initial bundle
+      const buf = await f.arrayBuffer();
+      const wb  = XLSX.read(buf, { type: 'array' });
+      const ws  = wb.Sheets[wb.SheetNames[0]];
+      const parsed = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      const cleaned = parsed.filter(r => {
+        const name = String(r['اسم المنتج'] || r['name'] || '').trim();
+        return name.length > 0;
+      });
+      if (cleaned.length === 0) {
+        setError('لم يتم العثور على منتجات صالحة في الملف');
+        return;
+      }
+      setFileName(f.name);
+      setRows(cleaned);
+    } catch {
+      setError('تعذّر قراءة الملف. تأكد من الصيغة (xls / xlsx).');
+    }
   };
 
   const doImport = async () => {
-    setImporting(true);
+    if (rows.length === 0 || importing) return;
+    setImporting(true); setError('');
     let ok = 0, fail = 0;
     for (const row of rows) {
       try {
         await api.post('/api/products', {
-          name:            (row['name'] || row['اسم المنتج'] || '').trim(),
-          description:     row['description']    || row['الوصف']        || null,
-          selling_price:   parseFloat(row['selling_price']  || row['سعر البيع'])   || 0,
-          purchase_price:  parseFloat(row['purchase_price'] || row['سعر الشراء'])  || 0,
-          unit:            row['unit']            || row['الوحدة']       || 'pcs',
-          barcode:         row['barcode']         || row['الباركود']     || null,
-          category:        row['category']        || row['التصنيف']      || null,
-          quantity:        parseFloat(row['quantity'] || row['الكمية'])  || 0,
+          name:           String(row['اسم المنتج']  || row['name']           || '').trim(),
+          barcode:        String(row['رقم المنتج']  || row['barcode']        || '').trim() || null,
+          selling_price:  parseFloat(row['سعر البيع']   || row['selling_price'])  || 0,
+          purchase_price: parseFloat(row['سعر الشراء']  || row['purchase_price']) || 0,
+          quantity:       parseFloat(row['الكمية']      || row['quantity'])       || 0,
+          category:       row['التصنيف'] || row['category'] || null,
+          unit:           row['الوحدة']  || row['unit']     || 'pcs',
+          description:    row['الوصف']   || row['description'] || null,
         });
         ok++;
       } catch { fail++; }
     }
-    setDone({ ok, fail });
     setImporting(false);
+    setDone({ ok, fail });
     onImported();
   };
 
-  const COLS = ['name', 'selling_price', 'purchase_price', 'unit', 'category'];
+  const openHelpVideo = () => {
+    // Placeholder — wire to a real YouTube tutorial URL later.
+    window.alert('سيتم إضافة فيديو شرح قريباً.');
+  };
 
   return (
     <AnimatePresence>
-      {visible && <>
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-          className="fixed inset-0 z-40" style={{ background: 'rgba(0,0,0,0.6)' }}
-          onClick={!importing ? onClose : undefined} />
+      {visible && (
         <motion.div
           initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-          transition={{ type: 'spring', damping: 26, stiffness: 280 }}
-          className="fixed inset-x-0 bottom-0 z-50 rounded-t-3xl flex flex-col"
-          style={{ background: '#0d1120', maxHeight: '92vh' }}
-          dir="rtl"
-        >
-          <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
-            <div className="w-10 h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.2)' }} />
-          </div>
-          <div className="flex items-center justify-between px-5 py-3 flex-shrink-0"
-            style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-            <h2 className="text-base font-bold text-white">استيراد المنتجات (CSV)</h2>
-            <button onClick={onClose} disabled={importing}
-              className="w-8 h-8 flex items-center justify-center rounded-full"
-              style={{ background: 'rgba(255,255,255,0.08)' }}>
-              <X size={16} color="white" />
+          transition={{ type: 'spring', damping: 28, stiffness: 290 }}
+          style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'white', display: 'flex', flexDirection: 'column', fontFamily: "'Cairo','Tajawal',sans-serif" }}
+          dir="rtl">
+
+          {/* Subtle dismiss — screenshot has no close button, this stays low-contrast */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '0.3rem 0.6rem', flexShrink: 0 }}>
+            <button onClick={!importing ? onClose : undefined} disabled={importing}
+              style={{ background: 'transparent', border: 'none', cursor: importing ? 'wait' : 'pointer', padding: '4px', opacity: importing ? 0.4 : 0.55 }}
+              aria-label="إغلاق">
+              <X size={20} color="#1a1a1a" />
             </button>
           </div>
 
-          <div className="overflow-y-auto flex-1 px-5 py-4">
-            {done ? (
-              <div className="flex flex-col items-center justify-center py-12 gap-4">
-                <div className="w-16 h-16 rounded-2xl flex items-center justify-center"
-                  style={{ background: 'rgba(16,185,129,0.1)' }}>
-                  <span className="text-3xl">✅</span>
-                </div>
-                <p className="text-base font-bold text-white">اكتمل الاستيراد</p>
-                <p className="text-sm" style={{ color: '#10b981' }}>تم استيراد: {done.ok} منتج</p>
-                {done.fail > 0 && (
-                  <p className="text-sm" style={{ color: '#f87171' }}>فشل: {done.fail} منتج</p>
-                )}
-                <button onClick={onClose}
-                  className="mt-4 px-6 py-2.5 rounded-xl text-sm font-bold"
-                  style={{ background: 'rgba(57,73,171,0.2)', border: '1px solid rgba(57,73,171,0.3)', color: '#818cf8' }}>
-                  إغلاق
-                </button>
+          {/* Centered helper title */}
+          <div style={{ padding: '0 1rem 0.75rem', flexShrink: 0 }}>
+            <h1 style={{ textAlign: 'center', fontSize: '1.05rem', fontWeight: '700', color: '#1a1a1a', margin: 0, lineHeight: 1.55 }}>
+              ستمكنك هذه الشاشة من نقل بيانات المنتجات من ملف اكسل الى قاعدة البيانات
+            </h1>
+          </div>
+
+          {/* File picker row — input on right, بحث button on left (DOM order honors RTL) */}
+          <div style={{ padding: '0 1rem 0.85rem', flexShrink: 0, display: 'flex', gap: '0.5rem' }}>
+            <input readOnly value={fileName}
+              placeholder="ابحث عن الملف المراد معالجته"
+              onClick={() => fileRef.current?.click()}
+              style={{
+                flex: 1, border: '1.5px solid #90caf9', borderRadius: '6px', background: 'white',
+                textAlign: 'right', padding: '0.6rem 0.75rem', fontSize: '0.95rem',
+                fontFamily: "'Cairo','Tajawal',sans-serif", outline: 'none', color: '#1a1a1a',
+                boxSizing: 'border-box', cursor: 'pointer',
+              }} />
+            <button type="button" onClick={() => fileRef.current?.click()}
+              style={{ background: '#dadada', border: 'none', borderRadius: '4px', padding: '0.55rem 1.5rem', fontSize: '0.95rem', color: '#1a1a1a', fontFamily: "'Cairo','Tajawal',sans-serif", cursor: 'pointer', flexShrink: 0 }}>
+              بحث
+            </button>
+            <input ref={fileRef} type="file"
+              accept=".xls,.xlsx,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              style={{ display: 'none' }}
+              onChange={handleFile} />
+          </div>
+
+          {/* Scrollable instructions */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '0.25rem 1rem 1rem' }}>
+            <p style={{ color: '#d32f2f', fontWeight: '700', fontSize: '0.95rem', margin: '0 0 0.5rem' }}>
+              قبل البدء يحب اتباع التالي:
+            </p>
+
+            <p style={{ color: '#1a1a1a', fontSize: '0.9rem', margin: '0.4rem 0 0.5rem' }}>
+              1- يجب حفظ ملف الاكسل بالصيغة التالية
+            </p>
+
+            {/* Stylized save-as callout (replaces the screenshot screenshot) */}
+            <div style={{ border: '1px solid #cfd8dc', borderRadius: '6px', background: '#f8fafc', padding: '0.6rem 0.75rem', marginBottom: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <span style={{ background: 'white', border: '2px solid #ff7043', borderRadius: '3px', padding: '0.35rem 0.6rem', fontFamily: 'monospace', fontSize: '0.82rem', color: '#1a1a1a', fontWeight: '600' }}>
+                  Excel 97-2003 Workbook (*.xls)
+                </span>
+                <span style={{ color: '#ff7043', fontSize: '1.3rem', lineHeight: 1 }}>⇐</span>
+                <span style={{ color: '#d32f2f', fontWeight: '700', fontSize: '0.9rem' }}>بالصيغة التالية</span>
               </div>
-            ) : (
-              <>
-                <div className="rounded-xl p-4 mb-4"
-                  style={{ background: 'rgba(57,73,171,0.07)', border: '1px solid rgba(57,73,171,0.15)' }}>
-                  <p className="text-xs font-semibold mb-1" style={{ color: '#818cf8' }}>تنسيق CSV المطلوب:</p>
-                  <p className="text-[11px] leading-relaxed font-mono" style={{ color: '#6b7280' }}>
-                    name, selling_price, purchase_price, unit, barcode, category, description, quantity
-                  </p>
-                  <p className="text-[11px] mt-1" style={{ color: '#4a5568' }}>
-                    يدعم الأسماء العربية: اسم المنتج، سعر البيع، سعر الشراء، الوحدة، الباركود، التصنيف
-                  </p>
-                </div>
+            </div>
 
-                <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleFile} />
-                <button onClick={() => fileRef.current?.click()}
-                  className="w-full py-4 rounded-2xl flex items-center justify-center gap-3 mb-4"
-                  style={{ background: 'rgba(255,255,255,0.04)', border: '2px dashed rgba(255,255,255,0.12)', color: '#9ca3af' }}>
-                  <Upload size={20} />
-                  <span className="text-sm font-semibold">اختر ملف CSV</span>
-                </button>
+            <p style={{ color: '#1a1a1a', fontSize: '0.9rem', margin: '0.4rem 0 0.5rem' }}>
+              2- يجب ان يكون شكل الملف مشابة للشكل التالي
+            </p>
 
-                {rows.length > 0 && (
-                  <>
-                    <p className="text-xs font-semibold mb-2" style={{ color: '#9ca3af' }}>
-                      معاينة — {rows.length} منتج
-                    </p>
-                    <div className="rounded-xl overflow-hidden mb-4"
-                      style={{ border: '1px solid rgba(255,255,255,0.07)' }}>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-xs">
-                          <thead>
-                            <tr style={{ background: 'rgba(255,255,255,0.04)' }}>
-                              {COLS.map(c => (
-                                <th key={c} className="px-3 py-2 text-right font-semibold whitespace-nowrap"
-                                  style={{ color: '#6b7280' }}>{c}</th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {rows.slice(0, 5).map((r, i) => (
-                              <tr key={i} style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
-                                {COLS.map(c => (
-                                  <td key={c} className="px-3 py-2 text-white"
-                                    style={{ maxWidth: '100px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                    {r[c] || '—'}
-                                  </td>
-                                ))}
-                              </tr>
-                            ))}
-                            {rows.length > 5 && (
-                              <tr style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
-                                <td colSpan={5} className="px-3 py-2 text-center"
-                                  style={{ color: '#4a5568' }}>
-                                  +{rows.length - 5} منتج آخر
-                                </td>
-                              </tr>
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </>
+            {/* Sample data table (Excel-look). DOM column order is E,D,C,B,A so that
+                in dir="rtl" the visual order reads A | B | C | D | E from right to left. */}
+            <div style={{ border: '1px solid #d4d4d4', borderRadius: '4px', overflow: 'hidden', marginBottom: '1rem', fontSize: '0.85rem' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+                <colgroup>
+                  <col style={{ width: '18%' }} />
+                  <col style={{ width: '20%' }} />
+                  <col style={{ width: '18%' }} />
+                  <col style={{ width: '20%' }} />
+                  <col style={{ width: '24%' }} />
+                </colgroup>
+                <thead>
+                  <tr style={{ background: '#e0e7ef' }}>
+                    {['E', 'D', 'C', 'B', 'A'].map(L => (
+                      <th key={L} style={{ border: '1px solid #c0c0c0', padding: '0.25rem', color: '#1a1a1a', fontWeight: '600', fontSize: '0.8rem' }}>{L}</th>
+                    ))}
+                  </tr>
+                  <tr style={{ background: 'white' }}>
+                    <th style={{ border: '1px solid #c0c0c0', padding: '0.45rem 0.3rem', color: '#1a1a1a', fontWeight: '600' }}>الكمية</th>
+                    <th style={{ border: '1px solid #c0c0c0', padding: '0.45rem 0.3rem', color: '#1a1a1a', fontWeight: '600' }}>سعر الشراء</th>
+                    <th style={{ border: '1px solid #c0c0c0', padding: '0.45rem 0.3rem', color: '#1a1a1a', fontWeight: '600' }}>سعر البيع</th>
+                    <th style={{ border: '1px solid #c0c0c0', padding: '0.45rem 0.3rem', color: '#1a1a1a', fontWeight: '600' }}>اسم المنتج</th>
+                    <th style={{ border: '1px solid #c0c0c0', padding: '0.45rem 0.3rem', color: '#1a1a1a', fontWeight: '600', background: '#fff3c4' }}>رقم المنتج</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    { a: '232132113', b: 'ماء',    c: '10', d: '8',  e: '100' },
+                    { a: '432432432', b: 'عصير',   c: '20', d: '18', e: '100' },
+                    { a: '434343434', b: 'كيك',    c: '30', d: '29', e: '50'  },
+                    { a: '545454335', b: 'بيبسي',  c: '40', d: '30', e: '100' },
+                  ].map((r, i) => (
+                    <tr key={i}>
+                      <td style={{ border: '1px solid #c0c0c0', padding: '0.45rem 0.3rem', textAlign: 'center', color: '#1a1a1a' }}>{r.e}</td>
+                      <td style={{ border: '1px solid #c0c0c0', padding: '0.45rem 0.3rem', textAlign: 'center', color: '#1a1a1a' }}>{r.d}</td>
+                      <td style={{ border: '1px solid #c0c0c0', padding: '0.45rem 0.3rem', textAlign: 'center', color: '#1a1a1a' }}>{r.c}</td>
+                      <td style={{ border: '1px solid #c0c0c0', padding: '0.45rem 0.3rem', textAlign: 'center', color: '#1a1a1a' }}>{r.b}</td>
+                      <td style={{ border: '1px solid #c0c0c0', padding: '0.45rem 0.3rem', textAlign: 'center', color: '#1a1a1a' }}>{r.a}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {fileName && !done && (
+              <p style={{ color: '#2e7d32', fontSize: '0.88rem', textAlign: 'center', margin: '0.6rem 0', fontWeight: '600' }}>
+                ✓ تم اختيار: {fileName} ({rows.length} منتج)
+              </p>
+            )}
+            {error && <p style={{ color: '#d32f2f', fontSize: '0.88rem', textAlign: 'center', margin: '0.6rem 0', fontWeight: '600' }}>{error}</p>}
+            {done && (
+              <p style={{ color: done.fail > 0 ? '#f59e0b' : '#2e7d32', fontSize: '0.9rem', textAlign: 'center', margin: '0.6rem 0', fontWeight: '700' }}>
+                اكتمل الاستيراد — نجح: {done.ok}{done.fail > 0 ? `، فشل: ${done.fail}` : ''}
+              </p>
             )}
           </div>
 
-          {!done && rows.length > 0 && (
-            <div className="px-5 py-4 flex-shrink-0" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-              <button onClick={doImport} disabled={importing}
-                className="w-full py-3.5 rounded-2xl font-bold text-sm"
-                style={{
-                  background: importing ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg,#3949AB,#5C6BC0)',
-                  color: importing ? '#4a5568' : 'white',
-                  border: importing ? '1px solid rgba(255,255,255,0.07)' : 'none',
-                }}>
-                {importing ? 'جارٍ الاستيراد...' : `استيراد ${rows.length} منتج`}
-              </button>
-            </div>
-          )}
+          {/* Footer: استيراد on the right (first child in RTL), help on the left */}
+          <div style={{ padding: '0.6rem 1rem 1rem', display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
+            <button onClick={doImport} disabled={importing || rows.length === 0}
+              style={{
+                flex: 1,
+                background: rows.length === 0 || importing ? '#cfd8dc' : '#c8e6c9',
+                color: rows.length === 0 || importing ? '#546e7a' : '#1a1a1a',
+                border: 'none', borderRadius: '6px', padding: '0.85rem',
+                fontSize: '1rem', fontWeight: '700',
+                cursor: rows.length === 0 || importing ? 'not-allowed' : 'pointer',
+                fontFamily: "'Cairo','Tajawal',sans-serif",
+              }}>
+              {importing ? 'جارٍ الاستيراد...' : 'استيراد'}
+            </button>
+            <button type="button" onClick={openHelpVideo} aria-label="فيديو شرح"
+              style={{ background: '#dadada', border: 'none', borderRadius: '8px', padding: '0.5rem 0.6rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
+              <Play size={18} color="#d32f2f" fill="#d32f2f" />
+              <span style={{ background: 'white', border: '1px solid #9e9e9e', borderRadius: '50%', width: '24px', height: '24px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#1a1a1a', fontSize: '0.9rem', fontWeight: '700' }}>؟</span>
+            </button>
+          </div>
         </motion.div>
-      </>}
+      )}
     </AnimatePresence>
   );
 }
