@@ -1,35 +1,29 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, X, ShoppingCart, RefreshCw, Package, ScanBarcode, LogOut, ChevronRight, ArrowRight, Upload, Save, Plus, Play, Image as ImageIcon, Camera, Trash2, Tag, FileSpreadsheet, ArrowLeftRight, PlusCircle, Globe } from 'lucide-react';
+import { X, ShoppingCart, ScanBarcode, LogOut, ChevronRight, Upload, Save, Plus, Play, Image as ImageIcon, Trash2, Tag, FileSpreadsheet, ArrowLeftRight, PlusCircle, Globe } from 'lucide-react';
 import { formatCurrency } from '../utils/currency.js';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useApi } from '../hooks/useApi.jsx';
 import { useCart } from '../hooks/useCart.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
-import ProductCard from '../components/ProductCard.jsx';
 import BarcodeScanner from '../components/BarcodeScanner.jsx';
 import { t, getLanguage, setLanguage } from '../utils/i18n.js';
 
 export default function ProductsList() {
   const api = useApi();
-  const { addItem, isInCart, getItemCount } = useCart();
-  const { user, logout } = useAuth();
+  const { addItem } = useCart();
+  const { logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState('all');
-  const [refreshing, setRefreshing] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
   const [scanNotification, setScanNotification] = useState(null);
-  const [showUserMenu, setShowUserMenu] = useState(false);
   const [lang, setLang] = useState(getLanguage());
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const [debtors, setDebtors] = useState([]);
   const [showAddProduct,  setShowAddProduct]  = useState(false);
   const [showEditPrices,  setShowEditPrices]  = useState(false);
   const [showAddCategory, setShowAddCategory] = useState(false);
@@ -39,11 +33,9 @@ export default function ProductsList() {
   const [productAction,   setProductAction]   = useState(null);
   const [hintHidden,      setHintHidden]      = useState(() => localStorage.getItem('pl_hint_hidden') === '1');
   const [selectedIds,     setSelectedIds]     = useState(new Set());
-  const userMenuRef = useRef(null);
 
   const fetchProducts = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
-    else setRefreshing(true);
     setError('');
     try {
       const data = await api.get('/api/products');
@@ -52,21 +44,11 @@ export default function ProductsList() {
       setError(err.message || t('failedToLoadProducts'));
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   }, []);
 
   useEffect(() => {
     fetchProducts();
-  }, []);
-
-  useEffect(() => {
-    api.get('/api/clients')
-      .then(data => {
-        const list = Array.isArray(data) ? data : (data?.data || []);
-        setDebtors(list.filter(c => (c.balance || 0) < 0));
-      })
-      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -78,40 +60,13 @@ export default function ProductsList() {
   }, []);
 
   const filtered = products.filter(p => {
-    if (filter === 'favorites' && !p.is_favorite) return false;
     if (!query) return true;
     return (p.name || '').toLowerCase().includes(query.toLowerCase());
   });
 
-  const cartCount = getItemCount();
-
-  const handleAddToCart = (product) => {
-    addItem(product, 1);
-  };
-
   const showScanFeedback = (type, message) => {
     setScanNotification({ type, message });
     setTimeout(() => setScanNotification(null), 3000);
-  };
-
-  useEffect(() => {
-    if (!showUserMenu) return;
-    const handler = (e) => {
-      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
-        setShowUserMenu(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    document.addEventListener('touchstart', handler);
-    return () => {
-      document.removeEventListener('mousedown', handler);
-      document.removeEventListener('touchstart', handler);
-    };
-  }, [showUserMenu]);
-
-  const handleLogout = () => {
-    setShowUserMenu(false);
-    setShowLogoutConfirm(true);
   };
 
   const confirmLogout = () => {
@@ -203,20 +158,20 @@ export default function ProductsList() {
         </h1>
       </div>
 
-      {/* Search row with barcode icon on the left */}
+      {/* Search row — DOM order matters in RTL: input first → right, barcode icon second → left */}
       <div style={{ padding: '0 1rem' }}>
         <div style={{ border: '1.5px solid #90caf9', borderRadius: '8px', background: 'white', display: 'flex', alignItems: 'center', padding: '0.35rem 0.55rem', gap: '0.5rem' }}>
-          <button type="button" onClick={() => setShowScanner(true)}
-            style={{ background: 'white', border: '1.5px solid #1a1a1a', borderRadius: '4px', padding: '0.2rem 0.35rem', cursor: 'pointer', display: 'inline-flex', flexShrink: 0 }}
-            aria-label="مسح الباركود">
-            <ScanBarcode size={26} color="#1a1a1a" />
-          </button>
           <input
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder="بحث"
             style={{ flex: 1, border: 'none', borderBottom: '1px solid #9ca3af', outline: 'none', background: 'transparent', textAlign: 'right', padding: '0.35rem 0', fontSize: '1rem', color: '#1a1a1a', fontFamily: "'Cairo','Tajawal',sans-serif" }}
           />
+          <button type="button" onClick={() => setShowScanner(true)}
+            style={{ background: 'white', border: '1.5px solid #1a1a1a', borderRadius: '4px', padding: '0.2rem 0.35rem', cursor: 'pointer', display: 'inline-flex', flexShrink: 0 }}
+            aria-label="مسح الباركود">
+            <ScanBarcode size={26} color="#1a1a1a" />
+          </button>
         </div>
       </div>
 
