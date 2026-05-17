@@ -16,8 +16,8 @@ import { t } from '../utils/i18n.js';
 
 function BalanceBadge({ balance }) {
   const b = balance || 0;
-  if (b < 0) return <span className="text-xs font-bold" style={{ color: '#f87171' }}>{t('shopOwes')} {formatCurrency(Math.abs(b))}</span>;
-  if (b > 0) return <span className="text-xs font-bold" style={{ color: '#34d399' }}>+{formatCurrency(b)} {t('supplierHasCredit')}</span>;
+  if (b < 0) return <span className="text-xs font-bold" style={{ color: '#d32f2f' }}>{t('shopOwes')} {formatCurrency(Math.abs(b))}</span>;
+  if (b > 0) return <span className="text-xs font-bold" style={{ color: '#2e7d32' }}>+{formatCurrency(b)} {t('supplierHasCredit')}</span>;
   return <span className="text-xs" style={{ color: '#6b7280' }}>{t('clear')}</span>;
 }
 
@@ -124,7 +124,7 @@ export default function SuppliersList() {
   const refresh = () => mode === 'audit' ? fetchAudit(true) : fetchSuppliers(true);
 
   return (
-    <div dir="rtl" className="h-full flex flex-col" style={{ background: '#080c14', fontFamily: "'Cairo','Tajawal',sans-serif" }}>
+    <div dir="rtl" className="h-full flex flex-col" style={{ background: 'white', fontFamily: "'Cairo','Tajawal',sans-serif" }}>
 
       {/* ── Header ── */}
       <div style={{
@@ -162,7 +162,7 @@ export default function SuppliersList() {
         </div>
       ) : loadError ? (
         <div className="flex-1 flex items-center justify-center px-8">
-          <p style={{ color: '#f87171', textAlign: 'center', fontSize: '0.9rem' }}>{loadError}</p>
+          <p style={{ color: '#d32f2f', textAlign: 'center', fontSize: '0.9rem' }}>{loadError}</p>
         </div>
       ) : mode === 'audit' ? (
         <AuditView auditData={auditData} isAdmin={isAdmin} repairing={repairing} onRepair={doRepair} refreshing={refreshing} />
@@ -217,27 +217,27 @@ function SupplierListView({ suppliers, mode, filter, query, totalOwed, totalCred
       <div className="flex-shrink-0 px-4 pt-3 pb-2">
         {/* Summary cards */}
         <div className="grid grid-cols-2 gap-2 mb-3">
-          <div className="rounded-xl p-3" style={{ background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.15)' }}>
-            <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#f87171' }}>نحن مدينون</p>
-            <p className="text-base font-bold mt-0.5" style={{ color: '#f87171' }}>{formatCurrency(totalOwed)}</p>
+          <div className="rounded-xl p-3" style={{ background: 'rgba(211,47,47,0.06)', border: '1px solid rgba(211,47,47,0.2)' }}>
+            <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#d32f2f' }}>نحن مدينون</p>
+            <p className="text-base font-bold mt-0.5" style={{ color: '#d32f2f' }}>{formatCurrency(totalOwed)}</p>
           </div>
-          <div className="rounded-xl p-3" style={{ background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.15)' }}>
-            <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#34d399' }}>أرصدة دائنة</p>
-            <p className="text-base font-bold mt-0.5" style={{ color: '#34d399' }}>{formatCurrency(totalCredit)}</p>
+          <div className="rounded-xl p-3" style={{ background: 'rgba(46,125,50,0.06)', border: '1px solid rgba(46,125,50,0.2)' }}>
+            <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#2e7d32' }}>أرصدة دائنة</p>
+            <p className="text-base font-bold mt-0.5" style={{ color: '#2e7d32' }}>{formatCurrency(totalCredit)}</p>
           </div>
         </div>
 
         {/* Search */}
         <div className="relative mb-2">
-          <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: '#4a5568' }} />
+          <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: '#6b7280' }} />
           <input
             type="text" value={query} onChange={e => onQueryChange(e.target.value)}
             placeholder="بحث بالاسم أو الهاتف..."
-            className="w-full pr-9 pl-8 py-2.5 rounded-xl text-white placeholder-gray-600 outline-none"
-            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', fontSize: '14px' }}
+            className="w-full pr-9 pl-8 py-2.5 rounded-xl placeholder-gray-400 outline-none"
+            style={{ background: 'white', border: '1.5px solid #90caf9', fontSize: '14px', color: '#1a1a1a' }}
           />
           {query && (
-            <button onClick={() => onQueryChange('')} className="absolute left-2 top-1/2 -translate-y-1/2 p-1 rounded-full" style={{ color: '#9ca3af' }}>
+            <button onClick={() => onQueryChange('')} className="absolute left-2 top-1/2 -translate-y-1/2 p-1 rounded-full" style={{ color: '#6b7280' }}>
               <X size={14} />
             </button>
           )}
@@ -250,9 +250,9 @@ function SupplierListView({ suppliers, mode, filter, query, totalOwed, totalCred
               <button key={id} onClick={() => onFilterChange(id)}
                 className="px-3 py-1 rounded-full text-xs font-semibold transition-all"
                 style={{
-                  background: filter === id ? 'rgba(212,165,116,0.15)' : 'rgba(255,255,255,0.04)',
-                  border:     filter === id ? '1px solid rgba(212,165,116,0.3)'  : '1px solid rgba(255,255,255,0.07)',
-                  color:      filter === id ? '#D4A574' : '#6b7280',
+                  background: filter === id ? 'rgba(57,73,171,0.1)' : 'white',
+                  border:     filter === id ? '1px solid #3949AB'  : '1px solid #e5e7eb',
+                  color:      filter === id ? '#3949AB' : '#6b7280',
                 }}>
                 {label}
               </button>
@@ -264,7 +264,7 @@ function SupplierListView({ suppliers, mode, filter, query, totalOwed, totalCred
       <div className="flex-1 overflow-y-auto scroll-touch px-4 pb-4">
         {suppliers.length === 0 ? (
           <div className="text-center py-16">
-            <Truck size={44} className="mx-auto mb-3" style={{ color: '#2a3a52' }} />
+            <Truck size={44} className="mx-auto mb-3" style={{ color: '#cbd5e1' }} />
             <p style={{ color: '#6b7280' }}>لا يوجد موردون</p>
           </div>
         ) : (
@@ -274,20 +274,20 @@ function SupplierListView({ suppliers, mode, filter, query, totalOwed, totalCred
                 key={s.id} whileTap={{ scale: 0.98 }}
                 onClick={() => onSelect(s.id)}
                 className="w-full flex items-center gap-3 p-3.5 rounded-xl text-left touch-manipulation"
-                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}
+                style={{ background: 'white', border: '1px solid #e5e7eb' }}
               >
                 <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-                  style={{ background: 'rgba(212,165,116,0.12)', border: '1px solid rgba(212,165,116,0.2)' }}>
-                  <Truck size={17} style={{ color: '#D4A574' }} />
+                  style={{ background: 'rgba(57,73,171,0.1)', border: '1px solid rgba(57,73,171,0.25)' }}>
+                  <Truck size={17} style={{ color: '#3949AB' }} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-white truncate">{s.name}</p>
+                  <p className="text-sm font-semibold truncate" style={{ color: '#1a1a1a' }}>{s.name}</p>
                   <div className="flex items-center gap-2 mt-0.5">
                     {s.phone && <span className="text-xs flex items-center gap-1" style={{ color: '#6b7280' }}><Phone size={10} />{s.phone}</span>}
                     <BalanceBadge balance={s.balance} />
                   </div>
                 </div>
-                <ChevronRight size={15} style={{ color: '#4a5568' }} />
+                <ChevronRight size={15} style={{ color: '#6b7280' }} />
               </motion.button>
             ))}
           </div>
@@ -310,16 +310,16 @@ function BalancesView({ suppliers, onSelect }) {
     <>
       <div className="flex-shrink-0 px-4 pt-3 pb-2">
         <div className="grid grid-cols-2 gap-2 mb-3">
-          <div className="rounded-xl p-3" style={{ background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.15)' }}>
-            <p className="text-[10px] font-semibold uppercase" style={{ color: '#f87171' }}>نحن مدينون ({countDebt})</p>
-            <p className="text-lg font-bold mt-0.5" style={{ color: '#f87171' }}>{formatCurrency(totalDebt)}</p>
+          <div className="rounded-xl p-3" style={{ background: 'rgba(211,47,47,0.06)', border: '1px solid rgba(211,47,47,0.2)' }}>
+            <p className="text-[10px] font-semibold uppercase" style={{ color: '#d32f2f' }}>نحن مدينون ({countDebt})</p>
+            <p className="text-lg font-bold mt-0.5" style={{ color: '#d32f2f' }}>{formatCurrency(totalDebt)}</p>
           </div>
-          <div className="rounded-xl p-3" style={{ background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.15)' }}>
-            <p className="text-[10px] font-semibold uppercase" style={{ color: '#34d399' }}>أرصدة دائنة ({countCredit})</p>
-            <p className="text-lg font-bold mt-0.5" style={{ color: '#34d399' }}>{formatCurrency(totalCredit)}</p>
+          <div className="rounded-xl p-3" style={{ background: 'rgba(46,125,50,0.06)', border: '1px solid rgba(46,125,50,0.2)' }}>
+            <p className="text-[10px] font-semibold uppercase" style={{ color: '#2e7d32' }}>أرصدة دائنة ({countCredit})</p>
+            <p className="text-lg font-bold mt-0.5" style={{ color: '#2e7d32' }}>{formatCurrency(totalCredit)}</p>
           </div>
         </div>
-        <p className="text-xs" style={{ color: '#4a5568' }}>مرتبة حسب الرصيد | {suppliers.length} مورد</p>
+        <p className="text-xs" style={{ color: '#6b7280' }}>مرتبة حسب الرصيد | {suppliers.length} مورد</p>
       </div>
 
       <div className="flex-1 overflow-y-auto scroll-touch px-4 pb-4 space-y-2">
@@ -333,24 +333,24 @@ function BalancesView({ suppliers, onSelect }) {
               onClick={() => onSelect(s.id)}
               className="w-full flex items-center gap-3 p-3.5 rounded-xl text-left touch-manipulation"
               style={{
-                background: isDebt ? 'rgba(239,68,68,0.05)' : isCredit ? 'rgba(16,185,129,0.05)' : 'rgba(255,255,255,0.04)',
-                border: isDebt ? '1px solid rgba(239,68,68,0.12)' : isCredit ? '1px solid rgba(16,185,129,0.12)' : '1px solid rgba(255,255,255,0.07)',
+                background: isDebt ? 'rgba(211,47,47,0.05)' : isCredit ? 'rgba(46,125,50,0.05)' : 'white',
+                border: isDebt ? '1px solid rgba(211,47,47,0.18)' : isCredit ? '1px solid rgba(46,125,50,0.18)' : '1px solid #e5e7eb',
               }}>
               <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-                style={{ background: isDebt ? 'rgba(239,68,68,0.12)' : isCredit ? 'rgba(16,185,129,0.12)' : 'rgba(255,255,255,0.06)' }}>
-                {isDebt ? <TrendingDown size={17} style={{ color: '#f87171' }} />
-                        : isCredit ? <TrendingUp size={17} style={{ color: '#34d399' }} />
+                style={{ background: isDebt ? 'rgba(211,47,47,0.12)' : isCredit ? 'rgba(46,125,50,0.12)' : '#f1f5f9' }}>
+                {isDebt ? <TrendingDown size={17} style={{ color: '#d32f2f' }} />
+                        : isCredit ? <TrendingUp size={17} style={{ color: '#2e7d32' }} />
                         : <Truck size={17} style={{ color: '#6b7280' }} />}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-white truncate">{s.name}</p>
+                <p className="text-sm font-semibold truncate" style={{ color: '#1a1a1a' }}>{s.name}</p>
                 {s.phone && <p className="text-xs mt-0.5" style={{ color: '#6b7280' }}>{s.phone}</p>}
               </div>
               <div className="text-left flex-shrink-0">
-                <p className="text-base font-bold" style={{ color: isDebt ? '#f87171' : isCredit ? '#34d399' : '#6b7280' }}>
+                <p className="text-base font-bold" style={{ color: isDebt ? '#d32f2f' : isCredit ? '#2e7d32' : '#6b7280' }}>
                   {b === 0 ? '0' : isDebt ? `-${formatCurrency(Math.abs(b))}` : `+${formatCurrency(b)}`}
                 </p>
-                <p className="text-[10px]" style={{ color: '#4a5568' }}>
+                <p className="text-[10px]" style={{ color: '#6b7280' }}>
                   {isDebt ? 'مدين' : isCredit ? 'دائن' : 'صفر'}
                 </p>
               </div>
@@ -369,15 +369,15 @@ function OwesReport({ suppliers, total, onSelect }) {
   return (
     <>
       <div className="flex-shrink-0 px-4 pt-3 pb-2">
-        <div className="rounded-2xl p-4 mb-3" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
+        <div className="rounded-2xl p-4 mb-3" style={{ background: 'rgba(211,47,47,0.06)', border: '1px solid rgba(211,47,47,0.2)' }}>
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: 'rgba(239,68,68,0.15)' }}>
-              <ClipboardList size={22} style={{ color: '#f87171' }} />
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: 'rgba(211,47,47,0.12)' }}>
+              <ClipboardList size={22} style={{ color: '#d32f2f' }} />
             </div>
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: '#f87171' }}>إجمالي ما ندين به</p>
-              <p className="text-2xl font-bold" style={{ color: '#f87171' }}>{formatCurrency(total)}</p>
-              <p className="text-xs" style={{ color: '#9ca3af' }}>{sorted.length} مورد</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: '#d32f2f' }}>إجمالي ما ندين به</p>
+              <p className="text-2xl font-bold" style={{ color: '#d32f2f' }}>{formatCurrency(total)}</p>
+              <p className="text-xs" style={{ color: '#6b7280' }}>{sorted.length} مورد</p>
             </div>
           </div>
         </div>
@@ -386,8 +386,8 @@ function OwesReport({ suppliers, total, onSelect }) {
       <div className="flex-1 overflow-y-auto scroll-touch px-4 pb-4 space-y-2">
         {sorted.length === 0 ? (
           <div className="text-center py-16">
-            <CheckCircle2 size={48} className="mx-auto mb-3" style={{ color: '#34d399' }} />
-            <p className="font-semibold" style={{ color: '#34d399' }}>لا توجد ذمم</p>
+            <CheckCircle2 size={48} className="mx-auto mb-3" style={{ color: '#2e7d32' }} />
+            <p className="font-semibold" style={{ color: '#2e7d32' }}>لا توجد ذمم</p>
             <p className="text-xs mt-1" style={{ color: '#6b7280' }}>جميع الموردين تمت تسويتهم</p>
           </div>
         ) : sorted.map((s, idx) => {
@@ -398,17 +398,17 @@ function OwesReport({ suppliers, total, onSelect }) {
               key={s.id} whileTap={{ scale: 0.98 }}
               onClick={() => onSelect(s.id)}
               className="w-full p-3.5 rounded-xl text-left touch-manipulation"
-              style={{ background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.12)' }}>
+              style={{ background: 'rgba(211,47,47,0.05)', border: '1px solid rgba(211,47,47,0.18)' }}>
               <div className="flex items-center gap-3 mb-2">
                 <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold"
-                  style={{ background: 'rgba(239,68,68,0.15)', color: '#f87171' }}>
+                  style={{ background: 'rgba(211,47,47,0.12)', color: '#d32f2f' }}>
                   {idx + 1}
                 </div>
-                <p className="flex-1 text-sm font-semibold text-white truncate">{s.name}</p>
-                <p className="text-base font-bold flex-shrink-0" style={{ color: '#f87171' }}>{formatCurrency(owed)}</p>
+                <p className="flex-1 text-sm font-semibold truncate" style={{ color: '#1a1a1a' }}>{s.name}</p>
+                <p className="text-base font-bold flex-shrink-0" style={{ color: '#d32f2f' }}>{formatCurrency(owed)}</p>
               </div>
-              <div className="h-1 rounded-full overflow-hidden" style={{ background: 'rgba(239,68,68,0.1)' }}>
-                <div className="h-full rounded-full" style={{ width: `${pct}%`, background: 'linear-gradient(90deg, #ef4444, #f87171)' }} />
+              <div className="h-1 rounded-full overflow-hidden" style={{ background: 'rgba(211,47,47,0.1)' }}>
+                <div className="h-full rounded-full" style={{ width: `${pct}%`, background: 'linear-gradient(90deg, #b71c1c, #d32f2f)' }} />
               </div>
               <p className="text-[10px] mt-1" style={{ color: '#6b7280' }}>{pct.toFixed(1)}% من إجمالي الذمم</p>
             </motion.button>
@@ -426,15 +426,15 @@ function CreditReport({ suppliers, total, onSelect }) {
   return (
     <>
       <div className="flex-shrink-0 px-4 pt-3 pb-2">
-        <div className="rounded-2xl p-4 mb-3" style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)' }}>
+        <div className="rounded-2xl p-4 mb-3" style={{ background: 'rgba(46,125,50,0.06)', border: '1px solid rgba(46,125,50,0.2)' }}>
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: 'rgba(16,185,129,0.15)' }}>
-              <CreditCard size={22} style={{ color: '#34d399' }} />
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: 'rgba(46,125,50,0.12)' }}>
+              <CreditCard size={22} style={{ color: '#2e7d32' }} />
             </div>
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: '#34d399' }}>إجمالي الأرصدة الدائنة</p>
-              <p className="text-2xl font-bold" style={{ color: '#34d399' }}>{formatCurrency(total)}</p>
-              <p className="text-xs" style={{ color: '#9ca3af' }}>{sorted.length} مورد دائن</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: '#2e7d32' }}>إجمالي الأرصدة الدائنة</p>
+              <p className="text-2xl font-bold" style={{ color: '#2e7d32' }}>{formatCurrency(total)}</p>
+              <p className="text-xs" style={{ color: '#6b7280' }}>{sorted.length} مورد دائن</p>
             </div>
           </div>
         </div>
@@ -443,7 +443,7 @@ function CreditReport({ suppliers, total, onSelect }) {
       <div className="flex-1 overflow-y-auto scroll-touch px-4 pb-4 space-y-2">
         {sorted.length === 0 ? (
           <div className="text-center py-16">
-            <Truck size={44} className="mx-auto mb-3" style={{ color: '#2a3a52' }} />
+            <Truck size={44} className="mx-auto mb-3" style={{ color: '#cbd5e1' }} />
             <p style={{ color: '#6b7280' }}>لا يوجد موردون دائنون</p>
           </div>
         ) : sorted.map((s, idx) => {
@@ -454,17 +454,17 @@ function CreditReport({ suppliers, total, onSelect }) {
               key={s.id} whileTap={{ scale: 0.98 }}
               onClick={() => onSelect(s.id)}
               className="w-full p-3.5 rounded-xl text-left touch-manipulation"
-              style={{ background: 'rgba(16,185,129,0.05)', border: '1px solid rgba(16,185,129,0.12)' }}>
+              style={{ background: 'rgba(46,125,50,0.05)', border: '1px solid rgba(46,125,50,0.18)' }}>
               <div className="flex items-center gap-3 mb-2">
                 <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold"
-                  style={{ background: 'rgba(16,185,129,0.15)', color: '#34d399' }}>
+                  style={{ background: 'rgba(46,125,50,0.12)', color: '#2e7d32' }}>
                   {idx + 1}
                 </div>
-                <p className="flex-1 text-sm font-semibold text-white truncate">{s.name}</p>
-                <p className="text-base font-bold flex-shrink-0" style={{ color: '#34d399' }}>+{formatCurrency(credit)}</p>
+                <p className="flex-1 text-sm font-semibold truncate" style={{ color: '#1a1a1a' }}>{s.name}</p>
+                <p className="text-base font-bold flex-shrink-0" style={{ color: '#2e7d32' }}>+{formatCurrency(credit)}</p>
               </div>
-              <div className="h-1 rounded-full overflow-hidden" style={{ background: 'rgba(16,185,129,0.1)' }}>
-                <div className="h-full rounded-full" style={{ width: `${pct}%`, background: 'linear-gradient(90deg, #10b981, #34d399)' }} />
+              <div className="h-1 rounded-full overflow-hidden" style={{ background: 'rgba(46,125,50,0.1)' }}>
+                <div className="h-full rounded-full" style={{ width: `${pct}%`, background: 'linear-gradient(90deg, #1b5e20, #2e7d32)' }} />
               </div>
               <p className="text-[10px] mt-1" style={{ color: '#6b7280' }}>{pct.toFixed(1)}% من إجمالي الأرصدة</p>
             </motion.button>
@@ -479,7 +479,7 @@ function CreditReport({ suppliers, total, onSelect }) {
 
 function AuditView({ auditData, isAdmin, repairing, onRepair }) {
   if (!auditData) return (
-    <div className="flex-1 flex items-center justify-center">
+    <div className="flex-1 flex items-center justify-center" style={{ background: 'white' }}>
       <p style={{ color: '#6b7280' }}>جارٍ تحميل بيانات التدقيق...</p>
     </div>
   );
@@ -491,32 +491,32 @@ function AuditView({ auditData, isAdmin, repairing, onRepair }) {
   return (
     <div className="flex-1 overflow-y-auto scroll-touch px-4 pt-3 pb-4">
       <div className="grid grid-cols-2 gap-2 mb-4">
-        <div className="rounded-xl p-3" style={{ background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.15)' }}>
-          <p className="text-[10px] font-semibold uppercase" style={{ color: '#34d399' }}>صحيح</p>
-          <p className="text-2xl font-bold mt-0.5" style={{ color: '#34d399' }}>{ok.length}</p>
+        <div className="rounded-xl p-3" style={{ background: 'rgba(46,125,50,0.06)', border: '1px solid rgba(46,125,50,0.2)' }}>
+          <p className="text-[10px] font-semibold uppercase" style={{ color: '#2e7d32' }}>صحيح</p>
+          <p className="text-2xl font-bold mt-0.5" style={{ color: '#2e7d32' }}>{ok.length}</p>
         </div>
-        <div className="rounded-xl p-3" style={{ background: drifts.length > 0 ? 'rgba(239,68,68,0.07)' : 'rgba(16,185,129,0.07)', border: drifts.length > 0 ? '1px solid rgba(239,68,68,0.2)' : '1px solid rgba(16,185,129,0.15)' }}>
-          <p className="text-[10px] font-semibold uppercase" style={{ color: drifts.length > 0 ? '#f87171' : '#34d399' }}>فروق</p>
-          <p className="text-2xl font-bold mt-0.5" style={{ color: drifts.length > 0 ? '#f87171' : '#34d399' }}>{drifts.length}</p>
+        <div className="rounded-xl p-3" style={{ background: drifts.length > 0 ? 'rgba(211,47,47,0.06)' : 'rgba(46,125,50,0.06)', border: drifts.length > 0 ? '1px solid rgba(211,47,47,0.2)' : '1px solid rgba(46,125,50,0.2)' }}>
+          <p className="text-[10px] font-semibold uppercase" style={{ color: drifts.length > 0 ? '#d32f2f' : '#2e7d32' }}>فروق</p>
+          <p className="text-2xl font-bold mt-0.5" style={{ color: drifts.length > 0 ? '#d32f2f' : '#2e7d32' }}>{drifts.length}</p>
         </div>
       </div>
 
       {drifts.length === 0 ? (
-        <div className="rounded-2xl p-6 text-center mb-4" style={{ background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.2)' }}>
-          <CheckCircle2 size={40} className="mx-auto mb-2" style={{ color: '#34d399' }} />
-          <p className="font-bold text-white">جميع الأرصدة صحيحة</p>
+        <div className="rounded-2xl p-6 text-center mb-4" style={{ background: 'rgba(46,125,50,0.06)', border: '1px solid rgba(46,125,50,0.2)' }}>
+          <CheckCircle2 size={40} className="mx-auto mb-2" style={{ color: '#2e7d32' }} />
+          <p className="font-bold" style={{ color: '#1a1a1a' }}>جميع الأرصدة صحيحة</p>
           <p className="text-xs mt-1" style={{ color: '#6b7280' }}>لا توجد أي فروق في {all.length} مورد</p>
         </div>
       ) : (
         <>
-          <p className="text-xs font-semibold mb-2" style={{ color: '#f87171' }}>الموردون ذوو الفروق ({drifts.length})</p>
+          <p className="text-xs font-semibold mb-2" style={{ color: '#d32f2f' }}>الموردون ذوو الفروق ({drifts.length})</p>
           <div className="space-y-2 mb-4">
             {drifts.map(row => (
               <div key={row.id} className="rounded-xl p-3.5"
-                style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.18)' }}>
+                style={{ background: 'rgba(211,47,47,0.05)', border: '1px solid rgba(211,47,47,0.2)' }}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-white truncate">{row.name}</p>
+                    <p className="text-sm font-semibold truncate" style={{ color: '#1a1a1a' }}>{row.name}</p>
                     {row.phone && <p className="text-xs" style={{ color: '#6b7280' }}>{row.phone}</p>}
                     <div className="flex gap-3 mt-2">
                       <div>
@@ -525,11 +525,11 @@ function AuditView({ auditData, isAdmin, repairing, onRepair }) {
                       </div>
                       <div>
                         <p className="text-[10px]" style={{ color: '#6b7280' }}>متوقع</p>
-                        <p className="text-xs font-bold" style={{ color: '#60a5fa' }}>{formatCurrency(row.expected_balance)}</p>
+                        <p className="text-xs font-bold" style={{ color: '#3949AB' }}>{formatCurrency(row.expected_balance)}</p>
                       </div>
                       <div>
                         <p className="text-[10px]" style={{ color: '#6b7280' }}>الفرق</p>
-                        <p className="text-xs font-bold" style={{ color: '#f87171' }}>{formatCurrency(row.drift)}</p>
+                        <p className="text-xs font-bold" style={{ color: '#d32f2f' }}>{formatCurrency(row.drift)}</p>
                       </div>
                     </div>
                   </div>
@@ -538,7 +538,7 @@ function AuditView({ auditData, isAdmin, repairing, onRepair }) {
                       onClick={() => onRepair(row.id)}
                       disabled={repairing === row.id}
                       className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold touch-manipulation flex-shrink-0"
-                      style={{ background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', color: '#f59e0b', opacity: repairing === row.id ? 0.5 : 1 }}>
+                      style={{ background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.35)', color: '#f59e0b', opacity: repairing === row.id ? 0.5 : 1 }}>
                       {repairing === row.id ? <Loader2 size={13} className="animate-spin" /> : <Wrench size={13} />}
                       إصلاح
                     </button>
@@ -552,14 +552,14 @@ function AuditView({ auditData, isAdmin, repairing, onRepair }) {
 
       {ok.length > 0 && (
         <>
-          <p className="text-xs font-semibold mb-2" style={{ color: '#34d399' }}>الأرصدة الصحيحة ({ok.length})</p>
+          <p className="text-xs font-semibold mb-2" style={{ color: '#2e7d32' }}>الأرصدة الصحيحة ({ok.length})</p>
           <div className="space-y-1.5">
             {ok.map(row => (
               <div key={row.id} className="rounded-xl px-3.5 py-2.5 flex items-center gap-3"
-                style={{ background: 'rgba(16,185,129,0.04)', border: '1px solid rgba(16,185,129,0.1)' }}>
-                <CheckCircle2 size={15} style={{ color: '#34d399', flexShrink: 0 }} />
-                <p className="flex-1 text-sm text-white truncate">{row.name}</p>
-                <p className="text-xs font-semibold" style={{ color: '#34d399' }}>{formatCurrency(row.stored_balance)}</p>
+                style={{ background: 'rgba(46,125,50,0.04)', border: '1px solid rgba(46,125,50,0.15)' }}>
+                <CheckCircle2 size={15} style={{ color: '#2e7d32', flexShrink: 0 }} />
+                <p className="flex-1 text-sm truncate" style={{ color: '#1a1a1a' }}>{row.name}</p>
+                <p className="text-xs font-semibold" style={{ color: '#2e7d32' }}>{formatCurrency(row.stored_balance)}</p>
               </div>
             ))}
           </div>
@@ -610,25 +610,25 @@ function SupplierDetailSheet({ supplierId, onClose, onChanged, isAdmin }) {
 
   return (
     <motion.div className="fixed inset-0 z-50" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 backdrop-blur-sm" style={{ background: 'rgba(0,0,0,0.35)' }} onClick={onClose} />
       <motion.div className="absolute inset-x-0 bottom-0 rounded-t-3xl flex flex-col"
-        style={{ background: '#0d1120', border: '1px solid rgba(255,255,255,0.08)', maxHeight: '92vh', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+        style={{ background: 'white', border: '1px solid #e5e7eb', maxHeight: '92vh', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
         initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
         transition={{ type: 'spring', damping: 28, stiffness: 280 }}>
 
         <div className="flex justify-center pt-3 pb-1">
-          <div className="w-10 h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.15)' }} />
+          <div className="w-10 h-1 rounded-full" style={{ background: '#cbd5e1' }} />
         </div>
 
         {/* Supplier header */}
         <div className="flex items-center justify-between px-5 py-3">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-              style={{ background: 'rgba(212,165,116,0.12)', border: '1px solid rgba(212,165,116,0.25)' }}>
-              <Truck size={18} style={{ color: '#D4A574' }} />
+              style={{ background: 'rgba(57,73,171,0.1)', border: '1px solid rgba(57,73,171,0.25)' }}>
+              <Truck size={18} style={{ color: '#3949AB' }} />
             </div>
             <div className="min-w-0">
-              <h2 className="text-base font-bold text-white truncate">{supplier?.name || '...'}</h2>
+              <h2 className="text-base font-bold truncate" style={{ color: '#1a1a1a' }}>{supplier?.name || '...'}</h2>
               {supplier?.phone && <p className="text-xs truncate" style={{ color: '#6b7280' }}>{supplier.phone}</p>}
             </div>
           </div>
@@ -636,35 +636,35 @@ function SupplierDetailSheet({ supplierId, onClose, onChanged, isAdmin }) {
             {supplier && (
               <button onClick={() => setShowEdit(true)}
                 className="w-9 h-9 flex items-center justify-center rounded-full touch-manipulation"
-                style={{ background: 'rgba(255,255,255,0.06)' }}>
-                <Edit2 size={15} style={{ color: '#9ca3af' }} />
+                style={{ background: '#f1f5f9' }}>
+                <Edit2 size={15} style={{ color: '#6b7280' }} />
               </button>
             )}
             {isAdmin && supplier && (
               <button onClick={onDeleteSupplier}
                 className="w-9 h-9 flex items-center justify-center rounded-full touch-manipulation"
-                style={{ background: 'rgba(239,68,68,0.08)' }}>
-                <Trash2 size={15} style={{ color: '#f87171' }} />
+                style={{ background: 'rgba(211,47,47,0.08)' }}>
+                <Trash2 size={15} style={{ color: '#d32f2f' }} />
               </button>
             )}
             <button onClick={onClose}
               className="w-9 h-9 flex items-center justify-center rounded-full"
-              style={{ background: 'rgba(255,255,255,0.06)' }}>
-              <X size={18} style={{ color: '#9ca3af' }} />
+              style={{ background: '#f1f5f9' }}>
+              <X size={18} style={{ color: '#6b7280' }} />
             </button>
           </div>
         </div>
 
         {/* Tabs */}
         <div className="px-5 pb-3">
-          <div className="flex rounded-xl p-1" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
+          <div className="flex rounded-xl p-1" style={{ background: '#f1f5f9', border: '1px solid #e5e7eb' }}>
             {[{ id: 'overview', label: 'نظرة عامة' }, { id: 'history', label: 'السجل المالي' }].map(({ id, label }) => (
               <button key={id} onClick={() => setTab(id)}
                 className="flex-1 py-2 rounded-lg text-xs font-semibold transition-all touch-manipulation"
                 style={{
-                  background: tab === id ? 'rgba(212,165,116,0.15)' : 'transparent',
-                  color:      tab === id ? '#D4A574' : '#4a5568',
-                  border:     tab === id ? '1px solid rgba(212,165,116,0.25)' : '1px solid transparent',
+                  background: tab === id ? 'rgba(57,73,171,0.1)' : 'transparent',
+                  color:      tab === id ? '#3949AB' : '#6b7280',
+                  border:     tab === id ? '1px solid rgba(57,73,171,0.3)' : '1px solid transparent',
                 }}>
                 {label}
               </button>
@@ -683,10 +683,10 @@ function SupplierDetailSheet({ supplierId, onClose, onChanged, isAdmin }) {
         </div>
 
         {/* Action bar */}
-        <div className="px-5 py-3" style={{ borderTop: '1px solid rgba(255,255,255,0.07)', background: 'rgba(13,17,32,0.96)' }}>
+        <div className="px-5 py-3" style={{ borderTop: '1px solid #e5e7eb', background: 'white' }}>
           <button onClick={() => setShowPayment(true)} disabled={!supplier}
             className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-white text-base touch-manipulation"
-            style={{ background: 'linear-gradient(135deg, #065f46 0%, #10b981 100%)', border: '1px solid rgba(16,185,129,0.3)' }}>
+            style={{ background: 'linear-gradient(135deg, #1b5e20 0%, #2e7d32 100%)', border: '1px solid rgba(46,125,50,0.4)' }}>
             <Wallet size={18} />
             تسجيل دفعة للمورد
           </button>
@@ -724,36 +724,36 @@ function OverviewTab({ supplier }) {
     <div className="space-y-3 pt-1">
       <div className="rounded-2xl p-4"
         style={{
-          background: b < 0 ? 'rgba(239,68,68,0.08)' : b > 0 ? 'rgba(16,185,129,0.08)' : 'rgba(255,255,255,0.04)',
-          border:     b < 0 ? '1px solid rgba(239,68,68,0.18)' : b > 0 ? '1px solid rgba(16,185,129,0.18)' : '1px solid rgba(255,255,255,0.08)',
+          background: b < 0 ? 'rgba(211,47,47,0.06)' : b > 0 ? 'rgba(46,125,50,0.06)' : '#f1f5f9',
+          border:     b < 0 ? '1px solid rgba(211,47,47,0.2)' : b > 0 ? '1px solid rgba(46,125,50,0.2)' : '1px solid #e5e7eb',
         }}>
         <p className="text-xs font-semibold uppercase tracking-wide mb-1"
-          style={{ color: b < 0 ? '#f87171' : b > 0 ? '#34d399' : '#6b7280' }}>
+          style={{ color: b < 0 ? '#d32f2f' : b > 0 ? '#2e7d32' : '#6b7280' }}>
           {b < 0 ? 'مستحق للمورد' : b > 0 ? 'رصيد دائن' : 'الرصيد'}
         </p>
-        <p className="text-3xl font-bold" style={{ color: b < 0 ? '#f87171' : b > 0 ? '#34d399' : '#e5e7eb' }}>
+        <p className="text-3xl font-bold" style={{ color: b < 0 ? '#d32f2f' : b > 0 ? '#2e7d32' : '#1a1a1a' }}>
           {formatCurrency(Math.abs(b))}
         </p>
       </div>
       {(supplier.address || supplier.email || supplier.notes) && (
         <div className="rounded-xl p-3 space-y-1.5"
-          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+          style={{ background: 'white', border: '1px solid #e5e7eb' }}>
           {supplier.address && (
             <div>
               <p className="text-[10px] uppercase tracking-wide" style={{ color: '#6b7280' }}>العنوان</p>
-              <p className="text-sm text-white">{supplier.address}</p>
+              <p className="text-sm" style={{ color: '#1a1a1a' }}>{supplier.address}</p>
             </div>
           )}
           {supplier.email && (
             <div>
               <p className="text-[10px] uppercase tracking-wide" style={{ color: '#6b7280' }}>البريد الإلكتروني</p>
-              <p className="text-sm text-white">{supplier.email}</p>
+              <p className="text-sm" style={{ color: '#1a1a1a' }}>{supplier.email}</p>
             </div>
           )}
           {supplier.notes && (
             <div>
               <p className="text-[10px] uppercase tracking-wide" style={{ color: '#6b7280' }}>ملاحظات</p>
-              <p className="text-sm" style={{ color: '#9ca3af' }}>{supplier.notes}</p>
+              <p className="text-sm" style={{ color: '#6b7280' }}>{supplier.notes}</p>
             </div>
           )}
         </div>
@@ -768,7 +768,7 @@ function HistoryTab({ payments, onDelete, onEdit, isAdmin }) {
   if (payments.length === 0) {
     return (
       <div className="text-center py-8">
-        <History size={40} className="mx-auto mb-3" style={{ color: '#2a3a52' }} />
+        <History size={40} className="mx-auto mb-3" style={{ color: '#cbd5e1' }} />
         <p style={{ color: '#6b7280' }}>لا توجد حركات مالية</p>
       </div>
     );
@@ -789,19 +789,19 @@ function HistoryTab({ payments, onDelete, onEdit, isAdmin }) {
         return (
           <div key={p.id} className="rounded-xl p-3 flex items-center gap-3"
             style={{
-              background: isOpening ? 'rgba(245,158,11,0.06)' : isCorrection ? 'rgba(59,130,246,0.06)' : 'rgba(255,255,255,0.04)',
-              border: isOpening ? '1px solid rgba(245,158,11,0.15)' : isCorrection ? '1px solid rgba(59,130,246,0.15)' : '1px solid rgba(255,255,255,0.07)',
+              background: isOpening ? 'rgba(245,158,11,0.06)' : isCorrection ? 'rgba(57,73,171,0.06)' : 'white',
+              border: isOpening ? '1px solid rgba(245,158,11,0.2)' : isCorrection ? '1px solid rgba(57,73,171,0.2)' : '1px solid #e5e7eb',
             }}>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-white truncate">{methodLabel(p)}</p>
+              <p className="text-sm font-semibold truncate" style={{ color: '#1a1a1a' }}>{methodLabel(p)}</p>
               <p className="text-[11px]" style={{ color: '#6b7280' }}>
                 {new Date(p.date).toLocaleDateString('ar-DZ')}
                 {p.created_by_name && ` · ${p.created_by_name}`}
               </p>
-              {p.notes && <p className="text-[11px] italic mt-0.5 truncate" style={{ color: '#4a5568' }}>{p.notes}</p>}
+              {p.notes && <p className="text-[11px] italic mt-0.5 truncate" style={{ color: '#6b7280' }}>{p.notes}</p>}
             </div>
             <div className="flex-shrink-0 text-left ml-2">
-              <p className="text-base font-bold" style={{ color: p.amount < 0 ? '#f87171' : isCorrection ? '#60a5fa' : '#34d399' }}>
+              <p className="text-base font-bold" style={{ color: p.amount < 0 ? '#d32f2f' : isCorrection ? '#3949AB' : '#2e7d32' }}>
                 {p.amount >= 0 ? '+' : ''}{formatCurrency(p.amount)}
               </p>
             </div>
@@ -809,12 +809,12 @@ function HistoryTab({ payments, onDelete, onEdit, isAdmin }) {
               <div className="flex flex-col gap-1 flex-shrink-0">
                 <button onClick={() => onEdit(p)}
                   className="p-1.5 rounded-lg touch-manipulation"
-                  style={{ background: 'rgba(255,255,255,0.05)', color: '#9ca3af' }}>
+                  style={{ background: '#f1f5f9', color: '#6b7280' }}>
                   <Edit2 size={13} />
                 </button>
                 <button onClick={() => onDelete(p)}
                   className="p-1.5 rounded-lg touch-manipulation"
-                  style={{ background: 'rgba(239,68,68,0.08)', color: '#f87171' }}>
+                  style={{ background: 'rgba(211,47,47,0.08)', color: '#d32f2f' }}>
                   <Trash2 size={13} />
                 </button>
               </div>
@@ -861,33 +861,33 @@ function SupplierPaymentModal({ supplier, onClose, onDone }) {
 
   return (
     <motion.div className="fixed inset-0 z-[60]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={submitting ? undefined : onClose} />
+      <div className="absolute inset-0 backdrop-blur-sm" style={{ background: 'rgba(0,0,0,0.35)' }} onClick={submitting ? undefined : onClose} />
       <motion.div className="absolute inset-x-0 bottom-0 rounded-t-3xl flex flex-col"
-        style={{ background: '#0d1120', border: '1px solid rgba(16,185,129,0.2)', maxHeight: '92vh', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+        style={{ background: 'white', border: '1px solid rgba(46,125,50,0.3)', maxHeight: '92vh', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
         initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 28 }}>
-        <div className="flex justify-center pt-3 pb-1"><div className="w-10 h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.15)' }} /></div>
+        <div className="flex justify-center pt-3 pb-1"><div className="w-10 h-1 rounded-full" style={{ background: '#cbd5e1' }} /></div>
         <div className="flex items-center justify-between px-5 py-3">
-          <h2 className="text-lg font-bold text-white">تسجيل دفعة للمورد</h2>
+          <h2 className="text-lg font-bold" style={{ color: '#1a1a1a' }}>تسجيل دفعة للمورد</h2>
           <button onClick={onClose} disabled={submitting} className="w-9 h-9 rounded-full flex items-center justify-center"
-            style={{ background: 'rgba(255,255,255,0.06)', opacity: submitting ? 0.4 : 1 }}>
-            <X size={18} style={{ color: '#9ca3af' }} />
+            style={{ background: '#f1f5f9', opacity: submitting ? 0.4 : 1 }}>
+            <X size={18} style={{ color: '#6b7280' }} />
           </button>
         </div>
         <div className="flex-1 overflow-y-auto scroll-touch px-5 pb-3 space-y-3">
           <div className="rounded-xl p-3"
-            style={{ background: debt > 0 ? 'rgba(239,68,68,0.07)' : 'rgba(255,255,255,0.04)', border: debt > 0 ? '1px solid rgba(239,68,68,0.15)' : '1px solid rgba(255,255,255,0.07)' }}>
+            style={{ background: debt > 0 ? 'rgba(211,47,47,0.06)' : '#f1f5f9', border: debt > 0 ? '1px solid rgba(211,47,47,0.2)' : '1px solid #e5e7eb' }}>
             <p className="text-xs" style={{ color: '#6b7280' }}>{supplier.name} — {debt > 0 ? 'مستحق للمورد' : 'لا يوجد مستحقات'}</p>
-            <p className="text-xl font-bold" style={{ color: debt > 0 ? '#f87171' : '#34d399' }}>{formatCurrency(debt)}</p>
+            <p className="text-xl font-bold" style={{ color: debt > 0 ? '#d32f2f' : '#2e7d32' }}>{formatCurrency(debt)}</p>
           </div>
           {/* Apply mode toggle */}
-          <div className="flex rounded-xl p-1" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
+          <div className="flex rounded-xl p-1" style={{ background: '#f1f5f9', border: '1px solid #e5e7eb' }}>
             {[{ id: 'general', label: 'دفعة عامة' }, { id: 'purchase', label: 'فاتورة شراء' }].map(({ id, label }) => (
               <button key={id} onClick={() => setApplyMode(id)}
                 className="flex-1 py-2 rounded-lg text-xs font-semibold transition-all touch-manipulation"
                 style={{
-                  background: applyMode === id ? 'rgba(212,165,116,0.15)' : 'transparent',
-                  color:      applyMode === id ? '#D4A574' : '#4a5568',
-                  border:     applyMode === id ? '1px solid rgba(212,165,116,0.25)' : '1px solid transparent',
+                  background: applyMode === id ? 'rgba(57,73,171,0.1)' : 'transparent',
+                  color:      applyMode === id ? '#3949AB' : '#6b7280',
+                  border:     applyMode === id ? '1px solid rgba(57,73,171,0.3)' : '1px solid transparent',
                 }}>
                 {label}
               </button>
@@ -896,14 +896,14 @@ function SupplierPaymentModal({ supplier, onClose, onDone }) {
           {applyMode === 'purchase' && (
             <input type="number" inputMode="numeric" value={purchaseId} onChange={e => setPurchaseId(e.target.value)}
               placeholder="رقم فاتورة الشراء (اختياري)"
-              className="w-full px-4 py-2.5 rounded-xl text-white placeholder-gray-600 outline-none"
-              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(212,165,116,0.25)', fontSize: '15px' }} />
+              className="w-full px-4 py-2.5 rounded-xl placeholder-gray-400 outline-none"
+              style={{ background: 'white', border: '1.5px solid #90caf9', fontSize: '15px', color: '#1a1a1a' }} />
           )}
           {/* Amount display */}
-          <div className="rounded-xl px-4 py-3 text-right" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-            <p className="text-xs font-medium" style={{ color: '#4a5568' }}>المبلغ المدفوع</p>
-            <p className="text-3xl font-bold text-white mt-1">
-              {amount ? formatCurrency(numeric) : <span style={{ color: '#2a3a52' }}>0.00 DA</span>}
+          <div className="rounded-xl px-4 py-3 text-right" style={{ background: 'white', border: '1.5px solid #90caf9' }}>
+            <p className="text-xs font-medium" style={{ color: '#6b7280' }}>المبلغ المدفوع</p>
+            <p className="text-3xl font-bold mt-1" style={{ color: '#e91e63' }}>
+              {amount ? formatCurrency(numeric) : <span style={{ color: '#cbd5e1' }}>0.00 DA</span>}
             </p>
           </div>
           {debt > 0 && (
@@ -911,7 +911,7 @@ function SupplierPaymentModal({ supplier, onClose, onDone }) {
               {[25, 50, 75, 100].map(pct => (
                 <button key={pct} onClick={() => setAmount(String(Math.round(debt * pct / 100)))}
                   className="flex-1 py-2 rounded-lg text-xs font-semibold touch-manipulation"
-                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', color: '#D4A574' }}>
+                  style={{ background: 'white', border: '1px solid #e5e7eb', color: '#3949AB' }}>
                   {pct === 100 ? 'الكل' : `${pct}%`}
                 </button>
               ))}
@@ -923,42 +923,42 @@ function SupplierPaymentModal({ supplier, onClose, onDone }) {
               <button key={key}
                 onClick={() => key === '⌫' ? setAmount(p => p.slice(0, -1)) : handleDigit(key)}
                 className="py-3 rounded-xl text-base font-semibold touch-manipulation active:scale-95"
-                style={{ background: key === '⌫' ? 'rgba(239,68,68,0.08)' : 'rgba(255,255,255,0.04)', border: key === '⌫' ? '1px solid rgba(239,68,68,0.1)' : '1px solid rgba(255,255,255,0.06)', color: key === '⌫' ? '#f87171' : '#fff' }}>
+                style={{ background: key === '⌫' ? 'rgba(211,47,47,0.08)' : 'white', border: key === '⌫' ? '1px solid rgba(211,47,47,0.2)' : '1px solid #e5e7eb', color: key === '⌫' ? '#d32f2f' : '#1a1a1a' }}>
                 {key}
               </button>
             ))}
           </div>
           {/* Method */}
-          <div className="flex rounded-xl p-1" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
+          <div className="flex rounded-xl p-1" style={{ background: '#f1f5f9', border: '1px solid #e5e7eb' }}>
             {['cash', 'bank'].map(m => (
               <button key={m} onClick={() => setMethod(m)}
                 className="flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all touch-manipulation"
                 style={{
-                  background: method === m ? 'rgba(212,165,116,0.15)' : 'transparent',
-                  color:      method === m ? '#D4A574' : '#4a5568',
-                  border:     method === m ? '1px solid rgba(212,165,116,0.25)' : '1px solid transparent',
+                  background: method === m ? 'rgba(57,73,171,0.1)' : 'transparent',
+                  color:      method === m ? '#3949AB' : '#6b7280',
+                  border:     method === m ? '1px solid rgba(57,73,171,0.3)' : '1px solid transparent',
                 }}>
                 {m === 'cash' ? 'نقدي' : 'بنك'}
               </button>
             ))}
           </div>
           <input type="text" value={notes} onChange={e => setNotes(e.target.value)} placeholder="ملاحظات (اختياري)"
-            className="w-full px-4 py-2.5 rounded-xl text-white placeholder-gray-600 outline-none"
-            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', fontSize: '15px' }} />
+            className="w-full px-4 py-2.5 rounded-xl placeholder-gray-400 outline-none"
+            style={{ background: 'white', border: '1.5px solid #90caf9', fontSize: '15px', color: '#1a1a1a' }} />
           {error && (
-            <div className="rounded-xl p-3 flex items-start gap-2" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.15)' }}>
-              <AlertTriangle size={16} style={{ color: '#f87171' }} className="flex-shrink-0 mt-0.5" />
-              <p className="text-xs" style={{ color: '#f87171' }}>{error}</p>
+            <div className="rounded-xl p-3 flex items-start gap-2" style={{ background: 'rgba(211,47,47,0.06)', border: '1px solid rgba(211,47,47,0.2)' }}>
+              <AlertTriangle size={16} style={{ color: '#d32f2f' }} className="flex-shrink-0 mt-0.5" />
+              <p className="text-xs" style={{ color: '#d32f2f' }}>{error}</p>
             </div>
           )}
         </div>
-        <div className="px-5 py-3" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+        <div className="px-5 py-3" style={{ borderTop: '1px solid #e5e7eb' }}>
           <button onClick={submit} disabled={submitting || numeric <= 0}
             className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-white text-base touch-manipulation"
             style={{
-              background: numeric > 0 && !submitting ? 'linear-gradient(135deg, #065f46 0%, #10b981 100%)' : 'rgba(255,255,255,0.04)',
-              border: numeric > 0 && !submitting ? '1px solid rgba(16,185,129,0.3)' : '1px solid rgba(255,255,255,0.06)',
-              opacity: numeric > 0 && !submitting ? 1 : 0.4,
+              background: numeric > 0 && !submitting ? 'linear-gradient(135deg, #1b5e20 0%, #2e7d32 100%)' : '#cfd8dc',
+              border: numeric > 0 && !submitting ? '1px solid rgba(46,125,50,0.4)' : '1px solid #e5e7eb',
+              opacity: numeric > 0 && !submitting ? 1 : 0.6,
             }}>
             <Wallet size={18} />
             {submitting ? 'جارٍ المعالجة...' : 'تسجيل الدفعة'}
@@ -1008,23 +1008,23 @@ function AddSupplierSheet({ onClose, onCreated }) {
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50" style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }}
+      className="fixed inset-0 z-50" style={{ background: 'rgba(0,0,0,0.35)', backdropFilter: 'blur(4px)' }}
       onClick={e => { if (e.target === e.currentTarget && !submitting) onClose(); }}>
       <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
         transition={{ type: 'spring', damping: 28, stiffness: 280 }}
         className="absolute bottom-0 left-0 right-0 rounded-t-3xl flex flex-col"
-        style={{ background: '#0d1120', border: '1px solid rgba(255,255,255,0.08)', maxHeight: '90vh', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-        <div className="flex justify-center pt-3 pb-1 flex-shrink-0"><div className="w-10 h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.15)' }} /></div>
+        style={{ background: 'white', border: '1px solid #e5e7eb', maxHeight: '90vh', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+        <div className="flex justify-center pt-3 pb-1 flex-shrink-0"><div className="w-10 h-1 rounded-full" style={{ background: '#cbd5e1' }} /></div>
         <div className="flex items-center justify-between px-5 py-3 flex-shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: 'rgba(16,185,129,0.15)' }}>
-              <Truck size={16} style={{ color: '#34d399' }} />
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: 'rgba(46,125,50,0.12)' }}>
+              <Truck size={16} style={{ color: '#2e7d32' }} />
             </div>
-            <h2 className="text-base font-bold text-white">إضافة مورد جديد</h2>
+            <h2 className="text-base font-bold" style={{ color: '#1a1a1a' }}>إضافة مورد جديد</h2>
           </div>
           <button onClick={onClose} disabled={submitting} className="w-8 h-8 flex items-center justify-center rounded-full"
-            style={{ background: 'rgba(255,255,255,0.06)' }}>
-            <X size={18} style={{ color: '#9ca3af' }} />
+            style={{ background: '#f1f5f9' }}>
+            <X size={18} style={{ color: '#6b7280' }} />
           </button>
         </div>
         <div className="flex-1 overflow-y-auto scroll-touch px-5 pb-3 space-y-3">
@@ -1035,29 +1035,29 @@ function AddSupplierSheet({ onClose, onCreated }) {
             { v: notes,   set: setNotes,   label: 'ملاحظات',                  type: 'text' },
           ].map((f, i) => (
             <div key={i}>
-              <label className="block text-xs font-semibold mb-1.5" style={{ color: '#9ca3af' }}>
-                {f.label}{f.required ? <span style={{ color: '#f87171' }}> *</span> : null}
+              <label className="block text-xs font-semibold mb-1.5" style={{ color: '#6b7280' }}>
+                {f.label}{f.required ? <span style={{ color: '#d32f2f' }}> *</span> : null}
               </label>
               <input type={f.type} value={f.v} onChange={e => f.set(e.target.value)} autoFocus={i === 0}
                 placeholder={f.label}
-                className="w-full px-4 py-3 rounded-xl text-white placeholder-gray-600 outline-none"
-                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', fontSize: '16px' }} />
+                className="w-full px-4 py-3 rounded-xl placeholder-gray-400 outline-none"
+                style={{ background: 'white', border: '1.5px solid #90caf9', fontSize: '16px', color: '#1a1a1a' }} />
             </div>
           ))}
           <div>
-            <label className="block text-xs font-semibold mb-1.5" style={{ color: '#9ca3af' }}>الرصيد الافتتاحي</label>
+            <label className="block text-xs font-semibold mb-1.5" style={{ color: '#6b7280' }}>الرصيد الافتتاحي</label>
             <div className="flex rounded-xl p-1 mb-2"
-              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+              style={{ background: '#f1f5f9', border: '1px solid #e5e7eb' }}>
               {[
-                { id: 'none',   label: 'لا يوجد', activeColor: '#9ca3af', activeBg: 'rgba(156,163,175,0.12)', activeBorder: 'rgba(156,163,175,0.3)' },
-                { id: 'credit', label: 'دائن',    activeColor: '#34d399', activeBg: 'rgba(16,185,129,0.12)',   activeBorder: 'rgba(16,185,129,0.3)'  },
-                { id: 'owes',   label: 'مدين',    activeColor: '#f87171', activeBg: 'rgba(239,68,68,0.12)',    activeBorder: 'rgba(239,68,68,0.3)'   },
+                { id: 'none',   label: 'لا يوجد', activeColor: '#6b7280',   activeBg: 'rgba(107,114,128,0.12)', activeBorder: 'rgba(107,114,128,0.3)' },
+                { id: 'credit', label: 'دائن',    activeColor: '#2e7d32',   activeBg: 'rgba(46,125,50,0.12)',   activeBorder: 'rgba(46,125,50,0.35)'  },
+                { id: 'owes',   label: 'مدين',    activeColor: '#d32f2f',   activeBg: 'rgba(211,47,47,0.12)',   activeBorder: 'rgba(211,47,47,0.35)'  },
               ].map(({ id, label, activeColor, activeBg, activeBorder }) => (
                 <button key={id} type="button" onClick={() => setBalanceSign(id)}
                   className="flex-1 py-2 px-1 rounded-lg text-[11px] font-semibold transition-all touch-manipulation leading-tight"
                   style={{
                     background: balanceSign === id ? activeBg : 'transparent',
-                    color:      balanceSign === id ? activeColor : '#4a5568',
+                    color:      balanceSign === id ? activeColor : '#6b7280',
                     border:     balanceSign === id ? `1px solid ${activeBorder}` : '1px solid transparent',
                   }}>
                   {label}
@@ -1067,25 +1067,25 @@ function AddSupplierSheet({ onClose, onCreated }) {
             {balanceSign !== 'none' && (
               <input type="number" inputMode="decimal" min="0" value={balanceAmount}
                 onChange={e => setBalanceAmount(e.target.value)} placeholder="0"
-                className="w-full px-4 py-3 rounded-xl text-white placeholder-gray-600 outline-none"
+                className="w-full px-4 py-3 rounded-xl placeholder-gray-400 outline-none"
                 style={{
-                  background: 'rgba(255,255,255,0.04)',
-                  border: `1px solid ${balanceSign === 'credit' ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`,
+                  background: 'white',
+                  border: `1.5px solid ${balanceSign === 'credit' ? '#2e7d32' : '#d32f2f'}`,
                   fontSize: '16px',
-                  color: balanceSign === 'credit' ? '#34d399' : '#f87171',
+                  color: balanceSign === 'credit' ? '#2e7d32' : '#d32f2f',
                 }} />
             )}
           </div>
-          {error && <p className="text-xs text-center" style={{ color: '#f87171' }}>{error}</p>}
+          {error && <p className="text-xs text-center" style={{ color: '#d32f2f' }}>{error}</p>}
         </div>
         <div className="px-5 py-3 flex-shrink-0"
-          style={{ borderTop: '1px solid rgba(255,255,255,0.07)', background: 'rgba(13,17,32,0.96)' }}>
+          style={{ borderTop: '1px solid #e5e7eb', background: 'white' }}>
           <button onClick={handleSubmit} disabled={!canSubmit}
             className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-white text-base touch-manipulation"
             style={{
-              background: canSubmit ? 'linear-gradient(135deg, #065f46 0%, #10b981 100%)' : 'rgba(255,255,255,0.04)',
-              border: canSubmit ? '1px solid rgba(16,185,129,0.3)' : '1px solid rgba(255,255,255,0.06)',
-              opacity: canSubmit ? 1 : 0.5,
+              background: canSubmit ? 'linear-gradient(135deg, #1b5e20 0%, #2e7d32 100%)' : '#cfd8dc',
+              border: canSubmit ? '1px solid rgba(46,125,50,0.4)' : '1px solid #e5e7eb',
+              opacity: canSubmit ? 1 : 0.6,
             }}>
             {submitting ? <Loader2 size={18} className="animate-spin" /> : <Truck size={18} />}
             إضافة المورد
@@ -1125,16 +1125,16 @@ function EditSupplierSheet({ supplier, onClose, onDone }) {
 
   return (
     <motion.div className="fixed inset-0 z-[60]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={submitting ? undefined : onClose} />
+      <div className="absolute inset-0 backdrop-blur-sm" style={{ background: 'rgba(0,0,0,0.35)' }} onClick={submitting ? undefined : onClose} />
       <motion.div className="absolute inset-x-0 bottom-0 rounded-t-3xl flex flex-col"
-        style={{ background: '#0d1120', border: '1px solid rgba(255,255,255,0.08)', maxHeight: '92vh', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+        style={{ background: 'white', border: '1px solid #e5e7eb', maxHeight: '92vh', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
         initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 28 }}>
-        <div className="flex justify-center pt-3 pb-1"><div className="w-10 h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.15)' }} /></div>
+        <div className="flex justify-center pt-3 pb-1"><div className="w-10 h-1 rounded-full" style={{ background: '#cbd5e1' }} /></div>
         <div className="flex items-center justify-between px-5 py-3">
-          <h2 className="text-lg font-bold text-white">تعديل بيانات المورد</h2>
+          <h2 className="text-lg font-bold" style={{ color: '#1a1a1a' }}>تعديل بيانات المورد</h2>
           <button onClick={onClose} disabled={submitting} className="w-9 h-9 rounded-full flex items-center justify-center"
-            style={{ background: 'rgba(255,255,255,0.06)', opacity: submitting ? 0.4 : 1 }}>
-            <X size={18} style={{ color: '#9ca3af' }} />
+            style={{ background: '#f1f5f9', opacity: submitting ? 0.4 : 1 }}>
+            <X size={18} style={{ color: '#6b7280' }} />
           </button>
         </div>
         <div className="flex-1 overflow-y-auto scroll-touch px-5 pb-3 space-y-3">
@@ -1146,23 +1146,23 @@ function EditSupplierSheet({ supplier, onClose, onDone }) {
             { v: notes,   set: setNotes,   label: 'ملاحظات',                              type: 'text' },
           ].map((f, i) => (
             <div key={i}>
-              <label className="block text-xs font-semibold mb-1.5" style={{ color: '#9ca3af' }}>
-                {f.label}{f.required ? <span style={{ color: '#f87171' }}> *</span> : null}
+              <label className="block text-xs font-semibold mb-1.5" style={{ color: '#6b7280' }}>
+                {f.label}{f.required ? <span style={{ color: '#d32f2f' }}> *</span> : null}
               </label>
               <input type={f.type} value={f.v} onChange={e => f.set(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl text-white placeholder-gray-600 outline-none"
-                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', fontSize: '16px' }} />
+                className="w-full px-4 py-3 rounded-xl placeholder-gray-400 outline-none"
+                style={{ background: 'white', border: '1.5px solid #90caf9', fontSize: '16px', color: '#1a1a1a' }} />
             </div>
           ))}
-          {error && <p className="text-xs text-center" style={{ color: '#f87171' }}>{error}</p>}
+          {error && <p className="text-xs text-center" style={{ color: '#d32f2f' }}>{error}</p>}
         </div>
-        <div className="px-5 py-3" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+        <div className="px-5 py-3" style={{ borderTop: '1px solid #e5e7eb' }}>
           <button onClick={submit} disabled={!canSubmit}
             className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-white text-base touch-manipulation"
             style={{
-              background: canSubmit ? 'linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%)' : 'rgba(255,255,255,0.04)',
-              border: canSubmit ? '1px solid rgba(37,99,235,0.4)' : '1px solid rgba(255,255,255,0.06)',
-              opacity: canSubmit ? 1 : 0.5,
+              background: canSubmit ? 'linear-gradient(135deg, #3949AB 0%, #5C6BC0 100%)' : '#cfd8dc',
+              border: canSubmit ? '1px solid rgba(57,73,171,0.4)' : '1px solid #e5e7eb',
+              opacity: canSubmit ? 1 : 0.6,
             }}>
             {submitting ? <Loader2 size={18} className="animate-spin" /> : <Edit2 size={16} />}
             {submitting ? 'جارٍ الحفظ...' : 'حفظ التغييرات'}
@@ -1197,46 +1197,46 @@ function EditSupplierPaymentSheet({ payment, onClose, onDone }) {
 
   return (
     <motion.div className="fixed inset-0 z-[60]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={submitting ? undefined : onClose} />
+      <div className="absolute inset-0 backdrop-blur-sm" style={{ background: 'rgba(0,0,0,0.35)' }} onClick={submitting ? undefined : onClose} />
       <motion.div className="absolute inset-x-0 bottom-0 rounded-t-3xl flex flex-col"
-        style={{ background: '#0d1120', border: '1px solid rgba(255,255,255,0.08)', maxHeight: '92vh', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+        style={{ background: 'white', border: '1px solid #e5e7eb', maxHeight: '92vh', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
         initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 28 }}>
-        <div className="flex justify-center pt-3 pb-1"><div className="w-10 h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.15)' }} /></div>
+        <div className="flex justify-center pt-3 pb-1"><div className="w-10 h-1 rounded-full" style={{ background: '#cbd5e1' }} /></div>
         <div className="flex items-center justify-between px-5 py-3">
-          <h2 className="text-lg font-bold text-white">تعديل الدفعة</h2>
+          <h2 className="text-lg font-bold" style={{ color: '#1a1a1a' }}>تعديل الدفعة</h2>
           <button onClick={onClose} disabled={submitting} className="w-9 h-9 rounded-full flex items-center justify-center"
-            style={{ background: 'rgba(255,255,255,0.06)', opacity: submitting ? 0.4 : 1 }}>
-            <X size={18} style={{ color: '#9ca3af' }} />
+            style={{ background: '#f1f5f9', opacity: submitting ? 0.4 : 1 }}>
+            <X size={18} style={{ color: '#6b7280' }} />
           </button>
         </div>
         <div className="flex-1 overflow-y-auto scroll-touch px-5 pb-3 space-y-3">
           <div>
-            <label className="block text-xs font-semibold mb-1.5" style={{ color: '#9ca3af' }}>المبلغ (DZD)</label>
+            <label className="block text-xs font-semibold mb-1.5" style={{ color: '#6b7280' }}>المبلغ (DZD)</label>
             <input type="number" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl text-white outline-none text-2xl font-bold text-right"
-              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }} />
+              className="w-full px-4 py-3 rounded-xl outline-none text-2xl font-bold text-right"
+              style={{ background: 'white', border: '1.5px solid #90caf9', color: '#e91e63' }} />
           </div>
           <div>
-            <label className="block text-xs font-semibold mb-1.5" style={{ color: '#9ca3af' }}>التاريخ</label>
+            <label className="block text-xs font-semibold mb-1.5" style={{ color: '#6b7280' }}>التاريخ</label>
             <input type="date" value={date} onChange={e => setDate(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl text-white outline-none"
-              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', fontSize: '16px' }} />
+              className="w-full px-4 py-3 rounded-xl outline-none"
+              style={{ background: 'white', border: '1.5px solid #90caf9', fontSize: '16px', color: '#1a1a1a' }} />
           </div>
           <div>
-            <label className="block text-xs font-semibold mb-1.5" style={{ color: '#9ca3af' }}>ملاحظات</label>
+            <label className="block text-xs font-semibold mb-1.5" style={{ color: '#6b7280' }}>ملاحظات</label>
             <input type="text" value={notes} onChange={e => setNotes(e.target.value)} placeholder="ملاحظات (اختياري)"
-              className="w-full px-4 py-3 rounded-xl text-white placeholder-gray-600 outline-none"
-              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', fontSize: '16px' }} />
+              className="w-full px-4 py-3 rounded-xl placeholder-gray-400 outline-none"
+              style={{ background: 'white', border: '1.5px solid #90caf9', fontSize: '16px', color: '#1a1a1a' }} />
           </div>
-          {error && <p className="text-xs text-center" style={{ color: '#f87171' }}>{error}</p>}
+          {error && <p className="text-xs text-center" style={{ color: '#d32f2f' }}>{error}</p>}
         </div>
-        <div className="px-5 py-3" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+        <div className="px-5 py-3" style={{ borderTop: '1px solid #e5e7eb' }}>
           <button onClick={submit} disabled={!canSubmit}
             className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-white text-base touch-manipulation"
             style={{
-              background: canSubmit ? 'linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%)' : 'rgba(255,255,255,0.04)',
-              border: canSubmit ? '1px solid rgba(37,99,235,0.4)' : '1px solid rgba(255,255,255,0.06)',
-              opacity: canSubmit ? 1 : 0.5,
+              background: canSubmit ? 'linear-gradient(135deg, #3949AB 0%, #5C6BC0 100%)' : '#cfd8dc',
+              border: canSubmit ? '1px solid rgba(57,73,171,0.4)' : '1px solid #e5e7eb',
+              opacity: canSubmit ? 1 : 0.6,
             }}>
             {submitting ? <Loader2 size={18} className="animate-spin" /> : <Edit2 size={16} />}
             {submitting ? 'جارٍ الحفظ...' : 'حفظ التغييرات'}

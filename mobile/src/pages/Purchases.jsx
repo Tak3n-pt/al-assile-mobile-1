@@ -59,9 +59,10 @@ function EditCell({ value, onChange }) {
         onBlur={commit}
         onKeyDown={e => e.key==='Enter' && commit()}
         style={{
-          width:'100%', border:'none', borderBottom:'2px solid #2b5be8',
+          width:'100%', border:'none', borderBottom:'2px solid #3949AB',
           outline:'none', textAlign:'center', fontSize:'0.85rem', fontWeight:'600',
           background:'#eef2ff', borderRadius:4, padding:'2px 4px',
+          fontFamily:"'Cairo','Tajawal',sans-serif",
         }}
       />
     );
@@ -81,7 +82,7 @@ function ItemRow({ item, onQtyChange, onPriceChange, onRemove }) {
   const lineTotal = (item.unit_price * item.quantity).toFixed(2);
   return (
     <div style={{
-      display:'flex', alignItems:'center', borderBottom:'1px solid #f0f0f0',
+      display:'flex', alignItems:'center', borderBottom:'1px solid #e5e7eb',
       background:'white', minHeight:44,
     }}>
       <div style={{flex:1, display:'flex', alignItems:'center', padding:'0.4rem 0.5rem 0.4rem 0.25rem', gap:'0.4rem'}}>
@@ -89,7 +90,7 @@ function ItemRow({ item, onQtyChange, onPriceChange, onRemove }) {
           {item.name}
         </span>
         <button onClick={onRemove} style={{background:'none',border:'none',cursor:'pointer',padding:2,lineHeight:1,flexShrink:0}}>
-          <X size={14} color="#dc2626"/>
+          <X size={14} color="#d32f2f"/>
         </button>
       </div>
       <div style={{width:'22%', padding:'0.4rem 0.25rem'}}>
@@ -98,7 +99,7 @@ function ItemRow({ item, onQtyChange, onPriceChange, onRemove }) {
       <div style={{width:'18%', padding:'0.4rem 0.25rem'}}>
         <EditCell value={item.quantity} onChange={v => v>0 ? onQtyChange(v) : onRemove()}/>
       </div>
-      <div style={{width:'23%', textAlign:'center', padding:'0.4rem 0.25rem', fontSize:'0.82rem', color:'#444'}}>
+      <div style={{width:'23%', textAlign:'center', padding:'0.4rem 0.25rem', fontSize:'0.82rem', color:'#1a1a1a'}}>
         {lineTotal}
       </div>
     </div>
@@ -112,7 +113,7 @@ function DialogOverlay({ children, onClose }) {
       style={{
         position:'fixed', inset:0, zIndex:60,
         display:'flex', alignItems:'center', justifyContent:'center',
-        background:'rgba(0,0,0,0.52)',
+        background:'rgba(0,0,0,0.35)',
       }}
       onClick={onClose}
     >
@@ -138,10 +139,10 @@ function NumberInputDialog({ title, subtitle, confirmLabel = 'متابعة', onC
   return (
     <DialogOverlay onClose={onClose}>
       <div dir="rtl" style={{ padding:'1.5rem 1.25rem 1.25rem' }}>
-        <div style={{ fontWeight:'700', fontSize:'1.05rem', textAlign:'center', marginBottom:'0.3rem' }}>
+        <div style={{ fontWeight:'700', fontSize:'1.05rem', textAlign:'center', marginBottom:'0.3rem', color:'#1a1a1a' }}>
           {title}
         </div>
-        <div style={{ fontSize:'0.83rem', color:'#666', textAlign:'center', marginBottom:'1.1rem' }}>
+        <div style={{ fontSize:'0.83rem', color:'#6b7280', textAlign:'center', marginBottom:'1.1rem' }}>
           {subtitle}
         </div>
         <input
@@ -152,10 +153,11 @@ function NumberInputDialog({ title, subtitle, confirmLabel = 'متابعة', onC
           placeholder="0"
           style={{
             display:'block', width:'100%', boxSizing:'border-box',
-            border:'none', borderBottom:'2px solid #2b5be8',
+            border:'none', borderBottom:'2px solid #3949AB',
             outline:'none', fontSize:'1.15rem', textAlign:'center',
             padding:'0.45rem 0', marginBottom:'1.35rem',
-            background:'transparent',
+            background:'transparent', color:'#1a1a1a',
+            fontFamily:"'Cairo','Tajawal',sans-serif",
           }}
         />
         {/* RTL: primary (right, first DOM) | تراجع (left, second DOM) */}
@@ -165,10 +167,11 @@ function NumberInputDialog({ title, subtitle, confirmLabel = 'متابعة', onC
             disabled={!ok}
             style={{
               flex:1, padding:'0.65rem',
-              background: ok ? '#2b5be8' : '#b0b8d0',
-              color:'white', border:'none', borderRadius:8,
+              background: ok ? '#3949AB' : '#cfd8dc',
+              color: ok ? 'white' : '#546e7a', border:'none', borderRadius:8,
               fontSize:'0.9rem', fontWeight:'700',
               cursor: ok ? 'pointer' : 'not-allowed',
+              fontFamily:"'Cairo','Tajawal',sans-serif",
             }}
           >
             {confirmLabel}
@@ -177,9 +180,10 @@ function NumberInputDialog({ title, subtitle, confirmLabel = 'متابعة', onC
             onClick={onClose}
             style={{
               flex:1, padding:'0.65rem',
-              background:'#f0f0f0', color:'#333',
-              border:'none', borderRadius:8,
+              background:'#f1f5f9', color:'#1a1a1a',
+              border:'1px solid #e5e7eb', borderRadius:8,
               fontSize:'0.9rem', fontWeight:'600', cursor:'pointer',
+              fontFamily:"'Cairo','Tajawal',sans-serif",
             }}
           >
             تراجع
@@ -225,33 +229,33 @@ function ReprintDialog({ api, onClose }) {
       <div dir="rtl" style={{ padding:'1rem' }}>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'0.75rem' }}>
           <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer' }}>
-            <X size={20} color="#666"/>
+            <X size={20} color="#6b7280"/>
           </button>
-          <span style={{ fontWeight:'700', fontSize:'1rem' }}>فاتورة #{purchaseId}</span>
+          <span style={{ fontWeight:'700', fontSize:'1rem', color:'#1a1a1a' }}>فاتورة #{purchaseId}</span>
         </div>
         {loading ? (
-          <p style={{ textAlign:'center', color:'#888', padding:'1.5rem 0' }}>جارٍ التحميل...</p>
+          <p style={{ textAlign:'center', color:'#6b7280', padding:'1.5rem 0' }}>جارٍ التحميل...</p>
         ) : err ? (
-          <p style={{ textAlign:'center', color:'#dc2626', padding:'1.5rem 0' }}>{err}</p>
+          <p style={{ textAlign:'center', color:'#d32f2f', padding:'1.5rem 0' }}>{err}</p>
         ) : purchase ? (
           <>
             <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'0.5rem' }}>
-              <span style={{ color:'#888', fontSize:'0.83rem' }}>{purchase.date}</span>
-              <span style={{ fontWeight:'600' }}>فاتورة #{purchase.id}</span>
+              <span style={{ color:'#6b7280', fontSize:'0.83rem' }}>{purchase.date}</span>
+              <span style={{ fontWeight:'600', color:'#1a1a1a' }}>فاتورة #{purchase.id}</span>
             </div>
             {(purchase.items||[]).map((it,i) => (
-              <div key={i} style={{ display:'flex', justifyContent:'space-between', padding:'0.45rem 0', borderBottom:'1px solid #f5f5f5' }}>
-                <span style={{ color:'#444', fontSize:'0.83rem' }}>{(it.unit_price*it.quantity).toFixed(2)}</span>
-                <span style={{ fontSize:'0.88rem' }}>{it.product_name} × {it.quantity}</span>
+              <div key={i} style={{ display:'flex', justifyContent:'space-between', padding:'0.45rem 0', borderBottom:'1px solid #e5e7eb' }}>
+                <span style={{ color:'#1a1a1a', fontSize:'0.83rem' }}>{(it.unit_price*it.quantity).toFixed(2)}</span>
+                <span style={{ fontSize:'0.88rem', color:'#1a1a1a' }}>{it.product_name} × {it.quantity}</span>
               </div>
             ))}
             <div style={{ display:'flex', justifyContent:'space-between', paddingTop:'0.75rem', fontWeight:'700', fontSize:'1rem' }}>
-              <span style={{ color:'#2b5be8' }}>{purchase.total?.toFixed(2)} ريال</span>
-              <span>الإجمالي</span>
+              <span style={{ color:'#e91e63' }}>{purchase.total?.toFixed(2)} ريال</span>
+              <span style={{ color:'#1a1a1a' }}>الإجمالي</span>
             </div>
             <button
               onClick={onClose}
-              style={{ display:'block', width:'100%', marginTop:'1rem', padding:'0.65rem', background:'#2b5be8', color:'white', border:'none', borderRadius:8, fontSize:'0.9rem', fontWeight:'700', cursor:'pointer' }}
+              style={{ display:'block', width:'100%', marginTop:'1rem', padding:'0.65rem', background:'#3949AB', color:'white', border:'none', borderRadius:8, fontSize:'0.9rem', fontWeight:'700', cursor:'pointer', fontFamily:"'Cairo','Tajawal',sans-serif" }}
             >
               إغلاق
             </button>
@@ -278,13 +282,14 @@ function AddProductDialog({ barcode: initBarcode, api, onClose, onAdded }) {
 
   const inputStyle = {
     display:'block', width:'100%', boxSizing:'border-box',
-    border:'none', borderBottom:'1px solid #ccc',
+    border:'1.5px solid #90caf9', borderRadius:8,
     outline:'none', fontSize:'0.92rem',
-    padding:'0.45rem 0', background:'transparent',
-    textAlign:'right',
+    padding:'0.5rem 0.65rem', background:'white',
+    textAlign:'right', color:'#1a1a1a',
+    fontFamily:"'Cairo','Tajawal',sans-serif",
   };
   const labelStyle = {
-    fontSize:'0.75rem', color:'#888', display:'block', marginBottom:'0.15rem',
+    fontSize:'0.75rem', color:'#6b7280', display:'block', marginBottom:'0.15rem',
   };
   const rowStyle = { marginBottom:'0.85rem' };
 
@@ -313,17 +318,17 @@ function AddProductDialog({ barcode: initBarcode, api, onClose, onAdded }) {
   return (
     <DialogOverlay onClose={onClose}>
       <div dir="rtl" style={{ padding:'1.25rem 1.1rem 1rem' }}>
-        <div style={{ fontWeight:'700', fontSize:'1rem', textAlign:'center', marginBottom:'0.25rem' }}>
+        <div style={{ fontWeight:'700', fontSize:'1rem', textAlign:'center', marginBottom:'0.25rem', color:'#1a1a1a' }}>
           إضافة منتج جديد
         </div>
         {initBarcode && (
-          <div style={{ fontSize:'0.8rem', color:'#888', textAlign:'center', marginBottom:'0.85rem' }}>
+          <div style={{ fontSize:'0.8rem', color:'#6b7280', textAlign:'center', marginBottom:'0.85rem' }}>
             هذا المنتج غير موجود في المخزن، هل تريد إضافته؟
           </div>
         )}
 
         {err && (
-          <div style={{ background:'#fef2f2', color:'#dc2626', fontSize:'0.8rem', padding:'0.4rem 0.6rem', borderRadius:6, marginBottom:'0.75rem', textAlign:'center' }}>
+          <div style={{ background:'#fef2f2', color:'#d32f2f', fontSize:'0.8rem', padding:'0.4rem 0.6rem', borderRadius:6, marginBottom:'0.75rem', textAlign:'center' }}>
             {err}
           </div>
         )}
@@ -340,7 +345,7 @@ function AddProductDialog({ barcode: initBarcode, api, onClose, onAdded }) {
             />
           </div>
           <button
-            style={{ background:'none', border:'1px solid #ccc', borderRadius:6, padding:'0.3rem 0.45rem', cursor:'pointer', lineHeight:1, flexShrink:0, marginBottom:2 }}
+            style={{ background:'white', border:'1px solid #e5e7eb', borderRadius:6, padding:'0.3rem 0.45rem', cursor:'pointer', lineHeight:1, flexShrink:0, marginBottom:2 }}
           >
             <BarcodeIcon size={20}/>
           </button>
@@ -411,10 +416,11 @@ function AddProductDialog({ barcode: initBarcode, api, onClose, onAdded }) {
             disabled={saving}
             style={{
               flex:1, padding:'0.65rem',
-              background: saving ? '#9ab4f5' : '#2b5be8',
-              color:'white', border:'none', borderRadius:8,
+              background: saving ? '#cfd8dc' : '#3949AB',
+              color: saving ? '#546e7a' : 'white', border:'none', borderRadius:8,
               fontSize:'0.9rem', fontWeight:'700',
               cursor: saving ? 'not-allowed' : 'pointer',
+              fontFamily:"'Cairo','Tajawal',sans-serif",
             }}
           >
             {saving ? '...' : 'إضافه'}
@@ -423,9 +429,10 @@ function AddProductDialog({ barcode: initBarcode, api, onClose, onAdded }) {
             onClick={onClose}
             style={{
               flex:1, padding:'0.65rem',
-              background:'#f0f0f0', color:'#333',
-              border:'none', borderRadius:8,
+              background:'#f1f5f9', color:'#1a1a1a',
+              border:'1px solid #e5e7eb', borderRadius:8,
               fontSize:'0.9rem', fontWeight:'600', cursor:'pointer',
+              fontFamily:"'Cairo','Tajawal',sans-serif",
             }}
           >
             تراجع
@@ -601,15 +608,16 @@ export default function Purchases() {
   return (
     <div dir="rtl" style={{
       height:'100%', display:'flex', flexDirection:'column',
-      background:'#f5f5f5', fontFamily:"'Cairo','Tajawal',sans-serif",
+      background:'white', fontFamily:"'Cairo','Tajawal',sans-serif",
       position:'relative', overflow:'hidden',
     }}>
 
       {/* HEADER: hamburger (right) | title | back arrow (left) */}
       <div style={{
-        background:'#2b5be8', display:'flex', alignItems:'center',
+        background:'linear-gradient(135deg, #3949AB 0%, #5C6BC0 100%)',
+        display:'flex', alignItems:'center',
         padding:'0.55rem 0.75rem', flexShrink:0,
-        boxShadow:'0 2px 8px rgba(43,91,232,0.4)',
+        boxShadow:'0 2px 8px rgba(57,73,171,0.4)',
       }}>
         <button onClick={() => setShowMenu(v=>!v)} style={{background:'none',border:'none',cursor:'pointer',padding:'0.3rem',lineHeight:1}}>
           <HamburgerIcon/>
@@ -629,16 +637,18 @@ export default function Purchases() {
           <div style={{
             position:'absolute', top:52, right:0, zIndex:50,
             background:'white', minWidth:240,
-            boxShadow:'0 6px 24px rgba(0,0,0,0.18)',
+            border:'1px solid #e5e7eb',
+            boxShadow:'0 6px 24px rgba(0,0,0,0.12)',
           }}>
             {menuItems.map((item,i)=>(
               <button key={i}
                 onClick={() => { setShowMenu(false); item.action(); }}
                 style={{
                   display:'block', width:'100%', padding:'0.95rem 1.25rem',
-                  background:'none', border:'none', textAlign:'right',
+                  background:'white', border:'none', textAlign:'right',
                   fontSize:'0.95rem', color:'#1a1a1a', cursor:'pointer',
-                  borderBottom: i<menuItems.length-1 ? '1px solid #f0f0f0' : 'none',
+                  borderBottom: i<menuItems.length-1 ? '1px solid #e5e7eb' : 'none',
+                  fontFamily:"'Cairo','Tajawal',sans-serif",
                 }}>
                 {item.label}
               </button>
@@ -648,17 +658,17 @@ export default function Purchases() {
       )}
 
       {/* DATE ROW */}
-      <div style={{display:'flex',background:'#e0e0e0',flexShrink:0,borderBottom:'1px solid #ccc'}}>
-        <div style={{padding:'0.6rem 1rem',fontSize:'0.9rem',color:'#333',fontWeight:'600',display:'flex',alignItems:'center',flexShrink:0}}>
+      <div style={{display:'flex',background:'white',flexShrink:0,borderBottom:'1px solid #e5e7eb'}}>
+        <div style={{padding:'0.6rem 1rem',fontSize:'0.9rem',color:'#1a1a1a',fontWeight:'600',display:'flex',alignItems:'center',flexShrink:0}}>
           تاريخ الفاتورة
         </div>
-        <div style={{width:1,background:'#bbb',margin:'0.3rem 0'}}/>
+        <div style={{width:1,background:'#e5e7eb',margin:'0.3rem 0'}}/>
         <button
           onClick={() => {
             try { dateRef.current?.showPicker(); }
             catch { dateRef.current?.click(); }
           }}
-          style={{flex:1,padding:'0.6rem 1rem',background:'none',border:'none',cursor:'pointer',textAlign:'left',fontSize:'0.9rem',color:'#444',fontWeight:'500'}}>
+          style={{flex:1,padding:'0.6rem 1rem',background:'none',border:'none',cursor:'pointer',textAlign:'left',fontSize:'0.9rem',color:'#1a1a1a',fontWeight:'500',fontFamily:"'Cairo','Tajawal',sans-serif"}}>
           {date}
         </button>
         <input ref={dateRef} type="date" value={date} onChange={e=>setDate(e.target.value)}
@@ -669,10 +679,10 @@ export default function Purchases() {
       <div style={{
         display:'flex', alignItems:'center', background:'white',
         padding:'0.45rem 0.5rem', gap:'0.5rem', flexShrink:0,
-        borderBottom:'1px solid #e8e8e8', boxShadow:'0 1px 4px rgba(0,0,0,0.06)',
+        borderBottom:'1px solid #e5e7eb',
       }}>
         <button onClick={() => setShowScanner(true)} style={{
-          background:'none', border:'1px solid #ccc', borderRadius:6,
+          background:'white', border:'1px solid #e5e7eb', borderRadius:6,
           padding:'0.3rem 0.4rem', cursor:'pointer', flexShrink:0, lineHeight:1,
         }}>
           <BarcodeIcon size={26}/>
@@ -686,26 +696,29 @@ export default function Purchases() {
             onBlur={() => setTimeout(() => setShowDrop(false), 150)}
             placeholder="ابحث عن منتج أو استخدم الكاميرا"
             style={{
-              width:'100%', border:'none', borderBottom:'1px solid #bbb',
-              padding:'0.35rem 0', fontSize:'0.83rem', outline:'none',
-              background:'transparent', textAlign:'right', color:'#333',
+              width:'100%', border:'1.5px solid #90caf9', borderRadius:8,
+              padding:'0.4rem 0.6rem', fontSize:'0.83rem', outline:'none',
+              background:'white', textAlign:'right', color:'#1a1a1a',
               boxSizing:'border-box',
+              fontFamily:"'Cairo','Tajawal',sans-serif",
             }}
           />
           {showDrop && searchResults.length>0 && (
             <div style={{
               position:'absolute', top:'100%', right:0, left:0, zIndex:35,
-              background:'white', boxShadow:'0 6px 20px rgba(0,0,0,0.15)',
+              background:'white', boxShadow:'0 6px 20px rgba(0,0,0,0.12)',
+              border:'1px solid #e5e7eb',
               borderRadius:'0 0 8px 8px', maxHeight:260, overflowY:'auto',
             }}>
               {searchResults.map(p=>(
                 <button key={p.id} onMouseDown={() => addProduct(p)}
                   style={{
                     display:'flex', justifyContent:'space-between', alignItems:'center',
-                    width:'100%', padding:'0.65rem 0.9rem', background:'none', border:'none',
-                    borderBottom:'1px solid #f5f5f5', cursor:'pointer', textAlign:'right',
+                    width:'100%', padding:'0.65rem 0.9rem', background:'white', border:'none',
+                    borderBottom:'1px solid #f1f5f9', cursor:'pointer', textAlign:'right',
+                    fontFamily:"'Cairo','Tajawal',sans-serif",
                   }}>
-                  <span style={{color:'#888',fontSize:'0.78rem'}}>{(p.purchase_price||0).toFixed(2)} ريال</span>
+                  <span style={{color:'#6b7280',fontSize:'0.78rem'}}>{(p.purchase_price||0).toFixed(2)} ريال</span>
                   <span style={{color:'#1a1a1a',fontSize:'0.9rem',fontWeight:'500'}}>{p.name}</span>
                 </button>
               ))}
@@ -714,41 +727,41 @@ export default function Purchases() {
         </div>
 
         <button onClick={handleSave} disabled={saving} style={{
-          background: saving ? '#9ab4f5' : '#2b5be8', border:'none', borderRadius:6,
+          background: saving ? '#cfd8dc' : '#3949AB', border:'none', borderRadius:6,
           padding:'0.45rem 0.75rem', display:'flex', alignItems:'center', gap:'0.35rem',
           cursor: saving ? 'not-allowed' : 'pointer', flexShrink:0,
         }}>
-          <Save size={17} color="white"/>
-          <span style={{color:'white',fontSize:'0.85rem',fontWeight:'700'}}>حفظ</span>
+          <Save size={17} color={saving ? '#546e7a' : 'white'}/>
+          <span style={{color: saving ? '#546e7a' : 'white',fontSize:'0.85rem',fontWeight:'700'}}>حفظ</span>
         </button>
       </div>
 
       {/* ERROR / SUCCESS BANNERS */}
       {error && (
         <div style={{background:'#fef2f2',padding:'0.4rem 1rem',display:'flex',justifyContent:'space-between',alignItems:'center',borderBottom:'1px solid #fca5a5',flexShrink:0}}>
-          <button onClick={() => setError('')} style={{background:'none',border:'none',cursor:'pointer'}}><X size={14} color="#dc2626"/></button>
-          <span style={{color:'#dc2626',fontSize:'0.83rem'}}>{error}</span>
+          <button onClick={() => setError('')} style={{background:'none',border:'none',cursor:'pointer'}}><X size={14} color="#d32f2f"/></button>
+          <span style={{color:'#d32f2f',fontSize:'0.83rem'}}>{error}</span>
         </div>
       )}
       {savedId && !error && (
         <div style={{background:'#f0fdf4',padding:'0.4rem 1rem',display:'flex',justifyContent:'space-between',alignItems:'center',borderBottom:'1px solid #86efac',flexShrink:0}}>
-          <button onClick={() => setSavedId(null)} style={{background:'none',border:'none',cursor:'pointer'}}><X size={14} color="#16a34a"/></button>
-          <span style={{color:'#16a34a',fontSize:'0.83rem',display:'flex',alignItems:'center',gap:'0.4rem'}}>
+          <button onClick={() => setSavedId(null)} style={{background:'none',border:'none',cursor:'pointer'}}><X size={14} color="#2e7d32"/></button>
+          <span style={{color:'#2e7d32',fontSize:'0.83rem',display:'flex',alignItems:'center',gap:'0.4rem'}}>
             <Check size={14}/> تم الحفظ — فاتورة #{savedId}
           </span>
         </div>
       )}
 
       {/* TABLE HEADER */}
-      <div style={{display:'flex',background:'#ebebeb',borderBottom:'1px solid #ddd',flexShrink:0,padding:'0.35rem 0.5rem'}}>
-        <span style={{flex:1,         textAlign:'right',  fontSize:'0.78rem',color:'#555',fontWeight:'700',paddingRight:'0.5rem'}}>المنتج</span>
-        <span style={{width:'22%',    textAlign:'center', fontSize:'0.78rem',color:'#555',fontWeight:'700'}}>التكلفه</span>
-        <span style={{width:'18%',    textAlign:'center', fontSize:'0.78rem',color:'#555',fontWeight:'700'}}>الكمية</span>
-        <span style={{width:'23%',    textAlign:'center', fontSize:'0.78rem',color:'#555',fontWeight:'700'}}>الإجمالي</span>
+      <div style={{display:'flex',background:'#f1f5f9',borderBottom:'1px solid #e5e7eb',flexShrink:0,padding:'0.35rem 0.5rem'}}>
+        <span style={{flex:1,         textAlign:'right',  fontSize:'0.78rem',color:'#6b7280',fontWeight:'700',paddingRight:'0.5rem'}}>المنتج</span>
+        <span style={{width:'22%',    textAlign:'center', fontSize:'0.78rem',color:'#6b7280',fontWeight:'700'}}>التكلفه</span>
+        <span style={{width:'18%',    textAlign:'center', fontSize:'0.78rem',color:'#6b7280',fontWeight:'700'}}>الكمية</span>
+        <span style={{width:'23%',    textAlign:'center', fontSize:'0.78rem',color:'#6b7280',fontWeight:'700'}}>الإجمالي</span>
       </div>
 
       {/* ITEMS LIST */}
-      <div style={{flex:1,overflowY:'auto',background:'#fafafa'}}>
+      <div style={{flex:1,overflowY:'auto',background:'white'}}>
         {items.map((item, idx) => (
           <ItemRow
             key={item.product_id}
@@ -765,9 +778,9 @@ export default function Purchases() {
         onClick={() => navigate('/products/list')}
         style={{
           position:'absolute', bottom:66, right:16,
-          background:'#e0e0e0', border:'none', borderRadius:'50%',
+          background:'white', border:'1px solid #e5e7eb', borderRadius:'50%',
           width:50, height:50, display:'flex', alignItems:'center', justifyContent:'center',
-          cursor:'pointer', boxShadow:'0 3px 10px rgba(0,0,0,0.2)', zIndex:10,
+          cursor:'pointer', boxShadow:'0 3px 10px rgba(0,0,0,0.12)', zIndex:10,
         }}>
         <DotsGrid/>
       </button>
@@ -775,20 +788,20 @@ export default function Purchases() {
       {/* BOTTOM BAR */}
       <div style={{
         display:'flex', alignItems:'center', background:'white',
-        borderTop:'1px solid #e0e0e0', padding:'0.5rem 0.75rem',
+        borderTop:'1px solid #e5e7eb', padding:'0.5rem 0.75rem',
         flexShrink:0, gap:'0.5rem',
       }}>
-        <span style={{fontSize:'0.9rem',fontWeight:'700',color:'#222',flexShrink:0}}>إجمالي</span>
-        <div style={{flex:1,background:'#c8efc8',borderRadius:20,padding:'0.4rem 0.75rem',textAlign:'center'}}>
-          <span style={{color:'#c0392b',fontWeight:'700',fontSize:'1rem'}}>
+        <span style={{fontSize:'0.9rem',fontWeight:'700',color:'#1a1a1a',flexShrink:0}}>إجمالي</span>
+        <div style={{flex:1,background:'white',border:'1.5px solid #90caf9',borderRadius:20,padding:'0.4rem 0.75rem',textAlign:'center'}}>
+          <span style={{color:'#e91e63',fontWeight:'700',fontSize:'1rem'}}>
             {total.toFixed(2)}
           </span>
         </div>
-        <span style={{fontSize:'0.8rem',color:'#555',fontWeight:'500',flexShrink:0}}>ريال ع.ق</span>
+        <span style={{fontSize:'0.8rem',color:'#6b7280',fontWeight:'500',flexShrink:0}}>ريال ع.ق</span>
         <div style={{
-          background:'white', border:'1px solid #e0e0e0', borderRadius:20,
+          background:'white', border:'1px solid #e5e7eb', borderRadius:20,
           padding:'0.28rem 0.7rem', minWidth:52, textAlign:'center',
-          fontSize:'0.9rem', fontWeight:'700', color:'#222',
+          fontSize:'0.9rem', fontWeight:'700', color:'#1a1a1a',
         }}>
           {itemCount % 1 === 0 ? itemCount.toFixed(1) : itemCount.toFixed(2)}
         </div>
