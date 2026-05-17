@@ -257,4 +257,25 @@ router.patch('/:id', (req, res) => {
   }
 });
 
+/**
+ * DELETE /api/products/:id
+ * Soft-delete: flips is_active to 0 so existing sale_items / purchase_items
+ * keep their foreign key reference. The product disappears from the
+ * `is_active = 1` list query but historical data stays intact.
+ */
+router.delete('/:id', (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isInteger(id) || id < 1) {
+    return res.status(400).json({ success: false, error: 'Invalid product id' });
+  }
+  try {
+    const info = db.prepare('UPDATE products SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(id);
+    if (info.changes === 0) return res.status(404).json({ success: false, error: 'Product not found' });
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('[products] DELETE /:id error:', err.message);
+    return res.status(500).json({ success: false, error: 'Failed to delete product' });
+  }
+});
+
 module.exports = router;

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, X, ShoppingCart, RefreshCw, Package, ScanBarcode, LogOut, ChevronRight, ArrowRight, Upload, Save, Plus, Play, Image as ImageIcon, Camera } from 'lucide-react';
+import { Search, X, ShoppingCart, RefreshCw, Package, ScanBarcode, LogOut, ChevronRight, ArrowRight, Upload, Save, Plus, Play, Image as ImageIcon, Camera, Trash2, Tag, FileSpreadsheet, ArrowLeftRight, PlusCircle, Globe } from 'lucide-react';
 import { formatCurrency } from '../utils/currency.js';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useApi } from '../hooks/useApi.jsx';
@@ -34,6 +34,11 @@ export default function ProductsList() {
   const [showEditPrices,  setShowEditPrices]  = useState(false);
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [showImport,      setShowImport]      = useState(false);
+  const [showMore,        setShowMore]        = useState(false);
+  const [showBarcodeMaker, setShowBarcodeMaker] = useState(false);
+  const [productAction,   setProductAction]   = useState(null);
+  const [hintHidden,      setHintHidden]      = useState(() => localStorage.getItem('pl_hint_hidden') === '1');
+  const [selectedIds,     setSelectedIds]     = useState(new Set());
   const userMenuRef = useRef(null);
 
   const fetchProducts = useCallback(async (silent = false) => {
@@ -114,6 +119,31 @@ export default function ProductsList() {
     navigate('/login');
   };
 
+  const dismissHint = () => {
+    setHintHidden(true);
+    localStorage.setItem('pl_hint_hidden', '1');
+  };
+
+  const handleDeleteProduct = async (product) => {
+    if (!window.confirm(`حذف "${product.name}"؟`)) return;
+    try {
+      await api.delete(`/api/products/${product.id}`);
+    } catch (err) {
+      alert(err?.message || 'تعذّر الحذف');
+      return;
+    }
+    setProductAction(null);
+    fetchProducts(true);
+  };
+
+  const toggleSelected = (id) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
   const handleBarcodeScan = useCallback(async (raw) => {
     const barcode = String(raw || '').replace(/[\r\n\t]/g, '').trim();
     if (!barcode) return;
@@ -156,361 +186,143 @@ export default function ProductsList() {
     showScanFeedback('success', `${t('added')}: ${found.name}`);
   }, [products, addItem, api]);
 
+  const greyBtn = {
+    flex: 1, background: '#dadada', border: 'none', borderRadius: '4px',
+    padding: '0.6rem 0.4rem', fontSize: '0.95rem', color: '#1a1a1a',
+    fontFamily: "'Cairo','Tajawal',sans-serif", cursor: 'pointer', textAlign: 'center',
+  };
+  const allVisibleIds = filtered.map(p => p.id);
+  const allChecked   = allVisibleIds.length > 0 && allVisibleIds.every(id => selectedIds.has(id));
+
   return (
-    <div className="h-full flex flex-col" style={{ background: '#080c14' }}>
-      {/* Back header */}
-      <div
-        className="flex-shrink-0"
-        style={{
-          background: 'linear-gradient(135deg, #3949AB 0%, #5C6BC0 100%)',
-          padding: '0.9rem 1.25rem',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          boxShadow: '0 3px 12px rgba(57,73,171,0.4)',
-        }}
-      >
-        <button
-          onClick={() => navigate('/products')}
-          style={{
-            background: 'rgba(255,255,255,0.15)',
-            border: 'none',
-            borderRadius: '50%',
-            width: '36px',
-            height: '36px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-          }}
-        >
-          <ArrowRight size={20} color="white" />
-        </button>
-        <span style={{ color: 'white', fontSize: '1.1rem', fontWeight: '700' }}>
-          المنتجات
-        </span>
+    <div style={{ height: '100%', background: 'white', display: 'flex', flexDirection: 'column', fontFamily: "'Cairo','Tajawal',sans-serif" }} dir="rtl">
+      {/* Centered title */}
+      <div style={{ padding: '0.9rem 1rem 0.65rem' }}>
+        <h1 style={{ textAlign: 'center', fontSize: '1.05rem', fontWeight: '700', color: '#1a1a1a', margin: 0 }}>
+          المنتجات المتوفرة في المخزن
+        </h1>
+      </div>
 
-        {/* Right-side actions */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          {/* User avatar */}
-          <div className="relative" ref={userMenuRef}>
-            <button
-              onClick={() => setShowUserMenu(v => !v)}
-              className="w-9 h-9 flex items-center justify-center rounded-full font-bold text-sm"
-              style={{
-                background: showUserMenu ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.15)',
-                border: '1px solid rgba(255,255,255,0.25)',
-                color: 'white',
-              }}
-            >
-              {(user?.username || 'U').slice(0, 1).toUpperCase()}
-            </button>
+      {/* Search row with barcode icon on the left */}
+      <div style={{ padding: '0 1rem' }}>
+        <div style={{ border: '1.5px solid #90caf9', borderRadius: '8px', background: 'white', display: 'flex', alignItems: 'center', padding: '0.35rem 0.55rem', gap: '0.5rem' }}>
+          <button type="button" onClick={() => setShowScanner(true)}
+            style={{ background: 'white', border: '1.5px solid #1a1a1a', borderRadius: '4px', padding: '0.2rem 0.35rem', cursor: 'pointer', display: 'inline-flex', flexShrink: 0 }}
+            aria-label="مسح الباركود">
+            <ScanBarcode size={26} color="#1a1a1a" />
+          </button>
+          <input
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="بحث"
+            style={{ flex: 1, border: 'none', borderBottom: '1px solid #9ca3af', outline: 'none', background: 'transparent', textAlign: 'right', padding: '0.35rem 0', fontSize: '1rem', color: '#1a1a1a', fontFamily: "'Cairo','Tajawal',sans-serif" }}
+          />
+        </div>
+      </div>
 
-            <AnimatePresence>
-              {showUserMenu && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.92, y: -6 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.92, y: -6 }}
-                  transition={{ duration: 0.15 }}
-                  className="absolute right-0 top-12 z-50 rounded-2xl overflow-hidden"
-                  style={{
-                    background: '#0d1120',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    minWidth: '180px',
-                    boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-                  }}
-                >
-                  <div
-                    className="px-4 py-3"
-                    style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}
-                  >
-                    <p className="text-sm font-semibold text-white truncate">
-                      {user?.username || t('defaultUserLabel')}
-                    </p>
-                    <p className="text-xs mt-0.5 truncate capitalize" style={{ color: '#4a5568' }}>
-                      {user?.role || t('salesperson')}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => {
-                      const next = lang === 'en' ? 'ar' : 'en';
-                      setLanguage(next);
-                      setLang(next);
-                      setShowUserMenu(false);
-                    }}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold"
-                    style={{ color: '#D4A574', borderBottom: '1px solid rgba(255,255,255,0.07)' }}
-                  >
-                    <span className="text-base">{lang === 'en' ? '🇩🇿' : '🇬🇧'}</span>
-                    {lang === 'en' ? 'العربية' : 'English'}
-                  </button>
-                  <button
-                    onClick={handleLogout}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold"
-                    style={{ color: '#f87171' }}
-                  >
-                    <LogOut size={16} />
-                    {t('logOut')}
-                  </button>
-                </motion.div>
-              )}
-            </AnimatePresence>
+      {/* Three grey action buttons — DOM order = visual RTL right-to-left:
+          first child → right (تقرير), middle (صناعه الباركود), last → left (المزيد) */}
+      <div style={{ padding: '0.6rem 1rem 0.5rem', display: 'flex', gap: '0.4rem' }}>
+        <button type="button" onClick={() => navigate('/reports')}      style={greyBtn}>تقرير</button>
+        <button type="button" onClick={() => setShowBarcodeMaker(true)} style={greyBtn}>صناعه الباركود</button>
+        <button type="button" onClick={() => setShowMore(true)}         style={greyBtn}>المزيد</button>
+      </div>
+
+      {/* Table header */}
+      <div style={{ display: 'flex', alignItems: 'center', padding: '0.45rem 1rem', borderTop: '1px solid #cbd5e1', borderBottom: '1px solid #cbd5e1', color: '#1a1a1a', fontSize: '0.92rem', background: 'white' }}>
+        <div style={{ flex: 2, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+          <input type="checkbox" checked={allChecked}
+            onChange={() => setSelectedIds(allChecked ? new Set() : new Set(allVisibleIds))}
+            style={{ width: '16px', height: '16px', cursor: 'pointer' }} />
+          <span>المنتج</span>
+        </div>
+        <div style={{ flex: 1, textAlign: 'center' }}>السعر</div>
+        <div style={{ flex: 1, textAlign: 'center' }}>الكمية</div>
+      </div>
+
+      {/* Product rows */}
+      <div style={{ flex: 1, overflowY: 'auto', background: 'white' }}>
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#9ca3af', fontSize: '0.9rem' }}>{t('loadingProducts')}</div>
+        ) : error ? (
+          <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
+            <p style={{ color: '#d32f2f', fontSize: '0.9rem', marginBottom: '1rem' }}>{error}</p>
+            <button onClick={() => fetchProducts()} style={greyBtn}>{t('tryAgain')}</button>
           </div>
-
-          <button
-            onClick={() => setShowScanner(true)}
-            className="w-9 h-9 flex items-center justify-center rounded-full"
-            style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.2)' }}
-          >
-            <ScanBarcode size={18} color="white" />
-          </button>
-
-          <button
-            onClick={() => { setSearchOpen(v => !v); if (searchOpen) setQuery(''); }}
-            className="w-9 h-9 flex items-center justify-center rounded-full"
-            style={{ background: searchOpen ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.2)' }}
-          >
-            {searchOpen ? <X size={18} color="white" /> : <Search size={18} color="white" />}
-          </button>
-
-          <button
-            onClick={() => fetchProducts(true)}
-            disabled={refreshing}
-            className="w-9 h-9 flex items-center justify-center rounded-full"
-            style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.2)' }}
-          >
-            <RefreshCw size={17} color="white" className={refreshing ? 'animate-spin' : ''} />
-          </button>
-        </div>
+        ) : filtered.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#9ca3af', fontSize: '0.9rem' }}>
+            {query ? `${t('noResultsFor')} "${query}"` : t('noProductsFound')}
+          </div>
+        ) : (
+          filtered.map(p => {
+            const checked = selectedIds.has(p.id);
+            return (
+              <div key={p.id}
+                onClick={() => setProductAction(p)}
+                style={{ display: 'flex', alignItems: 'center', padding: '0.7rem 1rem', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', color: '#1a1a1a', fontSize: '0.92rem' }}>
+                <div style={{ flex: 2, display: 'flex', alignItems: 'center', gap: '0.4rem', minWidth: 0 }}>
+                  <input type="checkbox" checked={checked}
+                    onChange={() => toggleSelected(p.id)}
+                    onClick={e => e.stopPropagation()}
+                    style={{ width: '16px', height: '16px', cursor: 'pointer', flexShrink: 0 }} />
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+                </div>
+                <div style={{ flex: 1, textAlign: 'center', fontWeight: '600' }}>{formatCurrency(p.selling_price)}</div>
+                <div style={{ flex: 1, textAlign: 'center', fontWeight: '600', color: (p.quantity || 0) <= (p.min_stock_alert || 0) && (p.min_stock_alert || 0) > 0 ? '#d32f2f' : '#1a1a1a' }}>{p.quantity ?? 0}</div>
+              </div>
+            );
+          })
+        )}
       </div>
 
-      {/* Search bar */}
-      <div style={{ background: '#080c14', flexShrink: 0 }}>
-        {/* Debt reminder */}
-        {debtors.length > 0 && (() => {
-          const isRTL = lang === 'ar';
-          const totalOwed = debtors.reduce((sum, d) => sum + Math.max(0, -(d.balance || 0)), 0);
-          const topDebtor = [...debtors].sort((a, b) => (a.balance || 0) - (b.balance || 0))[0];
-          const topOwed = Math.max(0, -(topDebtor.balance || 0));
-          return (
-            <motion.button
-              type="button"
-              onClick={() => navigate('/clients')}
-              initial={{ opacity: 0, y: -6 }}
-              animate={{ opacity: 1, y: 0 }}
-              dir={isRTL ? 'rtl' : 'ltr'}
-              className="mx-4 mt-3 w-[calc(100%-2rem)] overflow-hidden rounded-2xl touch-manipulation text-left"
-              style={{
-                background: 'linear-gradient(135deg, rgba(245,158,11,0.14), rgba(239,68,68,0.10))',
-                border: '1px solid rgba(245,158,11,0.3)',
-              }}
-            >
-              <div className="flex items-center gap-3 px-4 pt-3 pb-2">
-                <div
-                  className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                  style={{ background: 'rgba(245,158,11,0.2)' }}
-                >
-                  <span className="text-xl">💰</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#d97706' }}>
-                    {t('debtsToCollect')}
-                  </p>
-                  <p className="text-xl font-bold" style={{ color: '#fbbf24' }} dir="ltr">
-                    {formatCurrency(totalOwed)}
-                  </p>
-                </div>
-                <ChevronRight size={18} style={{ color: '#fbbf24', transform: isRTL ? 'scaleX(-1)' : 'none' }} />
-              </div>
-              <div
-                className="flex items-center gap-2 px-4 py-2 border-t"
-                style={{ borderColor: 'rgba(245,158,11,0.15)', background: 'rgba(0,0,0,0.15)' }}
-              >
-                <span className="text-xs" style={{ color: '#a16207' }}>
-                  {debtors.length === 1 ? `${t('clientOwesLabel')}:` : `${t('biggestDebtor')}:`}
-                </span>
-                <span className="text-xs font-semibold truncate flex-1" style={{ color: '#fbbf24' }}>
-                  {topDebtor.name}
-                </span>
-                <span className="text-xs font-bold" style={{ color: '#f87171' }} dir="ltr">
-                  {formatCurrency(topOwed)}
-                </span>
-                {debtors.length > 1 && (
-                  <span className="text-[10px]" style={{ color: '#a16207' }}>+{debtors.length - 1}</span>
-                )}
-              </div>
-            </motion.button>
-          );
-        })()}
-
-        <AnimatePresence>
-          {searchOpen && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="overflow-hidden px-4 pt-3 pb-2"
-            >
-              <div className="relative">
-                <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: '#4a5568' }} />
-                <input
-                  type="text"
-                  value={query}
-                  onChange={e => setQuery(e.target.value)}
-                  placeholder={t('searchProducts')}
-                  autoFocus
-                  className="w-full pl-10 pr-4 py-3 rounded-xl text-white placeholder-gray-600 outline-none"
-                  style={{
-                    background: 'rgba(255,255,255,0.05)',
-                    border: '1px solid rgba(255,255,255,0.08)',
-                    fontSize: '16px',
-                  }}
-                />
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Filter pills */}
-        <div className="flex gap-2 px-4 py-3">
-          {['all', 'favorites'].map(f => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className="px-4 py-1.5 rounded-full text-xs font-semibold transition-all"
-              style={{
-                background: filter === f ? 'rgba(212,165,116,0.15)' : 'rgba(255,255,255,0.04)',
-                border: filter === f ? '1px solid rgba(212,165,116,0.3)' : '1px solid rgba(255,255,255,0.07)',
-                color: filter === f ? '#D4A574' : '#4a5568',
-              }}
-            >
-              {f === 'all' ? t('allProducts') : t('favorites')}
-            </button>
-          ))}
+      {/* Yellow help footer — DOM: اخفاء first (right) then hint text (center/left) */}
+      {!hintHidden && (
+        <div style={{ background: '#fde047', padding: '0.65rem 1rem', display: 'flex', alignItems: 'center', gap: '1rem', flexShrink: 0 }}>
+          <button onClick={dismissHint} style={{ background: 'transparent', border: 'none', color: '#d32f2f', fontWeight: '700', cursor: 'pointer', fontSize: '0.9rem', padding: 0, fontFamily: "'Cairo','Tajawal',sans-serif" }}>
+            اخفاء
+          </button>
+          <span style={{ flex: 1, textAlign: 'center', color: '#d32f2f', fontSize: '0.85rem', fontWeight: '600' }}>
+            اضغط على المنتج لمزيد من الخيارات
+          </span>
         </div>
-      </div>
+      )}
 
-      {/* Scan notification banner */}
+      {/* Scan notification toast (success/error from scanner) */}
       <AnimatePresence>
         {scanNotification && (
           <motion.div
-            role={scanNotification.type === 'error' ? 'alert' : 'status'}
-            aria-live="polite"
-            aria-atomic="true"
-            initial={{ opacity: 0, y: -12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -12 }}
-            transition={{ duration: 0.2 }}
-            className="flex-shrink-0 mx-4 mt-2 px-4 py-3 rounded-xl flex items-center gap-3"
+            role="status" aria-live="polite"
+            initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }}
             style={{
-              background: scanNotification.type === 'success' ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)',
-              border: scanNotification.type === 'success' ? '1px solid rgba(16,185,129,0.25)' : '1px solid rgba(239,68,68,0.25)',
-            }}
-          >
-            <div
-              className="w-2 h-2 rounded-full flex-shrink-0"
-              style={{ background: scanNotification.type === 'success' ? '#34d399' : '#f87171' }}
-            />
-            <p
-              className="text-sm font-medium flex-1"
-              style={{ color: scanNotification.type === 'success' ? '#34d399' : '#f87171' }}
-            >
-              {scanNotification.message}
-            </p>
+              position: 'fixed', top: '4rem', insetInline: '1rem',
+              padding: '0.6rem 1rem', borderRadius: '8px', textAlign: 'center', zIndex: 60,
+              background: scanNotification.type === 'success' ? '#16a34a' : '#dc2626',
+              color: 'white', fontSize: '0.9rem', fontWeight: '600',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            }}>
+            {scanNotification.message}
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Product grid */}
-      <div className="flex-1 overflow-y-auto scroll-touch content-with-nav">
-        {loading ? (
-          <div className="flex flex-col items-center justify-center py-24 gap-4">
-            <div
-              className="w-10 h-10 border-2 rounded-full animate-spin"
-              style={{ borderColor: 'rgba(212,165,116,0.15)', borderTopColor: '#D4A574' }}
-            />
-            <p className="text-sm" style={{ color: '#3d5068' }}>{t('loadingProducts')}</p>
-          </div>
-        ) : error ? (
-          <div className="flex flex-col items-center justify-center py-24 px-6 gap-4">
-            <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(239,68,68,0.1)' }}>
-              <Package size={28} style={{ color: '#f87171' }} />
-            </div>
-            <p className="text-sm text-center" style={{ color: '#f87171' }}>{error}</p>
-            <button
-              onClick={() => fetchProducts()}
-              className="px-5 py-2.5 rounded-xl text-sm font-semibold"
-              style={{ background: 'rgba(212,165,116,0.1)', border: '1px solid rgba(212,165,116,0.2)', color: '#D4A574' }}
-            >
-              {t('tryAgain')}
-            </button>
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24 px-6 gap-3">
-            <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(212,165,116,0.07)' }}>
-              <Package size={28} style={{ color: '#D4A574', opacity: 0.5 }} />
-            </div>
-            <p className="text-base font-semibold text-white">{t('noProductsFound')}</p>
-            <p className="text-sm text-center" style={{ color: '#3d5068' }}>
-              {query ? `${t('noResultsFor')} "${query}"` : t('noProductsInCategory')}
-            </p>
-          </div>
-        ) : (
-          <div className="p-4 grid grid-cols-2 gap-3">
-            {filtered.map(product => (
-              <ProductCard
-                key={product.id}
-                product={product}
-                onAdd={handleAddToCart}
-                isInCart={isInCart(product.id)}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Barcode scanner */}
-      <BarcodeScanner
-        isOpen={showScanner}
-        onScan={handleBarcodeScan}
-        onClose={() => setShowScanner(false)}
-      />
-
-      {/* Logout confirm dialog */}
+      {/* Logout confirm — triggered from المزيد sheet */}
       <AnimatePresence>
         {showLogoutConfirm && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center px-6"
-            style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }}
-          >
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            style={{ position: 'fixed', inset: 0, zIndex: 70, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }}>
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              transition={{ type: 'spring', damping: 22 }}
-              className="w-full max-w-xs rounded-2xl p-6"
-              style={{ background: '#0d1120', border: '1px solid rgba(255,255,255,0.1)' }}
-            >
-              <h3 className="text-base font-bold text-white mb-2">{t('logOut')}?</h3>
-              <p className="text-sm mb-6" style={{ color: '#6b7280' }}>{t('logOutConfirm')}</p>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowLogoutConfirm(false)}
-                  className="flex-1 py-3 rounded-xl text-sm font-semibold"
-                  style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: '#9ca3af' }}
-                >
+              initial={{ scale: 0.92, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.92, opacity: 0 }}
+              style={{ width: '100%', maxWidth: '320px', background: 'white', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '1.2rem' }}>
+              <h3 style={{ fontSize: '1rem', fontWeight: '700', color: '#1a1a1a', margin: '0 0 0.4rem' }}>{t('logOut')}؟</h3>
+              <p style={{ fontSize: '0.85rem', color: '#6b7280', margin: '0 0 1.2rem' }}>{t('logOutConfirm')}</p>
+              <div style={{ display: 'flex', gap: '0.6rem' }}>
+                <button onClick={() => setShowLogoutConfirm(false)}
+                  style={{ flex: 1, background: '#f1f5f9', border: 'none', borderRadius: '6px', padding: '0.6rem', color: '#1a1a1a', fontWeight: '600', cursor: 'pointer', fontFamily: "'Cairo','Tajawal',sans-serif" }}>
                   {t('cancel')}
                 </button>
-                <button
-                  onClick={confirmLogout}
-                  className="flex-1 py-3 rounded-xl text-sm font-bold"
-                  style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.25)', color: '#f87171' }}
-                >
+                <button onClick={confirmLogout}
+                  style={{ flex: 1, background: '#d32f2f', border: 'none', borderRadius: '6px', padding: '0.6rem', color: 'white', fontWeight: '700', cursor: 'pointer', fontFamily: "'Cairo','Tajawal',sans-serif" }}>
                   {t('logOut')}
                 </button>
               </div>
@@ -519,42 +331,8 @@ export default function ProductsList() {
         )}
       </AnimatePresence>
 
-      {/* Floating cart button */}
-      <AnimatePresence>
-        {cartCount > 0 && (
-          <motion.button
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0, opacity: 0 }}
-            whileTap={{ scale: 0.93 }}
-            onClick={() => navigate('/cart')}
-            className="fixed right-5 touch-manipulation"
-            style={{
-              bottom: 'calc(4.5rem + env(safe-area-inset-bottom, 0px))',
-              zIndex: 40,
-              background: 'linear-gradient(135deg, #8B6914 0%, #D4A574 100%)',
-              border: '1px solid rgba(212,165,116,0.4)',
-              borderRadius: '50%',
-              width: '56px',
-              height: '56px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 8px 24px rgba(212,165,116,0.25)',
-            }}
-            aria-label={`View cart, ${cartCount} items`}
-          >
-            <ShoppingCart size={22} className="text-white" />
-            <span
-              className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
-              style={{ background: '#ef4444' }}
-            >
-              {cartCount > 99 ? '99+' : cartCount}
-            </span>
-          </motion.button>
-        )}
-      </AnimatePresence>
-
+      {/* Modals & sheets */}
+      <BarcodeScanner isOpen={showScanner} onScan={handleBarcodeScan} onClose={() => setShowScanner(false)} />
       <AddProductSheet
         visible={showAddProduct}
         onClose={() => setShowAddProduct(false)}
@@ -576,6 +354,34 @@ export default function ProductsList() {
         visible={showImport}
         onClose={() => setShowImport(false)}
         onImported={() => fetchProducts(true)}
+      />
+      <MoreSheet
+        visible={showMore}
+        onClose={() => setShowMore(false)}
+        currentLang={lang}
+        onAction={(action) => {
+          setShowMore(false);
+          if      (action === 'add')        setShowAddProduct(true);
+          else if (action === 'category')   setShowAddCategory(true);
+          else if (action === 'editPrices') setShowEditPrices(true);
+          else if (action === 'import')     setShowImport(true);
+          else if (action === 'lang') {
+            const next = lang === 'en' ? 'ar' : 'en';
+            setLanguage(next); setLang(next);
+          }
+          else if (action === 'logout')     setShowLogoutConfirm(true);
+        }}
+      />
+      <BarcodeMakerSheet
+        visible={showBarcodeMaker}
+        onClose={() => setShowBarcodeMaker(false)}
+        products={products}
+      />
+      <ProductActionSheet
+        product={productAction}
+        onClose={() => setProductAction(null)}
+        onAddToCart={(p) => { addItem(p, 1); setProductAction(null); showScanFeedback('success', `${t('added')}: ${p.name}`); }}
+        onDelete={handleDeleteProduct}
       />
     </div>
   );
@@ -1367,6 +1173,150 @@ function ImportSheet({ visible, onClose, onImported }) {
               </button>
             </div>
           )}
+        </motion.div>
+      </>}
+    </AnimatePresence>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// MoreSheet — bottom sheet surfacing the management actions that
+// used to live in the dark header user-menu (add/category/prices/
+// import, language toggle, logout).
+// ─────────────────────────────────────────────────────────────
+function MoreSheet({ visible, onClose, onAction, currentLang }) {
+  const items = [
+    { key: 'add',        label: 'اضافة منتج جديد',           icon: PlusCircle,      color: '#2E7D32' },
+    { key: 'category',   label: 'اضافة تصنيف جديد',          icon: Tag,             color: '#2E7D32' },
+    { key: 'editPrices', label: 'تعديل اسعار المنتجات',       icon: ArrowLeftRight,  color: '#E65100' },
+    { key: 'import',     label: 'استيراد منتجات من اكسل',     icon: FileSpreadsheet, color: '#1565C0' },
+    { key: 'lang',       label: currentLang === 'en' ? 'العربية' : 'English', icon: Globe, color: '#3949AB' },
+    { key: 'logout',     label: 'تسجيل الخروج',              icon: LogOut,          color: '#d32f2f' },
+  ];
+  return (
+    <AnimatePresence>
+      {visible && <>
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          style={{ position: 'fixed', inset: 0, zIndex: 55, background: 'rgba(0,0,0,0.35)' }}
+          onClick={onClose} />
+        <motion.div
+          initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+          transition={{ type: 'spring', damping: 28, stiffness: 290 }}
+          style={{ position: 'fixed', insetInline: 0, bottom: 0, zIndex: 56, background: 'white', borderRadius: '16px 16px 0 0', maxHeight: '80vh', overflowY: 'auto', fontFamily: "'Cairo','Tajawal',sans-serif" }}
+          dir="rtl">
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '0.5rem 0' }}>
+            <div style={{ width: '40px', height: '4px', background: '#e5e7eb', borderRadius: '4px' }} />
+          </div>
+          <h3 style={{ textAlign: 'center', fontSize: '1rem', fontWeight: '700', color: '#1a1a1a', margin: '0 0 0.5rem' }}>المزيد</h3>
+          <div>
+            {items.map(it => {
+              const Icon = it.icon;
+              return (
+                <button key={it.key} onClick={() => onAction(it.key)}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'transparent', border: 'none', borderTop: '1px solid #f1f5f9', padding: '0.95rem 1rem', cursor: 'pointer', fontFamily: "'Cairo','Tajawal',sans-serif" }}>
+                  <Icon size={20} color={it.color} />
+                  <span style={{ flex: 1, textAlign: 'right', color: '#1a1a1a', fontSize: '0.95rem', fontWeight: '600' }}>{it.label}</span>
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ height: 'env(safe-area-inset-bottom, 0px)' }} />
+        </motion.div>
+      </>}
+    </AnimatePresence>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// BarcodeMakerSheet — pick a product and display its barcode value
+// in large text. Real barcode-image rendering is a v2; for now this
+// makes "صناعه الباركود" a meaningful action instead of a dead button.
+// ─────────────────────────────────────────────────────────────
+function BarcodeMakerSheet({ visible, onClose, products }) {
+  const [picked, setPicked] = useState(null);
+  useEffect(() => { if (!visible) setPicked(null); }, [visible]);
+  const withBarcode = products.filter(p => p.barcode);
+  return (
+    <AnimatePresence>
+      {visible && <>
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          style={{ position: 'fixed', inset: 0, zIndex: 55, background: 'rgba(0,0,0,0.35)' }}
+          onClick={onClose} />
+        <motion.div
+          initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+          transition={{ type: 'spring', damping: 28, stiffness: 290 }}
+          style={{ position: 'fixed', insetInline: 0, bottom: 0, zIndex: 56, background: 'white', borderRadius: '16px 16px 0 0', maxHeight: '85vh', overflowY: 'auto', fontFamily: "'Cairo','Tajawal',sans-serif" }}
+          dir="rtl">
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '0.5rem 0' }}>
+            <div style={{ width: '40px', height: '4px', background: '#e5e7eb', borderRadius: '4px' }} />
+          </div>
+          <h3 style={{ textAlign: 'center', fontSize: '1rem', fontWeight: '700', color: '#1a1a1a', margin: '0 0 0.5rem' }}>صناعه الباركود</h3>
+
+          {picked ? (
+            <div style={{ padding: '1rem 1rem 2rem' }}>
+              <p style={{ textAlign: 'center', color: '#1a1a1a', fontWeight: '700', fontSize: '1rem', margin: '0 0 0.75rem' }}>{picked.name}</p>
+              <div style={{ border: '1.5px solid #90caf9', borderRadius: '8px', padding: '1.5rem 1rem', textAlign: 'center', background: 'white' }}>
+                <div style={{ fontFamily: 'monospace', letterSpacing: '0.15rem', fontSize: '1.4rem', color: '#1a1a1a', fontWeight: '700' }}>{picked.barcode}</div>
+                <div style={{ marginTop: '0.5rem', color: '#9ca3af', fontSize: '0.78rem' }}>قيمة الباركود</div>
+              </div>
+              <button onClick={() => setPicked(null)}
+                style={{ marginTop: '1rem', width: '100%', background: '#3949AB', color: 'white', border: 'none', borderRadius: '8px', padding: '0.7rem', fontWeight: '700', cursor: 'pointer', fontFamily: "'Cairo','Tajawal',sans-serif" }}>
+                اختيار منتج آخر
+              </button>
+            </div>
+          ) : withBarcode.length === 0 ? (
+            <p style={{ textAlign: 'center', color: '#9ca3af', padding: '2rem 1rem', fontSize: '0.9rem' }}>لا توجد منتجات تحتوي على باركود</p>
+          ) : (
+            <div>
+              {withBarcode.map(p => (
+                <button key={p.id} onClick={() => setPicked(p)}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'transparent', border: 'none', borderTop: '1px solid #f1f5f9', padding: '0.85rem 1rem', cursor: 'pointer', fontFamily: "'Cairo','Tajawal',sans-serif" }}>
+                  <span style={{ color: '#9ca3af', fontSize: '0.85rem', fontFamily: 'monospace' }}>{p.barcode}</span>
+                  <span style={{ color: '#1a1a1a', fontSize: '0.95rem', fontWeight: '600' }}>{p.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          <div style={{ height: 'env(safe-area-inset-bottom, 0px)' }} />
+        </motion.div>
+      </>}
+    </AnimatePresence>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// ProductActionSheet — opened when a product row is tapped.
+// Wires the yellow footer hint ("اضغط على المنتج لمزيد من الخيارات").
+// ─────────────────────────────────────────────────────────────
+function ProductActionSheet({ product, onClose, onAddToCart, onDelete }) {
+  return (
+    <AnimatePresence>
+      {product && <>
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          style={{ position: 'fixed', inset: 0, zIndex: 55, background: 'rgba(0,0,0,0.35)' }}
+          onClick={onClose} />
+        <motion.div
+          initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+          transition={{ type: 'spring', damping: 28, stiffness: 290 }}
+          style={{ position: 'fixed', insetInline: 0, bottom: 0, zIndex: 56, background: 'white', borderRadius: '16px 16px 0 0', overflow: 'hidden', fontFamily: "'Cairo','Tajawal',sans-serif" }}
+          dir="rtl">
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '0.5rem 0' }}>
+            <div style={{ width: '40px', height: '4px', background: '#e5e7eb', borderRadius: '4px' }} />
+          </div>
+          <h3 style={{ textAlign: 'center', fontSize: '1rem', fontWeight: '700', color: '#1a1a1a', margin: '0 0 0.5rem', padding: '0 1rem' }}>
+            {product.name}
+          </h3>
+          <button onClick={() => onAddToCart(product)}
+            style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'transparent', border: 'none', borderTop: '1px solid #f1f5f9', padding: '0.95rem 1rem', cursor: 'pointer', fontFamily: "'Cairo','Tajawal',sans-serif" }}>
+            <ShoppingCart size={20} color="#3949AB" />
+            <span style={{ flex: 1, textAlign: 'right', color: '#1a1a1a', fontSize: '0.95rem', fontWeight: '600' }}>اضافة الى السلة</span>
+          </button>
+          <button onClick={() => onDelete(product)}
+            style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'transparent', border: 'none', borderTop: '1px solid #f1f5f9', padding: '0.95rem 1rem', cursor: 'pointer', fontFamily: "'Cairo','Tajawal',sans-serif" }}>
+            <Trash2 size={20} color="#d32f2f" />
+            <span style={{ flex: 1, textAlign: 'right', color: '#d32f2f', fontSize: '0.95rem', fontWeight: '600' }}>حذف</span>
+          </button>
+          <div style={{ height: 'env(safe-area-inset-bottom, 0px)' }} />
         </motion.div>
       </>}
     </AnimatePresence>
