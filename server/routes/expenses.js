@@ -128,7 +128,7 @@ router.get('/categories', (_req, res) => {
 // ---------------------------------------------------------------------------
 router.delete('/:id', (req, res) => {
   const id = parseInt(req.params.id, 10);
-  if (!id) return res.status(400).json({ success: false, error: 'Invalid id' });
+  if (!Number.isInteger(id) || id < 1) return res.status(400).json({ success: false, error: 'Invalid id' });
 
   try {
     const info = db.prepare('DELETE FROM expenses WHERE id = ?').run(id);

@@ -45,7 +45,7 @@ router.get('/', (req, res) => {
 // ---------------------------------------------------------------------------
 router.get('/:id', (req, res) => {
   const id = parseInt(req.params.id, 10);
-  if (!id) return res.status(400).json({ success: false, error: 'Invalid id' });
+  if (!Number.isInteger(id) || id < 1) return res.status(400).json({ success: false, error: 'Invalid id' });
 
   try {
     const purchase = db.prepare(`
@@ -154,7 +154,7 @@ router.post('/', (req, res) => {
 // ---------------------------------------------------------------------------
 router.patch('/:id', (req, res) => {
   const id = parseInt(req.params.id, 10);
-  if (!id) return res.status(400).json({ success: false, error: 'Invalid id' });
+  if (!Number.isInteger(id) || id < 1) return res.status(400).json({ success: false, error: 'Invalid id' });
 
   const { date, paid_amount, discount, payment_method, notes, items, supplier_id } = req.body;
   if (!Array.isArray(items) || items.length === 0) {

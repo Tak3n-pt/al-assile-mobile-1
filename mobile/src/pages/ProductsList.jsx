@@ -969,70 +969,80 @@ function EditPricesSheet({ visible, onClose, products, onUpdated }) {
     <AnimatePresence>
       {visible && <>
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-          className="fixed inset-0 z-40" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose} />
+          style={{ position: 'fixed', inset: 0, zIndex: 55, background: 'rgba(0,0,0,0.35)' }}
+          onClick={onClose} />
         <motion.div
           initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-          transition={{ type: 'spring', damping: 26, stiffness: 280 }}
-          className="fixed inset-x-0 bottom-0 z-50 rounded-t-3xl flex flex-col"
-          style={{ background: '#0d1120', maxHeight: '92vh' }}
-          dir="rtl"
-        >
-          <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
-            <div className="w-10 h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.2)' }} />
-          </div>
-          <div className="flex items-center justify-between px-5 py-3 flex-shrink-0"
-            style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-            <h2 className="text-base font-bold text-white">تعديل أسعار المنتجات</h2>
-            <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full"
-              style={{ background: 'rgba(255,255,255,0.08)' }}>
-              <X size={16} color="white" />
-            </button>
+          transition={{ type: 'spring', damping: 28, stiffness: 290 }}
+          style={{ position: 'fixed', insetInline: 0, bottom: 0, zIndex: 56, background: 'white', borderRadius: '16px 16px 0 0', maxHeight: '88vh', display: 'flex', flexDirection: 'column', fontFamily: "'Cairo','Tajawal',sans-serif" }}
+          dir="rtl">
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '0.5rem 0', flexShrink: 0 }}>
+            <div style={{ width: '40px', height: '4px', background: '#e5e7eb', borderRadius: '4px' }} />
           </div>
 
-          <div className="overflow-y-auto flex-1 px-4 py-3 space-y-2">
+          <div style={{ position: 'relative', padding: '0.5rem 1rem 0.6rem', flexShrink: 0 }}>
+            <button onClick={onClose}
+              style={{ position: 'absolute', top: '0.4rem', insetInlineStart: '0.6rem', background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px' }}>
+              <X size={20} color="#9ca3af" />
+            </button>
+            <h2 style={{ textAlign: 'center', fontSize: '1.05rem', fontWeight: '700', color: '#1a1a1a', margin: 0 }}>
+              تعديل أسعار المنتجات
+            </h2>
+          </div>
+
+          <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem 1rem 1rem' }}>
             {products.length === 0 && (
-              <p className="text-center py-10 text-sm" style={{ color: '#4a5568' }}>لا توجد منتجات</p>
+              <p style={{ textAlign: 'center', color: '#9ca3af', padding: '2rem', fontSize: '0.9rem' }}>لا توجد منتجات</p>
             )}
             {products.map(p => (
-              <div key={p.id} className="rounded-xl p-3"
-                style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
-                <p className="text-sm font-semibold text-white mb-2 truncate">{p.name}</p>
-                <div className="grid grid-cols-2 gap-2 mb-2">
+              <div key={p.id}
+                style={{ border: '1px solid #e5e7eb', borderRadius: '10px', padding: '0.75rem', marginBottom: '0.6rem', background: 'white' }}>
+                <p style={{ color: '#1a1a1a', fontWeight: '600', fontSize: '0.95rem', margin: '0 0 0.5rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.55rem' }}>
                   <div>
-                    <label className="text-[11px]" style={{ color: '#6b7280' }}>سعر البيع</label>
+                    <label style={{ fontSize: '0.78rem', color: '#6b7280', fontWeight: '600' }}>سعر البيع</label>
                     <input type="number" inputMode="decimal"
                       value={edits[p.id]?.sell ?? ''}
                       onChange={e => setField(p.id, 'sell', e.target.value)}
-                      className="w-full mt-0.5 px-2.5 py-2 rounded-lg outline-none text-white text-sm"
-                      style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }} />
+                      style={{
+                        width: '100%', marginTop: '4px', border: '1.5px solid #90caf9', borderRadius: '6px',
+                        background: 'white', textAlign: 'center', padding: '0.45rem', fontSize: '0.95rem',
+                        color: '#e91e63', fontWeight: '700', outline: 'none', boxSizing: 'border-box',
+                        fontFamily: "'Cairo','Tajawal',sans-serif",
+                      }} />
                   </div>
                   <div>
-                    <label className="text-[11px]" style={{ color: '#6b7280' }}>سعر الشراء</label>
+                    <label style={{ fontSize: '0.78rem', color: '#6b7280', fontWeight: '600' }}>سعر الشراء</label>
                     <input type="number" inputMode="decimal"
                       value={edits[p.id]?.buy ?? ''}
                       onChange={e => setField(p.id, 'buy', e.target.value)}
-                      className="w-full mt-0.5 px-2.5 py-2 rounded-lg outline-none text-white text-sm"
-                      style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }} />
+                      style={{
+                        width: '100%', marginTop: '4px', border: '1.5px solid #90caf9', borderRadius: '6px',
+                        background: 'white', textAlign: 'center', padding: '0.45rem', fontSize: '0.95rem',
+                        color: '#e91e63', fontWeight: '700', outline: 'none', boxSizing: 'border-box',
+                        fontFamily: "'Cairo','Tajawal',sans-serif",
+                      }} />
                   </div>
                 </div>
                 <button onClick={() => saveOne(p)} disabled={saving[p.id]}
-                  className="w-full py-2 rounded-lg text-xs font-bold transition-all"
                   style={{
-                    background: saved[p.id]  ? 'rgba(16,185,129,0.12)'
-                              : saving[p.id] ? 'rgba(255,255,255,0.03)'
-                              : 'rgba(57,73,171,0.2)',
-                    border: saved[p.id]  ? '1px solid rgba(16,185,129,0.3)'
-                          : saving[p.id] ? '1px solid rgba(255,255,255,0.07)'
-                          : '1px solid rgba(57,73,171,0.3)',
-                    color: saved[p.id]  ? '#34d399'
-                         : saving[p.id] ? '#4a5568'
-                         : '#818cf8',
+                    width: '100%', padding: '0.55rem', borderRadius: '6px', border: 'none',
+                    fontWeight: '700', fontSize: '0.88rem',
+                    fontFamily: "'Cairo','Tajawal',sans-serif",
+                    cursor: saving[p.id] ? 'wait' : 'pointer',
+                    background: saved[p.id]  ? '#c8e6c9'
+                              : saving[p.id] ? '#cfd8dc'
+                              : '#3949AB',
+                    color:      saved[p.id]  ? '#1b5e20'
+                              : saving[p.id] ? '#546e7a'
+                              : 'white',
                   }}>
                   {saved[p.id] ? '✓ تم الحفظ' : saving[p.id] ? '...' : 'حفظ'}
                 </button>
               </div>
             ))}
           </div>
+          <div style={{ height: 'env(safe-area-inset-bottom, 0px)' }} />
         </motion.div>
       </>}
     </AnimatePresence>

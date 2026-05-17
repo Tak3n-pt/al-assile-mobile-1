@@ -98,32 +98,46 @@ router.post('/push', (req, res) => {
     }
 
     // 2. Replace products
+    // Includes the mobile-added columns (3-tier pricing, category, expiry,
+    // tax, packaging, display color). Desktop versions that don't yet send
+    // these fields will write NULL/0 which is safe for the schema defaults.
     db.prepare('DELETE FROM products').run();
     const insertProduct = db.prepare(`
       INSERT INTO products
-        (id, name, description, selling_price, unit, barcode,
+        (id, name, description, selling_price, selling_price2, selling_price3,
+         unit, barcode, category,
          is_favorite, image_data, is_active, quantity,
-         min_stock_alert, is_resale, purchase_price, created_at, updated_at)
+         min_stock_alert, is_resale, purchase_price,
+         expiry_date, tax_rate, unit_package, higher_package, box_color,
+         created_at, updated_at)
       VALUES
-        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     for (const p of products) {
       insertProduct.run(
         p.id,
         p.name,
-        p.description   || null,
+        p.description    || null,
         p.selling_price  || 0,
+        p.selling_price2 || 0,
+        p.selling_price3 || 0,
         p.unit           || 'pcs',
         p.barcode        || null,
+        p.category       || null,
         p.is_favorite    ? 1 : 0,
         p.image_data     || null,
         p.is_active !== undefined ? (p.is_active ? 1 : 0) : 1,
-        p.quantity       || 0,
+        p.quantity        || 0,
         p.min_stock_alert || 0,
-        p.is_resale      ? 1 : 0,
-        p.purchase_price || 0,
-        p.created_at     || new Date().toISOString(),
-        p.updated_at     || new Date().toISOString()
+        p.is_resale       ? 1 : 0,
+        p.purchase_price  || 0,
+        p.expiry_date     || null,
+        p.tax_rate        || 0,
+        p.unit_package    || 0,
+        p.higher_package  || null,
+        p.box_color       || null,
+        p.created_at      || new Date().toISOString(),
+        p.updated_at      || new Date().toISOString()
       );
     }
 

@@ -29,6 +29,11 @@ router.get('/', (req, res) => {
         min_stock_alert,
         is_resale,
         category,
+        expiry_date,
+        tax_rate,
+        unit_package,
+        higher_package,
+        box_color,
         created_at,
         updated_at,
         CASE WHEN image_data IS NOT NULL AND image_data != '' THEN 1 ELSE 0 END AS has_image
@@ -58,7 +63,9 @@ router.get('/barcode/:barcode', (req, res) => {
         COALESCE(selling_price3, 0) AS selling_price3,
         purchase_price,
         unit, barcode, is_favorite, is_active, quantity,
-        min_stock_alert, is_resale, category, created_at, updated_at,
+        min_stock_alert, is_resale, category,
+        expiry_date, tax_rate, unit_package, higher_package, box_color,
+        created_at, updated_at,
         CASE WHEN image_data IS NOT NULL AND image_data != '' THEN 1 ELSE 0 END AS has_image
       FROM products
       WHERE barcode = ? AND is_active = 1
