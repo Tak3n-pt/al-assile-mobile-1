@@ -417,6 +417,44 @@ const initDatabase = (db) => {
   `);
 
   // ============================================
+  // PRODUCT UNITS  — measurement units (قطعة، كغ، لتر…) shared across devices.
+  // ============================================
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS product_units (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      name       TEXT    NOT NULL UNIQUE,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // ============================================
+  // PRODUCT HIGHER PACKAGES — parent containers (كرتون، علبة…). Same shape.
+  // ============================================
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS product_higher_packages (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      name       TEXT    NOT NULL UNIQUE,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Seed defaults on first run so dropdowns are never empty.
+  try {
+    const unitsCount = db.prepare('SELECT COUNT(*) AS n FROM product_units').get().n;
+    if (unitsCount === 0) {
+      const stmt = db.prepare('INSERT OR IGNORE INTO product_units (name) VALUES (?)');
+      ['قطعة', 'كغ', 'غ', 'لتر', 'علبة', 'متر'].forEach(n => stmt.run(n));
+    }
+    const hpCount = db.prepare('SELECT COUNT(*) AS n FROM product_higher_packages').get().n;
+    if (hpCount === 0) {
+      const stmt = db.prepare('INSERT OR IGNORE INTO product_higher_packages (name) VALUES (?)');
+      ['علبة', 'كرتون', 'كيس', 'جراب', 'دزينة'].forEach(n => stmt.run(n));
+    }
+  } catch (e) {
+    console.log('[schema] lookup seed skipped:', e.message);
+  }
+
+  // ============================================
   // CASH BOX ENTRIES — manual deposits / withdrawals to الصندوق
   //   type='add' increases the safe; type='sub' decreases it.
   //   The 3 inclusion toggles in settings decide whether sales/purchases/

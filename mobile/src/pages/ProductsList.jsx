@@ -364,8 +364,10 @@ const TAX_CHOICES = [
   { value: '19', label: '19 %' },
 ];
 
-const HIGHER_PACKAGE_CHOICES = ['علبة', 'كرتون', 'كيس', 'جراب', 'دزينة'];
-const DEFAULT_UNITS         = ['قطعة', 'كغ', 'غ', 'لتر', 'علبة', 'متر'];
+// Fallback values used until the API responds (or if it fails).
+// The server seeds these exact strings into the DB on first run.
+const DEFAULT_UNITS            = ['قطعة', 'كغ', 'غ', 'لتر', 'علبة', 'متر'];
+const DEFAULT_HIGHER_PACKAGES  = ['علبة', 'كرتون', 'كيس', 'جراب', 'دزينة'];
 
 const APF_FIELD_BORDER = '1.5px solid #90caf9';
 
@@ -496,6 +498,8 @@ function AddProductSheet({ visible, onClose, onSaved, products }) {
   const [form,   setForm]   = useState(EMPTY);
   const [cats,   setCats]   = useState([]);
   const [units,  setUnits]  = useState([]);
+  const [higherPackages, setHigherPackages] = useState([]);
+  const [showHpManager, setShowHpManager]   = useState(false);
   const [saving, setSaving] = useState(false);
   const [error,  setError]  = useState('');
   const [showScanner, setShowScanner] = useState(false);
@@ -504,38 +508,67 @@ function AddProductSheet({ visible, onClose, onSaved, products }) {
     if (!visible) return;
     setForm(EMPTY);
     setError('');
-    // Categories come from the API now; fall back to product.category values
-    // while the request is in flight so the dropdown is never empty.
+
+    // Synchronous fallbacks so the dropdowns are never empty while the
+    // server requests are in flight.
     const fromDB = [...new Set(products.map(p => p.category).filter(Boolean))];
     setCats(fromDB);
-    api.get('/api/categories')
-      .then(data => {
-        const list = Array.isArray(data) ? data : (data?.data || []);
-        const names = list.map(c => c.name);
-        setCats([...new Set([...names, ...fromDB])]);
-      })
-      .catch(() => {});
-    const customUnits = JSON.parse(localStorage.getItem('product_units') || '[]');
-    setUnits([...new Set([...DEFAULT_UNITS, ...customUnits])]);
+    setUnits(DEFAULT_UNITS);
+    setHigherPackages(DEFAULT_HIGHER_PACKAGES);
+
+    api.get('/api/categories').then(data => {
+      const list = Array.isArray(data) ? data : (data?.data || []);
+      setCats([...new Set([...list.map(c => c.name), ...fromDB])]);
+    }).catch(() => {});
+
+    api.get('/api/units').then(data => {
+      const list = Array.isArray(data) ? data : (data?.data || []);
+      setUnits(list.map(u => u.name));
+    }).catch(() => {});
+
+    api.get('/api/higher-packages').then(data => {
+      const list = Array.isArray(data) ? data : (data?.data || []);
+      setHigherPackages(list.map(h => h.name));
+    }).catch(() => {});
+
+    // One-time migration of any leftover localStorage units, then drop the key.
+    const legacyUnits = JSON.parse(localStorage.getItem('product_units') || '[]');
+    if (legacyUnits.length > 0) {
+      api.post('/api/units', { names: legacyUnits })
+        .then(data => {
+          const list = Array.isArray(data) ? data : (data?.data || []);
+          if (list.length > 0) setUnits(list.map(u => u.name));
+          localStorage.removeItem('product_units');
+        })
+        .catch(() => {});
+    }
   }, [visible]);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
-  const handleAddUnit = () => {
+  const handleAddUnit = async () => {
     const name = (window.prompt('اسم الوحدة الجديدة') || '').trim();
     if (!name) return;
-    const next = [...new Set([...units, name])];
-    setUnits(next);
-    const customUnits = JSON.parse(localStorage.getItem('product_units') || '[]');
-    if (!customUnits.includes(name)) {
-      localStorage.setItem('product_units', JSON.stringify([...customUnits, name]));
-    }
+    setUnits(prev => [...new Set([...prev, name])]); // optimistic
     set('unit', name);
+    try {
+      const data = await api.post('/api/units', { name });
+      const list = Array.isArray(data) ? data : (data?.data || []);
+      if (list.length > 0) setUnits(list.map(u => u.name));
+    } catch {}
   };
 
-  const handleHigherPackageHelp = () => {
-    // Custom action for the red play icon — opens an inline help popup.
-    window.alert('العبوة الأعلى\n\nاختر العبوة الأكبر التي تحتوي على هذا المنتج\n(مثال: كرتون يحتوي 12 علبة).');
+  // Red play icon now opens a manage sheet (replaces the old help-only popup)
+  // so the user can add/delete higher-package values without leaving the form.
+  const openHigherPackageManager = () => setShowHpManager(true);
+
+  // Called when the manager sheet closes to refresh the dropdown options.
+  const refreshHigherPackages = async () => {
+    try {
+      const data = await api.get('/api/higher-packages');
+      const list = Array.isArray(data) ? data : (data?.data || []);
+      setHigherPackages(list.map(h => h.name));
+    } catch {}
   };
 
   const handleSave = async () => {
@@ -711,9 +744,9 @@ function AddProductSheet({ visible, onClose, onSaved, products }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <div style={{ flex: 1 }}>
                     <APFDropdown value={form.higher_package} onChange={v => set('higher_package', v)}
-                      options={HIGHER_PACKAGE_CHOICES.map(h => ({ value: h, label: h }))} />
+                      options={higherPackages.map(h => ({ value: h, label: h }))} />
                   </div>
-                  <button type="button" onClick={handleHigherPackageHelp}
+                  <button type="button" onClick={openHigherPackageManager}
                     style={{ background: '#dc2626', border: 'none', borderRadius: '4px', padding: '4px 6px', cursor: 'pointer', display: 'inline-flex' }}>
                     <Play size={16} color="white" fill="white" />
                   </button>
@@ -742,8 +775,149 @@ function AddProductSheet({ visible, onClose, onSaved, products }) {
             onScan={(code) => { set('barcode', code); setShowScanner(false); }}
             onClose={() => setShowScanner(false)}
           />
+          <ManageLookupSheet
+            visible={showHpManager}
+            onClose={() => { setShowHpManager(false); refreshHigherPackages(); }}
+            title="إدارة العبوة الأعلى"
+            placeholder="اكتب اسم عبوة جديدة"
+            endpoint="/api/higher-packages"
+            icon="📦"
+          />
         </motion.div>
       )}
+    </AnimatePresence>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// ManageLookupSheet — generic light bottom sheet that lists a
+// name-keyed table (categories / units / higher packages) and lets
+// the user add or delete entries via the matching REST endpoint.
+// ─────────────────────────────────────────────────────────────
+function ManageLookupSheet({ visible, onClose, title, placeholder, endpoint, icon }) {
+  const api = useApi();
+  const [items,   setItems]   = useState([]);
+  const [input,   setInput]   = useState('');
+  const [loading, setLoading] = useState(false);
+  const [saving,  setSaving]  = useState(false);
+  const [error,   setError]   = useState('');
+
+  const refresh = useCallback(async () => {
+    setLoading(true); setError('');
+    try {
+      const data = await api.get(endpoint);
+      setItems(Array.isArray(data) ? data : (data?.data || []));
+    } catch (err) {
+      setError(err.message || 'تعذّر التحميل');
+    } finally {
+      setLoading(false);
+    }
+  }, [api, endpoint]);
+
+  useEffect(() => {
+    if (!visible) return;
+    setInput(''); setError('');
+    refresh();
+  }, [visible, refresh]);
+
+  const addOne = async () => {
+    const name = input.trim();
+    if (!name || saving) return;
+    setSaving(true); setError('');
+    try {
+      const data = await api.post(endpoint, { name });
+      setItems(Array.isArray(data) ? data : (data?.data || []));
+      setInput('');
+    } catch (err) {
+      setError(err.message || 'تعذّر الإضافة');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const removeOne = async (it) => {
+    if (!window.confirm(`حذف "${it.name}"؟`)) return;
+    setItems(prev => prev.filter(x => x.id !== it.id));
+    try {
+      await api.delete(`${endpoint}/${it.id}`);
+    } catch (err) {
+      setError(err.message || 'تعذّر الحذف');
+      refresh();
+    }
+  };
+
+  return (
+    <AnimatePresence>
+      {visible && <>
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          style={{ position: 'fixed', inset: 0, zIndex: 65, background: 'rgba(0,0,0,0.35)' }}
+          onClick={onClose} />
+        <motion.div
+          initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+          transition={{ type: 'spring', damping: 28, stiffness: 290 }}
+          style={{ position: 'fixed', insetInline: 0, bottom: 0, zIndex: 66, background: 'white', borderRadius: '16px 16px 0 0', maxHeight: '85vh', display: 'flex', flexDirection: 'column', fontFamily: "'Cairo','Tajawal',sans-serif" }}
+          dir="rtl">
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '0.5rem 0', flexShrink: 0 }}>
+            <div style={{ width: '40px', height: '4px', background: '#e5e7eb', borderRadius: '4px' }} />
+          </div>
+
+          <div style={{ position: 'relative', padding: '0.5rem 1rem 0.6rem', flexShrink: 0 }}>
+            <button onClick={onClose}
+              style={{ position: 'absolute', top: '0.4rem', insetInlineStart: '0.6rem', background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px' }}>
+              <X size={20} color="#9ca3af" />
+            </button>
+            <h2 style={{ textAlign: 'center', fontSize: '1.05rem', fontWeight: '700', color: '#1a1a1a', margin: 0 }}>{title}</h2>
+            {icon && <span style={{ position: 'absolute', top: '0.35rem', insetInlineEnd: '0.85rem', fontSize: '1.4rem' }}>{icon}</span>}
+          </div>
+
+          <div style={{ padding: '0.5rem 1rem 0.85rem', flexShrink: 0 }}>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <input
+                type="text" value={input} onChange={e => setInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addOne()}
+                placeholder={placeholder}
+                style={{
+                  flex: 1, border: '1.5px solid #90caf9', borderRadius: '8px', background: 'white',
+                  textAlign: 'right', padding: '0.6rem 0.75rem', fontSize: '0.95rem',
+                  fontFamily: "'Cairo','Tajawal',sans-serif", outline: 'none', color: '#1a1a1a', boxSizing: 'border-box',
+                }} />
+              <button onClick={addOne} disabled={!input.trim() || saving}
+                style={{
+                  background: !input.trim() || saving ? '#cfd8dc' : '#3949AB',
+                  color: !input.trim() || saving ? '#546e7a' : 'white',
+                  border: 'none', borderRadius: '8px', padding: '0.6rem 1.2rem',
+                  fontWeight: '700', fontSize: '0.95rem',
+                  cursor: !input.trim() || saving ? 'not-allowed' : 'pointer',
+                  fontFamily: "'Cairo','Tajawal',sans-serif",
+                }}>
+                {saving ? '...' : 'إضافة'}
+              </button>
+            </div>
+            {error && <p style={{ color: '#d32f2f', fontSize: '0.85rem', marginTop: '0.6rem', textAlign: 'center' }}>{error}</p>}
+          </div>
+
+          <div style={{ flex: 1, overflowY: 'auto', borderTop: '1px solid #f1f5f9', padding: '0.4rem 0 1rem' }}>
+            {loading ? (
+              <p style={{ textAlign: 'center', color: '#9ca3af', padding: '1.5rem', fontSize: '0.9rem' }}>جارٍ التحميل...</p>
+            ) : items.length === 0 ? (
+              <p style={{ textAlign: 'center', color: '#9ca3af', padding: '1.5rem', fontSize: '0.9rem' }}>لا توجد عناصر بعد</p>
+            ) : (
+              items.map(it => (
+                <div key={it.id}
+                  style={{ display: 'flex', alignItems: 'center', padding: '0.65rem 1rem', borderTop: '1px solid #f1f5f9' }}>
+                  <span style={{ flex: 1, textAlign: 'right', color: '#1a1a1a', fontSize: '0.95rem', fontWeight: '500' }}>{it.name}</span>
+                  <button onClick={() => removeOne(it)}
+                    style={{ background: 'rgba(211,47,47,0.08)', border: 'none', borderRadius: '6px', padding: '6px 8px', cursor: 'pointer', display: 'inline-flex' }}
+                    aria-label="حذف">
+                    <Trash2 size={16} color="#d32f2f" />
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+          <div style={{ height: 'env(safe-area-inset-bottom, 0px)' }} />
+        </motion.div>
+      </>}
     </AnimatePresence>
   );
 }
