@@ -395,11 +395,13 @@ function APFDropdown({ value, onChange, options, placeholder = '---' }) {
       <button type="button" onClick={() => setOpen(o => !o)}
         style={{
           width: '100%', background: 'transparent', border: 'none',
-          padding: '0.35rem 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '0.35rem 0', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.5rem',
           cursor: 'pointer', fontFamily: "'Cairo','Tajawal',sans-serif",
         }}>
-        <ChevronRight size={18} color="#9ca3af" style={{ transform: 'rotate(90deg)' }} />
+        {/* DOM order matters in RTL: span first → right of cluster, chevron second → left of cluster.
+            justify-content: flex-end pushes the cluster to the visual LEFT of the row, matching the screenshot. */}
         <span style={{ color: display ? '#1a1a1a' : '#9ca3af', fontSize: '1rem', fontWeight: display ? '600' : '400' }}>{display || placeholder}</span>
+        <ChevronRight size={18} color="#9ca3af" style={{ transform: 'rotate(90deg)' }} />
       </button>
       <div style={{ borderBottom: '1px solid #9ca3af' }} />
       {open && (
