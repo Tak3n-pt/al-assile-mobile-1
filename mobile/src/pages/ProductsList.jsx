@@ -504,9 +504,17 @@ function AddProductSheet({ visible, onClose, onSaved, products }) {
     if (!visible) return;
     setForm(EMPTY);
     setError('');
-    const fromLS    = JSON.parse(localStorage.getItem('product_categories') || '[]');
-    const fromDB    = [...new Set(products.map(p => p.category).filter(Boolean))];
-    setCats([...new Set([...fromLS, ...fromDB])]);
+    // Categories come from the API now; fall back to product.category values
+    // while the request is in flight so the dropdown is never empty.
+    const fromDB = [...new Set(products.map(p => p.category).filter(Boolean))];
+    setCats(fromDB);
+    api.get('/api/categories')
+      .then(data => {
+        const list = Array.isArray(data) ? data : (data?.data || []);
+        const names = list.map(c => c.name);
+        setCats([...new Set([...names, ...fromDB])]);
+      })
+      .catch(() => {});
     const customUnits = JSON.parse(localStorage.getItem('product_units') || '[]');
     setUnits([...new Set([...DEFAULT_UNITS, ...customUnits])]);
   }, [visible]);
@@ -554,10 +562,9 @@ function AddProductSheet({ visible, onClose, onSaved, products }) {
         image_data:      form.image_data || null,
       });
       if (form.category) {
-        const prev = JSON.parse(localStorage.getItem('product_categories') || '[]');
-        if (!prev.includes(form.category)) {
-          localStorage.setItem('product_categories', JSON.stringify([...prev, form.category]));
-        }
+        // Best-effort: register the typed category in the shared list.
+        // Server is idempotent (INSERT OR IGNORE), so duplicates are no-ops.
+        api.post('/api/categories', { name: form.category }).catch(() => {});
       }
       onSaved();
       onClose();
@@ -857,87 +864,165 @@ function EditPricesSheet({ visible, onClose, products, onUpdated }) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// AddCategorySheet
+// AddCategorySheet — light bottom sheet, backed by /api/categories.
+// Migrates any leftover localStorage entries on first open (one-time)
+// so users coming from the old build don't lose their list.
 // ─────────────────────────────────────────────────────────────
 function AddCategorySheet({ visible, onClose, products }) {
-  const [cats,  setCats]  = useState([]);
-  const [input, setInput] = useState('');
+  const api = useApi();
+  const [cats,    setCats]    = useState([]); // [{id, name}]
+  const [input,   setInput]   = useState('');
+  const [loading, setLoading] = useState(false);
+  const [saving,  setSaving]  = useState(false);
+  const [error,   setError]   = useState('');
 
+  const refresh = useCallback(async () => {
+    setLoading(true); setError('');
+    try {
+      const data = await api.get('/api/categories');
+      const list = Array.isArray(data) ? data : (data?.data || []);
+      setCats(list);
+      return list;
+    } catch (err) {
+      setError(err.message || 'تعذّر تحميل التصنيفات');
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  }, [api]);
+
+  // One-time migration: push any localStorage names + any unique product.category
+  // values up to the server so the new DB-backed list starts populated.
   useEffect(() => {
     if (!visible) return;
-    setInput('');
-    const fromLS = JSON.parse(localStorage.getItem('product_categories') || '[]');
-    const fromDB = [...new Set(products.map(p => p.category).filter(Boolean))];
-    setCats([...new Set([...fromLS, ...fromDB])]);
-  }, [visible, products]);
+    setInput(''); setError('');
+    (async () => {
+      const list = await refresh();
+      const known = new Set(list.map(c => c.name));
+      const fromLS = JSON.parse(localStorage.getItem('product_categories') || '[]');
+      const fromDB = (products || []).map(p => p.category).filter(Boolean);
+      const newOnes = [...new Set([...fromLS, ...fromDB])].filter(n => n && !known.has(n));
+      if (newOnes.length > 0) {
+        try {
+          const seeded = await api.post('/api/categories', { names: newOnes });
+          if (seeded?.data || Array.isArray(seeded)) {
+            setCats(Array.isArray(seeded) ? seeded : seeded.data);
+          }
+          localStorage.removeItem('product_categories');
+        } catch {}
+      }
+    })();
+  }, [visible, refresh, products, api]);
 
-  const persist = (list) => {
-    setCats(list);
-    localStorage.setItem('product_categories', JSON.stringify(list));
+  const addCat = async () => {
+    const name = input.trim();
+    if (!name || saving) return;
+    setSaving(true); setError('');
+    try {
+      const data = await api.post('/api/categories', { name });
+      const list = Array.isArray(data) ? data : (data?.data || []);
+      setCats(list);
+      setInput('');
+    } catch (err) {
+      setError(err.message || 'تعذّر الإضافة');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const addCat = () => {
-    const name = input.trim();
-    if (!name || cats.includes(name)) { setInput(''); return; }
-    persist([...cats, name]);
-    setInput('');
+  const removeCat = async (cat) => {
+    if (!window.confirm(`حذف "${cat.name}"؟`)) return;
+    setCats(prev => prev.filter(c => c.id !== cat.id)); // optimistic
+    try {
+      await api.delete(`/api/categories/${cat.id}`);
+    } catch (err) {
+      setError(err.message || 'تعذّر الحذف');
+      refresh(); // roll back to server truth
+    }
   };
 
   return (
     <AnimatePresence>
       {visible && <>
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-          className="fixed inset-0 z-40" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose} />
+          style={{ position: 'fixed', inset: 0, zIndex: 55, background: 'rgba(0,0,0,0.35)' }}
+          onClick={onClose} />
         <motion.div
           initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-          transition={{ type: 'spring', damping: 26, stiffness: 280 }}
-          className="fixed inset-x-0 bottom-0 z-50 rounded-t-3xl flex flex-col"
-          style={{ background: '#0d1120', maxHeight: '80vh' }}
-          dir="rtl"
-        >
-          <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
-            <div className="w-10 h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.2)' }} />
-          </div>
-          <div className="flex items-center justify-between px-5 py-3 flex-shrink-0"
-            style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-            <h2 className="text-base font-bold text-white">إدارة التصنيفات</h2>
-            <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full"
-              style={{ background: 'rgba(255,255,255,0.08)' }}>
-              <X size={16} color="white" />
-            </button>
+          transition={{ type: 'spring', damping: 28, stiffness: 290 }}
+          style={{ position: 'fixed', insetInline: 0, bottom: 0, zIndex: 56, background: 'white', borderRadius: '16px 16px 0 0', maxHeight: '85vh', display: 'flex', flexDirection: 'column', fontFamily: "'Cairo','Tajawal',sans-serif" }}
+          dir="rtl">
+          {/* Drag handle */}
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '0.5rem 0', flexShrink: 0 }}>
+            <div style={{ width: '40px', height: '4px', background: '#e5e7eb', borderRadius: '4px' }} />
           </div>
 
-          <div className="flex-shrink-0 px-5 py-3"
-            style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-            <div className="flex gap-2">
-              <input type="text" value={input} onChange={e => setInput(e.target.value)}
+          {/* Header */}
+          <div style={{ position: 'relative', padding: '0.5rem 1rem 0.6rem', flexShrink: 0 }}>
+            <button onClick={onClose}
+              style={{ position: 'absolute', top: '0.4rem', insetInlineStart: '0.6rem', background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px' }}>
+              <X size={20} color="#9ca3af" />
+            </button>
+            <h2 style={{ textAlign: 'center', fontSize: '1.1rem', fontWeight: '700', color: '#1a1a1a', margin: 0 }}>
+              اضافة تصنيف جديد
+            </h2>
+            <span style={{ position: 'absolute', top: '0.35rem', insetInlineEnd: '0.85rem', fontSize: '1.4rem' }}>🏷️</span>
+          </div>
+
+          {/* Add input + button */}
+          <div style={{ padding: '0.5rem 1rem 0.85rem', flexShrink: 0 }}>
+            <label style={{ display: 'block', fontSize: '0.85rem', color: '#374151', marginBottom: '6px', fontWeight: '600' }}>
+              اسم التصنيف
+            </label>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <input
+                type="text" value={input} onChange={e => setInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && addCat()}
-                placeholder="اسم التصنيف الجديد"
-                className="flex-1 px-3 py-2.5 rounded-xl outline-none text-white placeholder-gray-600"
-                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', fontSize: '15px' }} />
-              <button onClick={addCat}
-                className="px-4 py-2.5 rounded-xl text-sm font-bold"
-                style={{ background: 'rgba(57,73,171,0.2)', border: '1px solid rgba(57,73,171,0.3)', color: '#818cf8' }}>
-                إضافة
+                placeholder="اكتب اسم التصنيف الجديد"
+                style={{
+                  flex: 1, border: '1.5px solid #90caf9', borderRadius: '8px', background: 'white',
+                  textAlign: 'right', padding: '0.6rem 0.75rem', fontSize: '0.95rem',
+                  fontFamily: "'Cairo','Tajawal',sans-serif", outline: 'none', color: '#1a1a1a', boxSizing: 'border-box',
+                }} />
+              <button onClick={addCat} disabled={!input.trim() || saving}
+                style={{
+                  background: !input.trim() || saving ? '#cfd8dc' : '#3949AB',
+                  color: !input.trim() || saving ? '#546e7a' : 'white',
+                  border: 'none', borderRadius: '8px', padding: '0.6rem 1.2rem',
+                  fontWeight: '700', fontSize: '0.95rem',
+                  cursor: !input.trim() || saving ? 'not-allowed' : 'pointer',
+                  fontFamily: "'Cairo','Tajawal',sans-serif",
+                }}>
+                {saving ? '...' : 'إضافة'}
               </button>
             </div>
+            {error && <p style={{ color: '#d32f2f', fontSize: '0.85rem', marginTop: '0.6rem', textAlign: 'center' }}>{error}</p>}
           </div>
 
-          <div className="overflow-y-auto flex-1 px-5 py-3 space-y-2">
-            {cats.length === 0 ? (
-              <p className="text-center py-10 text-sm" style={{ color: '#4a5568' }}>لا توجد تصنيفات بعد</p>
-            ) : cats.map(c => (
-              <div key={c} className="flex items-center justify-between rounded-xl px-4 py-3"
-                style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
-                <span className="text-sm font-semibold text-white">{c}</span>
-                <button onClick={() => persist(cats.filter(x => x !== c))}
-                  className="w-7 h-7 flex items-center justify-center rounded-full"
-                  style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)' }}>
-                  <X size={13} color="#f87171" />
-                </button>
-              </div>
-            ))}
+          {/* Categories list */}
+          <div style={{ flex: 1, overflowY: 'auto', borderTop: '1px solid #f1f5f9', padding: '0.4rem 0 1rem' }}>
+            <div style={{ padding: '0.5rem 1rem 0.4rem', color: '#6b7280', fontSize: '0.8rem', fontWeight: '600' }}>
+              التصنيفات الحالية ({cats.length})
+            </div>
+            {loading ? (
+              <p style={{ textAlign: 'center', color: '#9ca3af', padding: '1.5rem', fontSize: '0.9rem' }}>جارٍ التحميل...</p>
+            ) : cats.length === 0 ? (
+              <p style={{ textAlign: 'center', color: '#9ca3af', padding: '1.5rem', fontSize: '0.9rem' }}>لا توجد تصنيفات بعد</p>
+            ) : (
+              cats.map(c => (
+                <div key={c.id}
+                  style={{ display: 'flex', alignItems: 'center', padding: '0.65rem 1rem', borderTop: '1px solid #f1f5f9' }}>
+                  <span style={{ flex: 1, textAlign: 'right', color: '#1a1a1a', fontSize: '0.95rem', fontWeight: '500' }}>{c.name}</span>
+                  <button onClick={() => removeCat(c)}
+                    style={{ background: 'rgba(211,47,47,0.08)', border: 'none', borderRadius: '6px', padding: '6px 8px', cursor: 'pointer', display: 'inline-flex' }}
+                    aria-label="حذف">
+                    <Trash2 size={16} color="#d32f2f" />
+                  </button>
+                </div>
+              ))
+            )}
           </div>
+          <div style={{ height: 'env(safe-area-inset-bottom, 0px)' }} />
         </motion.div>
       </>}
     </AnimatePresence>

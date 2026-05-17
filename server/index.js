@@ -33,6 +33,7 @@ const notificationsRouter = require('./routes/notifications');
 const purchasesRouter    = require('./routes/purchases');
 const expensesRouter     = require('./routes/expenses');
 const treasuryRouter     = require('./routes/treasury');
+const categoriesRouter   = require('./routes/categories');
 
 // ---------------------------------------------------------------------------
 // Initialise database schema on startup
@@ -92,6 +93,7 @@ app.use('/api/notifications', authenticate, notificationsRouter);
 app.use('/api/purchases',    authenticate, purchasesRouter);
 app.use('/api/expenses',     authenticate, expensesRouter);
 app.use('/api/treasury',     authenticate, treasuryRouter);
+app.use('/api/categories',   authenticate, categoriesRouter);
 
 // ---------------------------------------------------------------------------
 // Health check (unauthenticated - useful for load balancers and monitoring)

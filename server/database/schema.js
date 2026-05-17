@@ -405,6 +405,18 @@ const initDatabase = (db) => {
   db.exec('CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date)');
 
   // ============================================
+  // PRODUCT CATEGORIES — dedicated table so categories sync across devices
+  // and aren't trapped in any single phone's localStorage.
+  // ============================================
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS product_categories (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      name       TEXT    NOT NULL UNIQUE,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // ============================================
   // CASH BOX ENTRIES — manual deposits / withdrawals to الصندوق
   //   type='add' increases the safe; type='sub' decreases it.
   //   The 3 inclusion toggles in settings decide whether sales/purchases/
