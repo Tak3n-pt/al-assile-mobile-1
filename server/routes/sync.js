@@ -99,13 +99,38 @@ router.post('/push', (req, res) => {
       deductionMap[row.product_id] = row.total_qty;
     }
 
-    // 2. Replace products
-    // Includes the mobile-added columns (3-tier pricing, category, expiry,
-    // tax, packaging, display color). Desktop versions that don't yet send
-    // these fields will write NULL/0 which is safe for the schema defaults.
-    db.prepare('DELETE FROM products').run();
+    // 2. Reconcile products. Mirrors the clients/suppliers strategy: preserve
+    //    any product with an unconsumed mobile mutation in sync_log (synced=0)
+    //    so a mobile-side edit isn't wiped by a desktop push that hasn't yet
+    //    pulled the change. If the desktop's payload carries a newer
+    //    updated_at for the same product, the desktop's version wins (last-
+    //    write-wins) and we mark the pending log entries synced=1 to avoid
+    //    pushing stale data back.
+    const pendingProductIds = new Set(
+      db.prepare(`SELECT DISTINCT entity_id FROM sync_log
+                  WHERE entity_type='product' AND synced=0`).all().map(r => r.entity_id)
+    );
+
+    // Snapshot server-side updated_at for pending products before the wipe so
+    // we can compare against the incoming desktop payload.
+    const pendingProductUpdatedAt = new Map(
+      pendingProductIds.size > 0
+        ? db.prepare(`SELECT id, updated_at FROM products WHERE id IN (${[...pendingProductIds].map(() => '?').join(',')})`)
+            .all(...pendingProductIds).map(r => [r.id, r.updated_at])
+        : []
+    );
+
+    if (pendingProductIds.size > 0) {
+      const ph = [...pendingProductIds].map(() => '?').join(',');
+      db.prepare(`DELETE FROM products WHERE id NOT IN (${ph})`).run(...pendingProductIds);
+    } else {
+      db.prepare('DELETE FROM products').run();
+    }
+
+    // INSERT OR REPLACE: pending products that the desktop's payload supersedes
+    // (newer updated_at) need to overwrite the preserved row rather than collide.
     const insertProduct = db.prepare(`
-      INSERT INTO products
+      INSERT OR REPLACE INTO products
         (id, name, description, selling_price, selling_price2, selling_price3,
          unit, barcode, category,
          is_favorite, image_data, is_active, quantity,
@@ -115,7 +140,22 @@ router.post('/push', (req, res) => {
       VALUES
         (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
+    const clearProductPending = db.prepare(`
+      UPDATE sync_log SET synced=1
+      WHERE entity_type='product' AND entity_id=? AND synced=0
+    `);
     for (const p of products) {
+      if (pendingProductIds.has(p.id)) {
+        // Mobile has an unpulled mutation on this product. Only let the
+        // desktop overwrite when its updated_at is strictly newer than the
+        // server-side value at snapshot time.
+        const serverUpdatedAt = pendingProductUpdatedAt.get(p.id);
+        const desktopNewer = p.updated_at && serverUpdatedAt &&
+          new Date(p.updated_at) > new Date(serverUpdatedAt);
+        if (!desktopNewer) continue; // keep mobile's version
+        // Desktop wins → clear pending log so we don't ship stale rows back.
+        clearProductPending.run(p.id);
+      }
       insertProduct.run(
         p.id,
         p.name,
@@ -778,12 +818,63 @@ router.get('/pull', (req, res) => {
       db.prepare(`UPDATE sync_log SET synced = 1 WHERE id IN (${phLog})`).run(...allLogIds);
     }
 
+    // ------------------------- PRODUCTS -------------------------
+    // Mirror the create/update/delete + latest-action-wins pattern. Only mobile-
+    // initiated mutations (PATCH /:id, DELETE /:id) write to sync_log here —
+    // sales-driven quantity changes do NOT, so the qty values we ship back to
+    // the desktop never double-count a sale the desktop is already applying via
+    // the sales section of this same response.
+    // Note: image_data is intentionally OMITTED from this query — it can be
+    // hundreds of KB per row and the desktop tracks images separately as
+    // image_path.
+    const productLogRows = since
+      ? db.prepare(`SELECT entity_id AS product_id, action, id AS log_id FROM sync_log
+                    WHERE entity_type = 'product' AND datetime(created_at) > datetime(?)
+                    ORDER BY id ASC`).all(since)
+      : db.prepare(`SELECT entity_id AS product_id, action, id AS log_id FROM sync_log
+                    WHERE entity_type = 'product' AND synced = 0
+                    ORDER BY id ASC`).all();
+
+    const latestProductAction = new Map();
+    const productLogIdsByProductId = new Map();
+    for (const r of productLogRows) {
+      latestProductAction.set(r.product_id, r.action);
+      (productLogIdsByProductId.get(r.product_id)
+        || productLogIdsByProductId.set(r.product_id, []).get(r.product_id)).push(r.log_id);
+    }
+
+    const productIds = [...latestProductAction.keys()];
+    let productsOut = [];
+    if (productIds.length > 0) {
+      const ph = productIds.map(() => '?').join(',');
+      const rows = db.prepare(`
+        SELECT id, name, description, selling_price, unit, barcode,
+               is_favorite, is_active, quantity, min_stock_alert,
+               created_at, updated_at
+        FROM products WHERE id IN (${ph})
+      `).all(...productIds);
+      const existingById = new Map(rows.map(r => [r.id, r]));
+
+      for (const pid of productIds) {
+        const action = latestProductAction.get(pid);
+        const row = existingById.get(pid);
+        if (row) productsOut.push({ ...row, __action: action || 'update' });
+        // Skip if row missing — soft-delete keeps the row around, so a true
+        // missing row means manual DB tampering. Log is still consumed below.
+      }
+
+      const allLogIds = [].concat(...productLogIdsByProductId.values());
+      const phLog = allLogIds.map(() => '?').join(',');
+      db.prepare(`UPDATE sync_log SET synced = 1 WHERE id IN (${phLog})`).run(...allLogIds);
+    }
+
     return {
       sales: salesOut,
       payments: paymentsOut,
       clients: clientsOut,
       suppliers: suppliersOut,
-      supplier_payments: supplierPaymentsOut
+      supplier_payments: supplierPaymentsOut,
+      products: productsOut
     };
   });
 
@@ -795,7 +886,8 @@ router.get('/pull', (req, res) => {
       payments: out.payments,
       clients: out.clients,
       suppliers: out.suppliers,
-      supplier_payments: out.supplier_payments
+      supplier_payments: out.supplier_payments,
+      products: out.products
     });
   } catch (err) {
     console.error('[sync] GET /pull error:', err.message);

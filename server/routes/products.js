@@ -256,6 +256,12 @@ router.patch('/:id', (req, res) => {
       id
     );
 
+    // Log mutation so the desktop pull can propagate the change back.
+    db.prepare(`
+      INSERT INTO sync_log (entity_type, entity_id, action, synced)
+      VALUES ('product', ?, 'update', 0)
+    `).run(id);
+
     const updated = db.prepare(PRODUCT_SELECT).get(id);
     return res.json({ success: true, data: updated });
   } catch (err) {
@@ -278,6 +284,13 @@ router.delete('/:id', (req, res) => {
   try {
     const info = db.prepare('UPDATE products SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(id);
     if (info.changes === 0) return res.status(404).json({ success: false, error: 'Product not found' });
+
+    // Log mutation so desktop pull picks up the soft-delete (is_active=0).
+    db.prepare(`
+      INSERT INTO sync_log (entity_type, entity_id, action, synced)
+      VALUES ('product', ?, 'update', 0)
+    `).run(id);
+
     return res.json({ success: true });
   } catch (err) {
     console.error('[products] DELETE /:id error:', err.message);
