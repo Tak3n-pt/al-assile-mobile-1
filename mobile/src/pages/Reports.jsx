@@ -2314,6 +2314,325 @@ function InventoryMovementTab({ range }) {
   );
 }
 
+// ── SalesTaxByProductTab ──────────────────────────────────────────────────
+
+function SalesTaxByProductTab({ range }) {
+  const api = useApi();
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  useEffect(() => {
+    let a = false; setLoading(true); setError(null);
+    api.get(`/api/reports/sales/tax-by-product?start=${range.start}&end=${range.end}`)
+      .then(r => { if (!a) setData(r?.data || r); })
+      .catch(err => { if (!a) setError(err?.message || 'خطأ في التحميل'); })
+      .finally(() => { if (!a) setLoading(false); });
+    return () => { a = true; };
+  }, [range.start, range.end]);
+  if (loading) return <LoadingState />;
+  if (error) return <ErrorMsg text={error} />;
+  const rows = data?.rows || [];
+  return (
+    <div>
+      <div className="mb-3"><SummaryCard label="إجمالي الضرائب" value={formatCurrency(data?.grand_tax || 0)} color="#B71C1C" bg="#FFEBEE" /></div>
+      {rows.length === 0 ? <EmptyState text="لا توجد مبيعات خاضعة للضريبة في هذه الفترة" color="#9ca3af" icon={AlertTriangle} /> : (
+        <div className="space-y-2">
+          {rows.map(r => (
+            <div key={r.product_id} className="p-3.5 rounded-xl" style={{ background: 'white', border: '1px solid #e5e7eb', borderLeft: '3px solid #B71C1C' }}>
+              <div className="flex items-start justify-between gap-2 mb-1.5">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold truncate" style={{ color: '#1a1a1a' }}>{r.product_name}</p>
+                  <p className="text-xs" style={{ color: '#9ca3af' }}>{r.total_qty} {r.unit} · ضريبة {r.tax_rate}%</p>
+                </div>
+                <p className="text-sm font-bold flex-shrink-0" style={{ color: '#B71C1C' }}>{formatCurrency(r.total_tax || 0)}</p>
+              </div>
+              <div className="flex items-center justify-between">
+                <p className="text-xs" style={{ color: '#9ca3af' }}>مبيعات: {formatCurrency(r.total_sales || 0)}</p>
+                <p className="text-xs" style={{ color: '#B71C1C' }}>وعاء ضريبي: {formatCurrency((r.total_tax || 0) + (r.total_sales || 0))}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── SalesTaxByClientTab ───────────────────────────────────────────────────
+
+function SalesTaxByClientTab({ range }) {
+  const api = useApi();
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  useEffect(() => {
+    let a = false; setLoading(true); setError(null);
+    api.get(`/api/reports/sales/tax-by-client?start=${range.start}&end=${range.end}`)
+      .then(r => { if (!a) setData(r?.data || r); })
+      .catch(err => { if (!a) setError(err?.message || 'خطأ في التحميل'); })
+      .finally(() => { if (!a) setLoading(false); });
+    return () => { a = true; };
+  }, [range.start, range.end]);
+  if (loading) return <LoadingState />;
+  if (error) return <ErrorMsg text={error} />;
+  const rows = data?.rows || [];
+  return (
+    <div>
+      <div className="mb-3"><SummaryCard label="إجمالي الضرائب" value={formatCurrency(data?.grand_tax || 0)} color="#B71C1C" bg="#FFEBEE" /></div>
+      {rows.length === 0 ? <EmptyState text="لا توجد مبيعات خاضعة للضريبة في هذه الفترة" color="#9ca3af" icon={AlertTriangle} /> : (
+        <div className="space-y-2">
+          {rows.map(r => (
+            <div key={r.client_id} className="flex items-center justify-between p-3.5 rounded-xl" style={{ background: 'white', border: '1px solid #e5e7eb', borderLeft: '3px solid #B71C1C' }}>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold truncate" style={{ color: '#1a1a1a' }}>{r.client_name}</p>
+                <p className="text-xs" style={{ color: '#9ca3af' }}>{r.invoice_count} فاتورة · مبيعات: {formatCurrency(r.total_sales || 0)}</p>
+              </div>
+              <p className="text-sm font-bold flex-shrink-0 mr-3" style={{ color: '#B71C1C' }}>{formatCurrency(r.total_tax || 0)}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── SalesQuotesTab ────────────────────────────────────────────────────────
+
+function SalesQuotesTab() {
+  return <EmptyState icon={FileText} color="#9ca3af" text="لا توجد عروض أسعار مسجلة" />;
+}
+
+// ── PurchasesReturnsTab ───────────────────────────────────────────────────
+
+function PurchasesReturnsTab() {
+  return <EmptyState icon={Package} color="#9ca3af" text="لا توجد مرتجعات مشتريات مسجلة" />;
+}
+
+// ── PurchasesOrdersTab ────────────────────────────────────────────────────
+
+function PurchasesOrdersTab() {
+  return <EmptyState icon={ShoppingCart} color="#9ca3af" text="لا توجد طلبات شراء مسجلة" />;
+}
+
+// ── InventoryExpiryTab ────────────────────────────────────────────────────
+
+function InventoryExpiryTab() {
+  const api = useApi();
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let a = false;
+    api.get('/api/products')
+      .then(r => { if (!a) setProducts(Array.isArray(r) ? r : (r?.data || [])); })
+      .catch(() => {})
+      .finally(() => { if (!a) setLoading(false); });
+    return () => { a = true; };
+  }, []);
+  if (loading) return <LoadingState />;
+  const today = new Date().toISOString().slice(0, 10);
+  const withExpiry = products
+    .filter(p => p.expiry_date)
+    .sort((a, b) => a.expiry_date.localeCompare(b.expiry_date));
+  if (withExpiry.length === 0) return <EmptyState icon={Archive} color="#9ca3af" text="لا توجد منتجات بتاريخ انتهاء مسجل" />;
+  const expired = withExpiry.filter(p => p.expiry_date < today);
+  const nearExpiry = withExpiry.filter(p => {
+    if (p.expiry_date < today) return false;
+    const diff = Math.floor((new Date(p.expiry_date) - new Date(today)) / 86400000);
+    return diff <= 30;
+  });
+  const ok = withExpiry.filter(p => {
+    if (p.expiry_date < today) return false;
+    const diff = Math.floor((new Date(p.expiry_date) - new Date(today)) / 86400000);
+    return diff > 30;
+  });
+  const renderRow = (p) => {
+    const isExpired = p.expiry_date < today;
+    const diff = Math.floor((new Date(p.expiry_date) - new Date(today)) / 86400000);
+    const color = isExpired ? '#ef4444' : diff <= 7 ? '#ef4444' : diff <= 30 ? '#f59e0b' : '#10b981';
+    const label = isExpired ? 'منتهي الصلاحية' : diff === 0 ? 'ينتهي اليوم' : `${diff} يوم`;
+    return (
+      <div key={p.id} className="flex items-center justify-between p-3.5 rounded-xl" style={{ background: 'white', border: `1px solid ${color}33`, borderLeft: `3px solid ${color}` }}>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold truncate" style={{ color: '#1a1a1a' }}>{p.name}</p>
+          <p className="text-xs mt-0.5" style={{ color: '#9ca3af' }}>{p.expiry_date} · {p.quantity || 0} {p.unit || ''}</p>
+        </div>
+        <p className="text-xs font-bold flex-shrink-0 mr-3" style={{ color }}>{label}</p>
+      </div>
+    );
+  };
+  return (
+    <div className="space-y-4">
+      {expired.length > 0 && (
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wide mb-2 px-1" style={{ color: '#ef4444' }}>منتهي الصلاحية ({expired.length})</p>
+          <div className="space-y-2">{expired.map(renderRow)}</div>
+        </div>
+      )}
+      {nearExpiry.length > 0 && (
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wide mb-2 px-1" style={{ color: '#f59e0b' }}>قريب الانتهاء - خلال 30 يوم ({nearExpiry.length})</p>
+          <div className="space-y-2">{nearExpiry.map(renderRow)}</div>
+        </div>
+      )}
+      {ok.length > 0 && (
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wide mb-2 px-1" style={{ color: '#10b981' }}>صالح ({ok.length})</p>
+          <div className="space-y-2">{ok.map(renderRow)}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── InventoryDamagedTab ───────────────────────────────────────────────────
+
+function InventoryDamagedTab() {
+  return <EmptyState icon={AlertTriangle} color="#9ca3af" text="لا توجد منتجات تالفة مسجلة" />;
+}
+
+// ── TreasuryCapitalTab ────────────────────────────────────────────────────
+
+function TreasuryCapitalTab() {
+  const api = useApi();
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  useEffect(() => {
+    let a = false; setLoading(true); setError(null);
+    api.get('/api/reports/treasury/capital')
+      .then(r => { if (!a) setData(r?.data || r); })
+      .catch(err => { if (!a) setError(err?.message || 'خطأ في التحميل'); })
+      .finally(() => { if (!a) setLoading(false); });
+    return () => { a = true; };
+  }, []);
+  if (loading) return <LoadingState />;
+  if (error) return <ErrorMsg text={error} />;
+  if (!data) return <EmptyState text="لا توجد بيانات" color="#9ca3af" />;
+  return (
+    <div className="space-y-3">
+      <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#10b981' }}>الأصول</p>
+      <div className="space-y-2">
+        <div className="flex items-center justify-between p-3.5 rounded-xl" style={{ background: 'white', border: '1px solid #A7F3D0', borderLeft: '3px solid #10b981' }}>
+          <div><p className="text-sm font-semibold" style={{ color: '#1a1a1a' }}>قيمة المخزون</p><p className="text-xs" style={{ color: '#9ca3af' }}>{data.product_count} منتج · {data.total_units} وحدة</p></div>
+          <p className="text-sm font-bold" style={{ color: '#10b981' }}>{formatCurrency(data.stock_value || 0)}</p>
+        </div>
+        <div className="flex items-center justify-between p-3.5 rounded-xl" style={{ background: 'white', border: '1px solid #A7F3D0', borderLeft: '3px solid #10b981' }}>
+          <p className="text-sm font-semibold" style={{ color: '#1a1a1a' }}>ذمم العملاء (مستحقة لنا)</p>
+          <p className="text-sm font-bold" style={{ color: '#10b981' }}>{formatCurrency(data.receivables || 0)}</p>
+        </div>
+        <div className="flex items-center justify-between p-3.5 rounded-xl" style={{ background: 'white', border: '1px solid #A7F3D0', borderLeft: '3px solid #10b981' }}>
+          <p className="text-sm font-semibold" style={{ color: '#1a1a1a' }}>رصيد الصندوق</p>
+          <p className="text-sm font-bold" style={{ color: '#10b981' }}>{formatCurrency(data.treasury || 0)}</p>
+        </div>
+        <SummaryCard label="إجمالي الأصول" value={formatCurrency(data.total_assets || 0)} color="#10b981" bg="#ECFDF5" />
+      </div>
+      <p className="text-xs font-bold uppercase tracking-wide mt-2" style={{ color: '#ef4444' }}>الالتزامات</p>
+      <div className="space-y-2">
+        <div className="flex items-center justify-between p-3.5 rounded-xl" style={{ background: 'white', border: '1px solid #FECACA', borderLeft: '3px solid #ef4444' }}>
+          <p className="text-sm font-semibold" style={{ color: '#1a1a1a' }}>المستحق للموردين</p>
+          <p className="text-sm font-bold" style={{ color: '#ef4444' }}>{formatCurrency(data.payables || 0)}</p>
+        </div>
+        {(data.credit_balance || 0) > 0 && (
+          <div className="flex items-center justify-between p-3.5 rounded-xl" style={{ background: 'white', border: '1px solid #FECACA', borderLeft: '3px solid #ef4444' }}>
+            <p className="text-sm font-semibold" style={{ color: '#1a1a1a' }}>أرصدة دائنة للعملاء</p>
+            <p className="text-sm font-bold" style={{ color: '#ef4444' }}>{formatCurrency(data.credit_balance || 0)}</p>
+          </div>
+        )}
+      </div>
+      <SummaryCard label="رأس المال الصافي" value={formatCurrency(data.net_capital || 0)} color="#3949AB" bg="#E8EAF6" />
+    </div>
+  );
+}
+
+// ── TreasuryZakatTab ──────────────────────────────────────────────────────
+
+function TreasuryZakatTab() {
+  const api = useApi();
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  useEffect(() => {
+    let a = false; setLoading(true); setError(null);
+    api.get('/api/reports/treasury/capital')
+      .then(r => { if (!a) setData(r?.data || r); })
+      .catch(err => { if (!a) setError(err?.message || 'خطأ في التحميل'); })
+      .finally(() => { if (!a) setLoading(false); });
+    return () => { a = true; };
+  }, []);
+  if (loading) return <LoadingState />;
+  if (error) return <ErrorMsg text={error} />;
+  if (!data) return <EmptyState text="لا توجد بيانات" color="#9ca3af" />;
+  const netAssets = data.net_capital || 0;
+  const zakatAmount = netAssets > 0 ? netAssets * 0.025 : 0;
+  return (
+    <div className="space-y-3">
+      <div className="rounded-xl p-4" style={{ background: '#FFFBEB', border: '1px solid #FDE68A' }}>
+        <p className="text-xs font-semibold mb-1" style={{ color: '#B45309' }}>ملاحظة: يجب استشارة عالم شرعي لحساب الزكاة بدقة.</p>
+        <p className="text-xs" style={{ color: '#92400E' }}>هذا حساب تقريبي بنسبة 2.5% من صافي الأصول.</p>
+      </div>
+      <SummaryCard label="صافي الأصول" value={formatCurrency(netAssets)} color="#3949AB" bg="#E8EAF6" />
+      <div className="flex items-center justify-between p-3.5 rounded-xl" style={{ background: 'white', border: '1px solid #e5e7eb' }}>
+        <div>
+          <p className="text-sm font-semibold" style={{ color: '#1a1a1a' }}>نسبة الزكاة</p>
+          <p className="text-xs" style={{ color: '#9ca3af' }}>2.5% من صافي الأصول</p>
+        </div>
+        <p className="text-sm font-bold" style={{ color: '#B45309' }}>2.5%</p>
+      </div>
+      {netAssets > 0 ? (
+        <SummaryCard label="مقدار الزكاة المستحقة (تقريبي)" value={formatCurrency(zakatAmount)} color="#B45309" bg="#FFFBEB" />
+      ) : (
+        <EmptyState icon={CheckCircle2} color="#10b981" text="لا تستحق زكاة (الأصول الصافية صفر أو أقل)" />
+      )}
+    </div>
+  );
+}
+
+// ── TreasuryTaxTab ────────────────────────────────────────────────────────
+
+function TreasuryTaxTab({ range, includeReturns = false }) {
+  const api = useApi();
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  useEffect(() => {
+    let a = false; setLoading(true); setError(null);
+    api.get(`/api/reports/treasury/tax?start=${range.start}&end=${range.end}&include_returns=${includeReturns ? 1 : 0}`)
+      .then(r => { if (!a) setData(r?.data || r); })
+      .catch(err => { if (!a) setError(err?.message || 'خطأ في التحميل'); })
+      .finally(() => { if (!a) setLoading(false); });
+    return () => { a = true; };
+  }, [range.start, range.end, includeReturns]);
+  if (loading) return <LoadingState />;
+  if (error) return <ErrorMsg text={error} />;
+  const rows = data?.rows || [];
+  return (
+    <div>
+      <div className="grid grid-cols-2 gap-2 mb-3">
+        <SummaryCard label="إجمالي المبيعات" value={formatCurrency(data?.grand_sales || 0)} color="#2E7D32" bg="#E8F5E9" />
+        <SummaryCard label="إجمالي الضريبة" value={formatCurrency(data?.grand_tax || 0)} color="#B71C1C" bg="#FFEBEE" />
+      </div>
+      {rows.length === 0 ? <EmptyState text="لا توجد مبيعات خاضعة للضريبة في هذه الفترة" color="#9ca3af" icon={AlertTriangle} /> : (
+        <div className="space-y-2">
+          {rows.map((r, i) => (
+            <div key={i} className="p-3.5 rounded-xl" style={{ background: 'white', border: '1px solid #e5e7eb', borderLeft: '3px solid #B71C1C' }}>
+              <div className="flex items-center justify-between mb-1">
+                <div>
+                  <p className="text-sm font-semibold" style={{ color: '#1a1a1a' }}>{r.date}</p>
+                  <p className="text-xs" style={{ color: '#9ca3af' }}>{r.invoice_count} فاتورة · ضريبة {r.tax_rate}%</p>
+                </div>
+                <p className="text-sm font-bold" style={{ color: '#B71C1C' }}>{formatCurrency(r.tax_amount || 0)}</p>
+              </div>
+              <div className="flex items-center justify-between">
+                <p className="text-xs" style={{ color: '#9ca3af' }}>مبيعات: {formatCurrency(r.sales_amount || 0)}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Report catalog ────────────────────────────────────────────────────────
 
 const SECTIONS = [
@@ -2334,9 +2653,9 @@ const SECTIONS = [
       { id: 'sales_credit',       label: 'تقرير بالفواتير الاجل' },
       { id: 'sales_returns',      label: 'تقرير بالفواتير المرتجع-مبيعات'         },
       { id: 'sales_cancelled',    label: 'تقرير بفواتير المبيعات التي تم الغائها' },
-      { id: 'sales_quotes',       label: 'تقرير بعروض الاسعار',                   unavailable: true },
-      { id: 'sales_tax_product',  label: 'إجمالي الضرائب حسب الصنف',              unavailable: true },
-      { id: 'sales_tax_client',   label: 'إجمالي الضرائب حسب العميل',             unavailable: true },
+      { id: 'sales_quotes',       label: 'تقرير بعروض الاسعار' },
+      { id: 'sales_tax_product',  label: 'إجمالي الضرائب حسب الصنف' },
+      { id: 'sales_tax_client',   label: 'إجمالي الضرائب حسب العميل' },
     ],
   },
   {
@@ -2378,9 +2697,9 @@ const SECTIONS = [
     reports: [
       { id: 'purchases_report',     label: 'تقرير بالمشتريات' },
       { id: 'purchases_invoices',   label: 'عرض فواتير المشتريات' },
-      { id: 'purchases_returns',    label: 'تقرير بالفواتير المرتجع-مشتريات',               unavailable: true },
-      { id: 'purchases_cancelled',  label: 'تقرير بفواتير المشتريات التي تم الغائها'         },
-      { id: 'purchases_orders',     label: 'تقرير بطلبات الشراء',                           unavailable: true },
+      { id: 'purchases_returns',    label: 'تقرير بالفواتير المرتجع-مشتريات' },
+      { id: 'purchases_cancelled',  label: 'تقرير بفواتير المشتريات التي تم الغائها' },
+      { id: 'purchases_orders',     label: 'تقرير بطلبات الشراء' },
     ],
   },
   {
@@ -2389,19 +2708,19 @@ const SECTIONS = [
       { id: 'inventory_all',         label: 'جرد مخزني' },
       { id: 'inventory_by_category', label: 'جرد مخزني حسب التصنيف' },
       { id: 'inventory_for_category',label: 'جرد مخزني لتصنيف' },
-      { id: 'inventory_expiry',      label: 'تقرير بالمنتجات حسب تاريخ الانتهاء', unavailable: true },
-      { id: 'inventory_movement',    label: 'تقرير بحركه منتج'                   },
-      { id: 'inventory_damaged',     label: 'تقرير بالمنتجات التالفة',           unavailable: true },
+      { id: 'inventory_expiry',      label: 'تقرير بالمنتجات حسب تاريخ الانتهاء' },
+      { id: 'inventory_movement',    label: 'تقرير بحركه منتج' },
+      { id: 'inventory_damaged',     label: 'تقرير بالمنتجات التالفة' },
     ],
   },
   {
     id: 'treasury', label: 'الصندوق', color: '#B71C1C',
     reports: [
       { id: 'treasury_report',       label: 'تقرير بحركة الصندوق' },
-      { id: 'treasury_capital',      label: 'تقرير رأس المال',                    unavailable: true },
-      { id: 'treasury_zakat',        label: 'حساب الزكاة',                        unavailable: true },
-      { id: 'treasury_tax',          label: 'تقرير بالاقرار الضريبي',             unavailable: true },
-      { id: 'treasury_tax_returns',  label: 'تقرير بالاقرار الضريبي معا المرتجع', unavailable: true },
+      { id: 'treasury_capital',      label: 'تقرير رأس المال' },
+      { id: 'treasury_zakat',        label: 'حساب الزكاة' },
+      { id: 'treasury_tax',          label: 'تقرير بالاقرار الضريبي' },
+      { id: 'treasury_tax_returns',  label: 'تقرير بالاقرار الضريبي معا المرتجع' },
     ],
   },
   {
@@ -2493,7 +2812,18 @@ export default function Reports() {
       case 'supplier_product_total':   return <SupplierProductTotalTab range={range} />;
       case 'supplier_payment_method':  return <SupplierPaymentMethodTab range={range} />;
       case 'purchases_cancelled':      return <PurchasesCancelledTab range={range} />;
+      case 'purchases_returns':        return <PurchasesReturnsTab />;
+      case 'purchases_orders':         return <PurchasesOrdersTab />;
       case 'inventory_movement':       return <InventoryMovementTab range={range} />;
+      case 'inventory_expiry':         return <InventoryExpiryTab />;
+      case 'inventory_damaged':        return <InventoryDamagedTab />;
+      case 'sales_quotes':             return <SalesQuotesTab />;
+      case 'sales_tax_product':        return <SalesTaxByProductTab range={range} />;
+      case 'sales_tax_client':         return <SalesTaxByClientTab range={range} />;
+      case 'treasury_capital':         return <TreasuryCapitalTab />;
+      case 'treasury_zakat':           return <TreasuryZakatTab />;
+      case 'treasury_tax':             return <TreasuryTaxTab range={range} />;
+      case 'treasury_tax_returns':     return <TreasuryTaxTab range={range} includeReturns />;
       default:                         return <UnavailableReport />;
     }
   };

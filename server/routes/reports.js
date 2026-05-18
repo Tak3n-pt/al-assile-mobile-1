@@ -618,4 +618,130 @@ router.get('/inventory/:id/movement', (req, res) => {
   } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });
 
+// ---------------------------------------------------------------------------
+// GET /api/reports/sales/tax-by-product?start=&end=
+// ---------------------------------------------------------------------------
+router.get('/sales/tax-by-product', (req, res) => {
+  const { start, end } = req.query;
+  if (!start || !end) return res.status(400).json({ success: false, error: 'start and end required' });
+  try {
+    const rows = db.prepare(`
+      SELECT p.id AS product_id, p.name AS product_name, p.unit, p.tax_rate,
+             SUM(si.quantity) AS total_qty,
+             SUM(si.total) AS total_sales,
+             SUM(si.quantity * si.unit_price * COALESCE(p.tax_rate,0) / 100.0) AS total_tax
+      FROM sale_items si
+      JOIN sales s ON s.id = si.sale_id
+      JOIN products p ON p.id = si.product_id
+      WHERE s.date >= ? AND s.date <= ?
+        AND s.status NOT IN ('cancelled','return')
+        AND COALESCE(p.tax_rate,0) > 0
+      GROUP BY p.id, p.name, p.unit, p.tax_rate
+      ORDER BY total_tax DESC
+    `).all(start, end);
+    const grand_tax = rows.reduce((s, r) => s + (r.total_tax || 0), 0);
+    res.json({ success: true, data: { rows, grand_tax } });
+  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/reports/sales/tax-by-client?start=&end=
+// ---------------------------------------------------------------------------
+router.get('/sales/tax-by-client', (req, res) => {
+  const { start, end } = req.query;
+  if (!start || !end) return res.status(400).json({ success: false, error: 'start and end required' });
+  try {
+    const rows = db.prepare(`
+      SELECT COALESCE(c.id, 0) AS client_id,
+             COALESCE(c.name,'عميل عام') AS client_name,
+             COALESCE(c.phone,'') AS phone,
+             COUNT(DISTINCT s.id) AS invoice_count,
+             SUM(s.total) AS total_sales,
+             SUM(si.quantity * si.unit_price * COALESCE(p.tax_rate,0) / 100.0) AS total_tax
+      FROM sales s
+      LEFT JOIN clients c ON c.id = s.client_id
+      JOIN sale_items si ON si.sale_id = s.id
+      JOIN products p ON p.id = si.product_id
+      WHERE s.date >= ? AND s.date <= ?
+        AND s.status NOT IN ('cancelled','return')
+        AND COALESCE(p.tax_rate,0) > 0
+      GROUP BY c.id, c.name
+      ORDER BY total_tax DESC
+    `).all(start, end);
+    const grand_tax = rows.reduce((s, r) => s + (r.total_tax || 0), 0);
+    res.json({ success: true, data: { rows, grand_tax } });
+  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/reports/treasury/capital
+// ---------------------------------------------------------------------------
+router.get('/treasury/capital', (req, res) => {
+  try {
+    const stockRow = db.prepare(`
+      SELECT COALESCE(SUM(quantity * COALESCE(cost_price,0)), 0) AS stock_value,
+             COUNT(*) AS product_count,
+             COALESCE(SUM(quantity), 0) AS total_units
+      FROM products WHERE is_active = 1
+    `).get();
+    const receivablesRow = db.prepare(`
+      SELECT COALESCE(SUM(ABS(balance)), 0) AS total FROM clients WHERE balance < 0
+    `).get();
+    const creditRow = db.prepare(`
+      SELECT COALESCE(SUM(balance), 0) AS total FROM clients WHERE balance > 0
+    `).get();
+    const payablesRow = db.prepare(`
+      SELECT COALESCE(SUM(ABS(balance)), 0) AS total FROM suppliers WHERE balance < 0
+    `).get();
+    const treasuryRow = db.prepare(`
+      SELECT COALESCE(SUM(CASE WHEN type='in' THEN amount ELSE -amount END), 0) AS balance
+      FROM cash_box_entries
+    `).get();
+    const stock_value    = stockRow?.stock_value   || 0;
+    const receivables    = receivablesRow?.total   || 0;
+    const credit_balance = creditRow?.total        || 0;
+    const payables       = payablesRow?.total      || 0;
+    const treasury       = treasuryRow?.balance    || 0;
+    const total_assets   = stock_value + receivables + treasury;
+    const net_capital    = total_assets - payables - credit_balance;
+    res.json({ success: true, data: {
+      stock_value, receivables, credit_balance, payables, treasury,
+      total_assets, net_capital,
+      product_count: stockRow?.product_count || 0,
+      total_units: stockRow?.total_units || 0,
+    }});
+  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/reports/treasury/tax?start=&end=&include_returns=0
+// ---------------------------------------------------------------------------
+router.get('/treasury/tax', (req, res) => {
+  const { start, end, include_returns } = req.query;
+  if (!start || !end) return res.status(400).json({ success: false, error: 'start and end required' });
+  try {
+    const statusFilter = include_returns === '1'
+      ? `s.status NOT IN ('cancelled')`
+      : `s.status NOT IN ('cancelled','return')`;
+    const rows = db.prepare(`
+      SELECT s.date,
+             p.tax_rate,
+             SUM(si.quantity * si.unit_price * COALESCE(p.tax_rate,0) / 100.0) AS tax_amount,
+             SUM(si.total) AS sales_amount,
+             COUNT(DISTINCT s.id) AS invoice_count
+      FROM sale_items si
+      JOIN sales s ON s.id = si.sale_id
+      JOIN products p ON p.id = si.product_id
+      WHERE s.date >= ? AND s.date <= ?
+        AND ${statusFilter}
+        AND COALESCE(p.tax_rate,0) > 0
+      GROUP BY s.date, p.tax_rate
+      ORDER BY s.date ASC
+    `).all(start, end);
+    const grand_tax   = rows.reduce((s, r) => s + (r.tax_amount || 0), 0);
+    const grand_sales = rows.reduce((s, r) => s + (r.sales_amount || 0), 0);
+    res.json({ success: true, data: { rows, grand_tax, grand_sales, include_returns: include_returns === '1' } });
+  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+});
+
 module.exports = router;
