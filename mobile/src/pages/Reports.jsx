@@ -753,24 +753,10 @@ function TreasuryReportTab({ range }) {
       {loading ? <LoadingState /> : !data ? <EmptyState text="لا توجد بيانات للفترة المحددة" color="#9ca3af" icon={AlertTriangle} /> : (
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-2">
-            <SummaryCard label="إجمالي الوارد" value={formatCurrency(data.total_in || 0)} color="#10b981" bg="#ECFDF5" />
-            <SummaryCard label="إجمالي الصادر" value={formatCurrency(data.total_out || 0)} color="#ef4444" bg="#FEF2F2" />
+            <SummaryCard label="إجمالي الوارد" value={formatCurrency(data.cash_in || 0)} color="#10b981" bg="#ECFDF5" />
+            <SummaryCard label="إجمالي الصادر" value={formatCurrency(data.cash_out || 0)} color="#ef4444" bg="#FEF2F2" />
           </div>
-          <SummaryCard label="صافي الصندوق" value={formatCurrency((data.total_in || 0) - (data.total_out || 0))} color="#3949AB" bg="#E8EAF6" />
-          {data.entries && data.entries.length > 0 && (
-            <div className="space-y-2 mt-2">
-              {data.entries.map((e, i) => (
-                <div key={i} className="flex items-center justify-between p-3 rounded-xl"
-                  style={{ background: 'white', border: '1px solid #e5e7eb', borderLeft: `3px solid ${(e.amount || 0) >= 0 ? '#10b981' : '#ef4444'}` }}>
-                  <div>
-                    <p className="text-sm font-semibold" style={{ color: '#1a1a1a' }}>{e.description || e.type || 'حركة'}</p>
-                    <p className="text-xs" style={{ color: '#9ca3af' }}>{e.date}</p>
-                  </div>
-                  <p className="text-sm font-bold" style={{ color: (e.amount || 0) >= 0 ? '#10b981' : '#ef4444' }}>{formatCurrency(Math.abs(e.amount || 0))}</p>
-                </div>
-              ))}
-            </div>
-          )}
+          <SummaryCard label="صافي الصندوق" value={formatCurrency(data.net || 0)} color="#3949AB" bg="#E8EAF6" />
         </div>
       )}
     </div>
@@ -2348,7 +2334,7 @@ function SalesTaxByProductTab({ range }) {
               </div>
               <div className="flex items-center justify-between">
                 <p className="text-xs" style={{ color: '#9ca3af' }}>مبيعات: {formatCurrency(r.total_sales || 0)}</p>
-                <p className="text-xs" style={{ color: '#B71C1C' }}>وعاء ضريبي: {formatCurrency((r.total_tax || 0) + (r.total_sales || 0))}</p>
+                <p className="text-xs" style={{ color: '#B71C1C' }}>وعاء ضريبي: {formatCurrency(r.total_sales || 0)}</p>
               </div>
             </div>
           ))}

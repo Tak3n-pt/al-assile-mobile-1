@@ -679,7 +679,7 @@ router.get('/sales/tax-by-client', (req, res) => {
 router.get('/treasury/capital', (req, res) => {
   try {
     const stockRow = db.prepare(`
-      SELECT COALESCE(SUM(quantity * COALESCE(cost_price,0)), 0) AS stock_value,
+      SELECT COALESCE(SUM(quantity * COALESCE(purchase_price,0)), 0) AS stock_value,
              COUNT(*) AS product_count,
              COALESCE(SUM(quantity), 0) AS total_units
       FROM products WHERE is_active = 1
@@ -693,15 +693,32 @@ router.get('/treasury/capital', (req, res) => {
     const payablesRow = db.prepare(`
       SELECT COALESCE(SUM(ABS(balance)), 0) AS total FROM suppliers WHERE balance < 0
     `).get();
-    const treasuryRow = db.prepare(`
-      SELECT COALESCE(SUM(CASE WHEN type='in' THEN amount ELSE -amount END), 0) AS balance
+
+    // Replicate computeBalance() from treasury.js — respects cashbox settings
+    const settingsRows = db.prepare(`
+      SELECT key, value FROM settings WHERE key IN (?, ?, ?)
+    `).all('cashbox.include_sales', 'cashbox.include_purchases', 'cashbox.include_expenses');
+    const sm = Object.fromEntries(settingsRows.map(r => [r.key, r.value]));
+    const manualRow = db.prepare(`
+      SELECT COALESCE(SUM(CASE WHEN type='add' THEN amount ELSE 0 END), 0) AS adds,
+             COALESCE(SUM(CASE WHEN type='sub' THEN amount ELSE 0 END), 0) AS subs
       FROM cash_box_entries
     `).get();
+    let treasury = (manualRow.adds || 0) - (manualRow.subs || 0);
+    if (sm['cashbox.include_sales'] === '1') {
+      treasury += db.prepare(`SELECT COALESCE(SUM(paid_amount),0) AS v FROM sales WHERE status!='cancelled'`).get().v || 0;
+    }
+    if (sm['cashbox.include_purchases'] === '1') {
+      treasury -= db.prepare(`SELECT COALESCE(SUM(paid_amount),0) AS v FROM purchases WHERE status!='cancelled'`).get().v || 0;
+    }
+    if (sm['cashbox.include_expenses'] === '1') {
+      treasury -= db.prepare(`SELECT COALESCE(SUM(amount),0) AS v FROM expenses`).get().v || 0;
+    }
+
     const stock_value    = stockRow?.stock_value   || 0;
     const receivables    = receivablesRow?.total   || 0;
     const credit_balance = creditRow?.total        || 0;
     const payables       = payablesRow?.total      || 0;
-    const treasury       = treasuryRow?.balance    || 0;
     const total_assets   = stock_value + receivables + treasury;
     const net_capital    = total_assets - payables - credit_balance;
     res.json({ success: true, data: {
