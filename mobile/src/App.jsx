@@ -33,7 +33,7 @@ function AppLayout() {
   const location = useLocation();
 
   return (
-    <div className="flex flex-col h-full" style={{ background: '#080c14' }}>
+    <div className="flex flex-col h-full" style={{ background: 'white' }}>
       <div className="flex-1 overflow-hidden relative">
         <Routes>
           <Route path="/login" element={<Login />} />

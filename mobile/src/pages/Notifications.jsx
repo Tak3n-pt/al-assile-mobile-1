@@ -48,7 +48,7 @@ export default function Notifications() {
   const total = debtAlerts.length + deliveryAlerts.length;
 
   return (
-    <div className="h-full flex flex-col safe-top" style={{ background: '#080c14' }}>
+    <div className="h-full flex flex-col safe-top" style={{ background: 'white', fontFamily: "'Cairo','Tajawal',sans-serif" }}>
       {/* Header */}
       <div className="flex-shrink-0" style={{ background: 'linear-gradient(135deg, #3949AB 0%, #5C6BC0 100%)', padding: '0.9rem 1rem', display: 'flex', alignItems: 'center', gap: '0.75rem', boxShadow: '0 3px 12px rgba(57,73,171,0.4)' }}>
         <div style={{ flex: 1 }}>
@@ -70,13 +70,13 @@ export default function Notifications() {
       </div>
 
       {/* Tabs */}
-      <div className="flex-shrink-0 px-3 py-2" style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+      <div className="flex-shrink-0 px-3 py-2" style={{ background: 'white', borderBottom: '1px solid #e5e7eb' }}>
         <div
           className="flex rounded-xl p-1"
-          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}
+          style={{ background: '#f1f5f9', border: '1px solid #e5e7eb' }}
         >
           {[
-            { id: 'debt',     label: t('debtRecalls'),     count: debtAlerts.length,     color: '#f87171' },
+            { id: 'debt',     label: t('debtRecalls'),     count: debtAlerts.length,     color: '#d32f2f' },
             { id: 'delivery', label: t('lateDeliveries'),  count: deliveryAlerts.length, color: '#f59e0b' },
           ].map(({ id, label, count, color }) => (
             <button
@@ -84,9 +84,9 @@ export default function Notifications() {
               onClick={() => setTab(id)}
               className="flex-1 py-2 rounded-lg text-xs font-semibold transition-all touch-manipulation flex items-center justify-center gap-1.5"
               style={{
-                background: tab === id ? 'rgba(212,165,116,0.15)' : 'transparent',
-                color:      tab === id ? '#D4A574' : '#4a5568',
-                border:     tab === id ? '1px solid rgba(212,165,116,0.25)' : '1px solid transparent',
+                background: tab === id ? 'rgba(57,73,171,0.1)' : 'transparent',
+                color:      tab === id ? '#3949AB' : '#6b7280',
+                border:     tab === id ? '1px solid rgba(57,73,171,0.3)' : '1px solid transparent',
               }}
             >
               {label}
@@ -123,8 +123,8 @@ function DebtList({ alerts }) {
   if (alerts.length === 0) {
     return (
       <div className="text-center py-12">
-        <CheckCircle size={48} className="mx-auto mb-3" style={{ color: '#10b981' }} />
-        <p className="font-semibold text-white">{t('noDebtAlerts')}</p>
+        <CheckCircle size={48} className="mx-auto mb-3" style={{ color: '#2e7d32' }} />
+        <p className="font-semibold" style={{ color: '#1a1a1a' }}>{t('noDebtAlerts')}</p>
         <p className="text-xs mt-1" style={{ color: '#6b7280' }}>{t('noDebtAlertsDesc')}</p>
       </div>
     );
@@ -155,7 +155,7 @@ function DebtCard({ alert: a }) {
   };
 
   const urgencyColor = a.days_overdue === null ? '#6b7280'
-    : a.days_overdue >= 60  ? '#f87171'
+    : a.days_overdue >= 60  ? '#d32f2f'
     : a.days_overdue >= 30  ? '#f59e0b'
     : '#6b7280';
 
@@ -163,13 +163,15 @@ function DebtCard({ alert: a }) {
     <div
       className="rounded-xl p-3.5"
       style={{
-        background: 'rgba(239,68,68,0.05)',
-        border: '1px solid rgba(239,68,68,0.15)',
+        background: 'white',
+        border: '1px solid #e5e7eb',
+        borderLeft: '3px solid #d32f2f',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
       }}
     >
       <div className="flex items-start justify-between gap-2 mb-2.5">
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold text-white truncate">{a.client_name}</p>
+          <p className="text-sm font-bold truncate" style={{ color: '#1a1a1a' }}>{a.client_name}</p>
           {a.client_phone && (
             <p className="text-xs flex items-center gap-1 mt-0.5" style={{ color: '#6b7280' }}>
               <Phone size={11} /> {a.client_phone}
@@ -177,7 +179,7 @@ function DebtCard({ alert: a }) {
           )}
         </div>
         <div className="text-right flex-shrink-0">
-          <p className="text-base font-bold" style={{ color: '#f87171' }}>
+          <p className="text-base font-bold" style={{ color: '#d32f2f' }}>
             {formatCurrency(owed)}
           </p>
           <p className="text-[10px]" style={{ color: '#6b7280' }}>{t('owes')}</p>
@@ -195,7 +197,7 @@ function DebtCard({ alert: a }) {
           </div>
         )}
         {a.last_contact_at && (
-          <span className="text-[11px]" style={{ color: '#4a5568' }}>
+          <span className="text-[11px]" style={{ color: '#6b7280' }}>
             {t('lastContactAt')}: {new Date(a.last_contact_at).toLocaleDateString()}
           </span>
         )}
@@ -207,9 +209,9 @@ function DebtCard({ alert: a }) {
           onClick={sendWhatsApp}
           className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-semibold text-sm touch-manipulation"
           style={{
-            background: 'rgba(37,211,102,0.12)',
+            background: 'rgba(37,211,102,0.1)',
             border: '1px solid rgba(37,211,102,0.3)',
-            color: '#25d366',
+            color: '#1ea952',
           }}
         >
           <span>💬</span>
@@ -226,8 +228,8 @@ function DeliveryList({ alerts, onMarkDelivered, deliveringId }) {
   if (alerts.length === 0) {
     return (
       <div className="text-center py-12">
-        <Truck size={48} className="mx-auto mb-3" style={{ color: '#10b981' }} />
-        <p className="font-semibold text-white">{t('noDeliveryAlerts')}</p>
+        <Truck size={48} className="mx-auto mb-3" style={{ color: '#2e7d32' }} />
+        <p className="font-semibold" style={{ color: '#1a1a1a' }}>{t('noDeliveryAlerts')}</p>
         <p className="text-xs mt-1" style={{ color: '#6b7280' }}>{t('noDeliveryAlertsDesc')}</p>
       </div>
     );
@@ -248,33 +250,35 @@ function DeliveryList({ alerts, onMarkDelivered, deliveringId }) {
 }
 
 function DeliveryCard({ alert: a, onMarkDelivered, delivering }) {
-  const urgencyColor = a.days_overdue >= 7 ? '#f87171'
+  const urgencyColor = a.days_overdue >= 7 ? '#d32f2f'
     : a.days_overdue >= 3 ? '#f59e0b'
-    : '#facc15';
+    : '#ca8a04';
 
   return (
     <div
       className="rounded-xl p-3.5"
       style={{
-        background: 'rgba(245,158,11,0.05)',
-        border: '1px solid rgba(245,158,11,0.18)',
+        background: 'white',
+        border: '1px solid #e5e7eb',
+        borderLeft: '3px solid #f59e0b',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
       }}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <p className="text-sm font-bold text-white">
+            <p className="text-sm font-bold" style={{ color: '#1a1a1a' }}>
               {t('saleLabel')} #{a.sale_id}
             </p>
             <span
               className="text-[10px] px-1.5 py-0.5 rounded font-semibold"
-              style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}
+              style={{ background: 'rgba(245,158,11,0.15)', color: '#b45309' }}
             >
               {a.status}
             </span>
           </div>
           {a.client_name && (
-            <p className="text-xs mt-0.5 truncate" style={{ color: '#9ca3af' }}>
+            <p className="text-xs mt-0.5 truncate" style={{ color: '#6b7280' }}>
               {a.client_name}
             </p>
           )}
@@ -294,7 +298,7 @@ function DeliveryCard({ alert: a, onMarkDelivered, delivering }) {
             {a.days_overdue === 1 ? `1 ${t('dayOverdue')}` : `${a.days_overdue} ${t('daysOverdue')}`}
           </span>
         </div>
-        <span className="text-[11px]" style={{ color: '#4a5568' }}>
+        <span className="text-[11px]" style={{ color: '#6b7280' }}>
           {t('due')}: {new Date(a.delivery_due_date).toLocaleDateString()}
         </span>
       </div>
@@ -310,9 +314,9 @@ function DeliveryCard({ alert: a, onMarkDelivered, delivering }) {
         disabled={delivering}
         className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-semibold text-sm touch-manipulation"
         style={{
-          background: delivering ? 'rgba(255,255,255,0.04)' : 'rgba(16,185,129,0.12)',
-          border: delivering ? '1px solid rgba(255,255,255,0.07)' : '1px solid rgba(16,185,129,0.3)',
-          color: delivering ? '#4a5568' : '#34d399',
+          background: delivering ? '#f1f5f9' : 'rgba(46,125,50,0.1)',
+          border: delivering ? '1px solid #e5e7eb' : '1px solid rgba(46,125,50,0.3)',
+          color: delivering ? '#9ca3af' : '#2e7d32',
           opacity: delivering ? 0.6 : 1,
         }}
       >

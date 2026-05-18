@@ -95,7 +95,7 @@ export default function Cart() {
   if (completedSale) {
     return (
       <div className="h-full flex flex-col items-center justify-center px-6 text-center safe-top"
-        style={{ background: '#080c14' }}>
+        style={{ background: 'white' }}>
         <motion.div
           initial={{ scale: 0.7, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
@@ -105,19 +105,19 @@ export default function Cart() {
           {/* Success icon */}
           <div
             className="w-20 h-20 rounded-full flex items-center justify-center"
-            style={{ background: 'rgba(16,185,129,0.12)', border: '2px solid rgba(16,185,129,0.3)' }}
+            style={{ background: 'rgba(46,125,50,0.1)', border: '2px solid rgba(46,125,50,0.3)' }}
           >
-            <CheckCircle2 size={40} style={{ color: '#10b981' }} />
+            <CheckCircle2 size={40} style={{ color: '#2e7d32' }} />
           </div>
 
           <div>
-            <h2 className="text-2xl font-bold text-white mb-1">{t('saleComplete')}</h2>
+            <h2 className="text-2xl font-bold mb-1" style={{ color: '#1a1a1a' }}>{t('saleComplete')}</h2>
             <p className="text-sm" style={{ color: '#6b7280' }}>
               {completedSale.client_name
                 ? `${t('soldTo')} ${completedSale.client_name}`
                 : t('walkinSaleRecorded')}
             </p>
-            <p className="text-3xl font-bold mt-3" style={{ color: '#D4A574' }}>
+            <p className="text-3xl font-bold mt-3" style={{ color: '#e91e63' }}>
               {formatCurrency(completedSale.total || 0)}
             </p>
           </div>
@@ -136,9 +136,9 @@ export default function Cart() {
                 className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl
                            font-semibold text-sm touch-manipulation"
                 style={{
-                  background: 'rgba(239,68,68,0.1)',
-                  border: '1px solid rgba(239,68,68,0.25)',
-                  color: '#f87171',
+                  background: 'rgba(211,47,47,0.08)',
+                  border: '1px solid rgba(211,47,47,0.25)',
+                  color: '#d32f2f',
                   opacity: cancelling ? 0.5 : 1,
                 }}
               >
@@ -148,7 +148,7 @@ export default function Cart() {
             </div>
 
             {error && (
-              <p className="text-xs text-center" style={{ color: '#f87171' }}>{error}</p>
+              <p className="text-xs text-center" style={{ color: '#d32f2f' }}>{error}</p>
             )}
 
             <button
@@ -156,8 +156,8 @@ export default function Cart() {
               className="w-full flex items-center justify-center gap-2.5 py-4 rounded-2xl
                          font-bold text-white text-base touch-manipulation"
               style={{
-                background: 'linear-gradient(135deg, #8B6914 0%, #D4A574 100%)',
-                border: '1px solid rgba(212,165,116,0.3)',
+                background: 'linear-gradient(135deg, #1b5e20 0%, #2e7d32 100%)',
+                border: '1px solid rgba(46,125,50,0.4)',
               }}
             >
               <ShoppingBag size={20} />
@@ -167,7 +167,7 @@ export default function Cart() {
             <button
               onClick={() => navigate('/sales')}
               className="py-3 text-sm font-medium touch-manipulation"
-              style={{ color: '#4a5568' }}
+              style={{ color: '#6b7280' }}
             >
               {t('viewTodaysSales')}
             </button>
@@ -179,7 +179,7 @@ export default function Cart() {
           {cancelConfirm && (
             <motion.div
               className="fixed inset-0 z-50 flex items-end justify-center px-4 pb-6"
-              style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}
+              style={{ background: 'rgba(0,0,0,0.35)', backdropFilter: 'blur(4px)' }}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -187,7 +187,7 @@ export default function Cart() {
             >
               <motion.div
                 className="w-full max-w-sm rounded-2xl p-5"
-                style={{ background: '#0a0a0a', border: '1px solid rgba(239,68,68,0.3)' }}
+                style={{ background: 'white', border: '1px solid rgba(211,47,47,0.3)', boxShadow: '0 20px 40px rgba(0,0,0,0.15)' }}
                 initial={{ y: 40, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 exit={{ y: 40, opacity: 0 }}
@@ -195,12 +195,12 @@ export default function Cart() {
               >
                 <div className="flex items-start gap-3 mb-4">
                   <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-                       style={{ background: 'rgba(239,68,68,0.15)' }}>
-                    <AlertTriangle size={20} style={{ color: '#f87171' }} />
+                       style={{ background: 'rgba(211,47,47,0.12)' }}>
+                    <AlertTriangle size={20} style={{ color: '#d32f2f' }} />
                   </div>
                   <div>
-                    <h3 className="text-base font-bold text-white mb-1">{t('cancelSaleConfirm')}</h3>
-                    <p className="text-sm" style={{ color: '#9ca3af' }}>{t('cancelSaleConfirmDesc')}</p>
+                    <h3 className="text-base font-bold mb-1" style={{ color: '#1a1a1a' }}>{t('cancelSaleConfirm')}</h3>
+                    <p className="text-sm" style={{ color: '#6b7280' }}>{t('cancelSaleConfirmDesc')}</p>
                   </div>
                 </div>
                 <div className="flex gap-2">
@@ -209,9 +209,9 @@ export default function Cart() {
                     disabled={cancelling}
                     className="flex-1 py-3 rounded-xl font-semibold text-sm touch-manipulation"
                     style={{
-                      background: 'rgba(255,255,255,0.05)',
-                      border: '1px solid rgba(255,255,255,0.1)',
-                      color: '#e5e7eb',
+                      background: '#f1f5f9',
+                      border: '1px solid #e5e7eb',
+                      color: '#1a1a1a',
                     }}
                   >
                     {t('keepSale')}
@@ -221,9 +221,9 @@ export default function Cart() {
                     disabled={cancelling}
                     className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm touch-manipulation"
                     style={{
-                      background: 'rgba(239,68,68,0.15)',
-                      border: '1px solid rgba(239,68,68,0.4)',
-                      color: '#f87171',
+                      background: 'rgba(211,47,47,0.12)',
+                      border: '1px solid rgba(211,47,47,0.4)',
+                      color: '#d32f2f',
                     }}
                   >
                     {cancelling && <Loader2 size={16} className="animate-spin" />}
@@ -239,7 +239,7 @@ export default function Cart() {
   }
 
   return (
-    <div className="h-full flex flex-col" style={{ background: '#080c14' }}>
+    <div className="h-full flex flex-col" style={{ background: 'white' }}>
       {/* Header */}
       <div
         className="flex-shrink-0 safe-top"
@@ -276,21 +276,21 @@ export default function Cart() {
         <div className="flex-1 flex flex-col items-center justify-center px-6 text-center gap-5">
           <div
             className="w-20 h-20 rounded-3xl flex items-center justify-center"
-            style={{ background: 'rgba(212,165,116,0.07)', border: '1px solid rgba(212,165,116,0.12)' }}
+            style={{ background: 'rgba(57,73,171,0.08)', border: '1px solid rgba(57,73,171,0.15)' }}
           >
-            <ShoppingBag size={36} style={{ color: '#D4A574', opacity: 0.5 }} />
+            <ShoppingBag size={36} style={{ color: '#3949AB', opacity: 0.6 }} />
           </div>
           <div>
-            <p className="text-xl font-bold text-white mb-1">{t('cartEmpty')}</p>
-            <p className="text-sm" style={{ color: '#3d5068' }}>{t('addProductsToStart')}</p>
+            <p className="text-xl font-bold mb-1" style={{ color: '#1a1a1a' }}>{t('cartEmpty')}</p>
+            <p className="text-sm" style={{ color: '#6b7280' }}>{t('addProductsToStart')}</p>
           </div>
           <button
             onClick={() => navigate('/products/list')}
             className="px-6 py-3 rounded-xl text-sm font-semibold touch-manipulation"
             style={{
-              background: 'linear-gradient(135deg, #8B6914 0%, #D4A574 100%)',
+              background: 'linear-gradient(135deg, #3949AB 0%, #5C6BC0 100%)',
               color: '#fff',
-              border: '1px solid rgba(212,165,116,0.3)',
+              border: '1px solid rgba(57,73,171,0.3)',
             }}
           >
             {t('browseProducts')}
@@ -316,22 +316,22 @@ export default function Cart() {
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: 40, transition: { duration: 0.15 } }}
                     className="flex items-center gap-3 p-3 rounded-2xl"
-                    style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
+                    style={{ background: 'white', border: '1px solid #e5e7eb', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}
                   >
                     {/* Remove */}
                     <button
                       onClick={() => removeItem(product.id)}
                       className="w-7 h-7 flex items-center justify-center rounded-full flex-shrink-0 touch-manipulation"
-                      style={{ background: 'rgba(239,68,68,0.1)' }}
+                      style={{ background: 'rgba(211,47,47,0.08)' }}
                       aria-label={`Remove ${product.name}`}
                     >
-                      <X size={14} style={{ color: '#f87171' }} />
+                      <X size={14} style={{ color: '#d32f2f' }} />
                     </button>
 
                     {/* Name & price */}
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-white truncate">{product.name}</p>
-                      <p className="text-xs" style={{ color: '#4a5568' }}>
+                      <p className="text-sm font-semibold truncate" style={{ color: '#1a1a1a' }}>{product.name}</p>
+                      <p className="text-xs" style={{ color: '#6b7280' }}>
                         {formatCurrency(product.selling_price)} {t('each')}
                       </p>
                     </div>
@@ -341,28 +341,28 @@ export default function Cart() {
                       <button
                         onClick={() => updateQuantity(product.id, quantity - 1)}
                         className="w-8 h-8 flex items-center justify-center rounded-lg touch-manipulation"
-                        style={{ background: 'rgba(255,255,255,0.06)' }}
+                        style={{ background: '#f1f5f9' }}
                         aria-label={t('decreaseQty')}
                       >
-                        <Minus size={14} style={{ color: '#9ca3af' }} />
+                        <Minus size={14} style={{ color: '#6b7280' }} />
                       </button>
-                      <span className="w-7 text-center text-sm font-bold text-white">{quantity}</span>
+                      <span className="w-7 text-center text-sm font-bold" style={{ color: '#1a1a1a' }}>{quantity}</span>
                       <button
                         onClick={() => updateQuantity(product.id, quantity + 1)}
                         disabled={quantity >= maxQty}
                         className="w-8 h-8 flex items-center justify-center rounded-lg touch-manipulation"
                         style={{
-                          background: quantity >= maxQty ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.06)',
+                          background: '#f1f5f9',
                           opacity: quantity >= maxQty ? 0.4 : 1,
                         }}
                         aria-label={t('increaseQty')}
                       >
-                        <Plus size={14} style={{ color: '#9ca3af' }} />
+                        <Plus size={14} style={{ color: '#6b7280' }} />
                       </button>
                     </div>
 
                     {/* Line total */}
-                    <p className="text-sm font-bold text-right" style={{ color: '#D4A574', minWidth: '72px' }}>
+                    <p className="text-sm font-bold text-right" style={{ color: '#e91e63', minWidth: '72px' }}>
                       {formatCurrency(lineTotal)}
                     </p>
                   </motion.div>
@@ -375,25 +375,26 @@ export default function Cart() {
               onClick={() => setShowClientModal(true)}
               className="w-full flex items-center gap-3 p-4 rounded-2xl touch-manipulation"
               style={{
-                background: client ? 'rgba(212,165,116,0.07)' : 'rgba(255,255,255,0.03)',
-                border: client ? '1px solid rgba(212,165,116,0.2)' : '1px solid rgba(255,255,255,0.06)',
+                background: client ? 'rgba(57,73,171,0.06)' : 'white',
+                border: client ? '1.5px solid rgba(57,73,171,0.3)' : '1px solid #e5e7eb',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
               }}
             >
               <div
                 className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
-                style={{ background: client ? 'rgba(212,165,116,0.15)' : 'rgba(255,255,255,0.05)' }}
+                style={{ background: client ? 'rgba(57,73,171,0.12)' : '#f1f5f9' }}
               >
-                <User size={18} style={{ color: client ? '#D4A574' : '#4a5568' }} />
+                <User size={18} style={{ color: client ? '#3949AB' : '#6b7280' }} />
               </div>
               <div className="flex-1 text-left">
-                <p className="text-xs font-medium uppercase tracking-wide mb-0.5" style={{ color: '#4a5568' }}>
+                <p className="text-xs font-medium uppercase tracking-wide mb-0.5" style={{ color: '#6b7280' }}>
                   {t('client')}
                 </p>
-                <p className="text-sm font-semibold" style={{ color: client ? '#fff' : '#6b7280' }}>
+                <p className="text-sm font-semibold" style={{ color: client ? '#1a1a1a' : '#6b7280' }}>
                   {client ? client.name : t('walkinCustomer')}
                 </p>
               </div>
-              <ChevronRight size={18} style={{ color: '#3d5068' }} />
+              <ChevronRight size={18} style={{ color: '#9ca3af' }} />
             </button>
 
             {/* Client debt warning */}
@@ -401,13 +402,13 @@ export default function Cart() {
               <div
                 className="flex items-center gap-3 px-4 py-3 rounded-xl"
                 style={{
-                  background: 'rgba(239,68,68,0.08)',
-                  border: '1px solid rgba(239,68,68,0.18)',
+                  background: 'rgba(211,47,47,0.06)',
+                  border: '1px solid rgba(211,47,47,0.2)',
                 }}
               >
-                <AlertTriangle size={16} className="flex-shrink-0" style={{ color: '#f87171' }} />
+                <AlertTriangle size={16} className="flex-shrink-0" style={{ color: '#d32f2f' }} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold" style={{ color: '#f87171' }}>
+                  <p className="text-xs font-semibold" style={{ color: '#d32f2f' }}>
                     {t('clientOwes')} {formatCurrency(client.balance)}
                   </p>
                   <p className="text-xs mt-0.5" style={{ color: '#6b7280' }}>
@@ -421,22 +422,23 @@ export default function Cart() {
             <div
               className="flex items-center gap-3 px-4 py-3 rounded-2xl"
               style={{
-                background: 'rgba(255,255,255,0.03)',
+                background: 'white',
                 border: discount > 0
-                  ? '1px solid rgba(212,165,116,0.25)'
-                  : '1px solid rgba(255,255,255,0.06)',
+                  ? '1.5px solid rgba(233,30,99,0.35)'
+                  : '1px solid #e5e7eb',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
               }}
             >
               <div
                 className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
                 style={{
-                  background: discount > 0 ? 'rgba(212,165,116,0.15)' : 'rgba(255,255,255,0.05)',
+                  background: discount > 0 ? 'rgba(233,30,99,0.1)' : '#f1f5f9',
                 }}
               >
-                <Tag size={16} style={{ color: discount > 0 ? '#D4A574' : '#4a5568' }} />
+                <Tag size={16} style={{ color: discount > 0 ? '#e91e63' : '#6b7280' }} />
               </div>
               <div className="flex-1">
-                <p className="text-xs font-medium uppercase tracking-wide mb-1" style={{ color: '#4a5568' }}>
+                <p className="text-xs font-medium uppercase tracking-wide mb-1" style={{ color: '#6b7280' }}>
                   {t('discount')}
                 </p>
                 <input
@@ -446,12 +448,12 @@ export default function Cart() {
                   onChange={e => setDiscountInput(e.target.value)}
                   placeholder="0"
                   min="0"
-                  className="w-full bg-transparent text-white outline-none text-sm font-semibold placeholder-gray-700"
-                  style={{ fontSize: '14px' }}
+                  className="w-full bg-transparent outline-none text-sm font-semibold placeholder-gray-400"
+                  style={{ fontSize: '14px', color: '#1a1a1a' }}
                 />
               </div>
               {discount > 0 && (
-                <span className="text-xs font-semibold flex-shrink-0" style={{ color: '#D4A574' }}>
+                <span className="text-xs font-semibold flex-shrink-0" style={{ color: '#e91e63' }}>
                   -{formatCurrency(discount)}
                 </span>
               )}
@@ -461,7 +463,7 @@ export default function Cart() {
             {error && (
               <div
                 className="px-4 py-3 rounded-xl text-sm"
-                style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.15)', color: '#f87171' }}
+                style={{ background: 'rgba(211,47,47,0.06)', border: '1px solid rgba(211,47,47,0.2)', color: '#d32f2f' }}
               >
                 {error}
               </div>
@@ -472,8 +474,8 @@ export default function Cart() {
           <div
             className="flex-shrink-0 px-4 py-4 space-y-3"
             style={{
-              background: '#0d1120',
-              borderTop: '1px solid rgba(255,255,255,0.08)',
+              background: 'white',
+              borderTop: '1px solid #e5e7eb',
               paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 4rem)',
             }}
           >
@@ -483,21 +485,21 @@ export default function Cart() {
                 <span className="text-sm" style={{ color: '#6b7280' }}>
                   {items.reduce((s, { quantity }) => s + quantity, 0)} {t('items')}
                 </span>
-                <span className="text-sm font-medium" style={{ color: '#9ca3af' }}>
+                <span className="text-sm font-medium" style={{ color: '#6b7280' }}>
                   {formatCurrency(subtotal)}
                 </span>
               </div>
               {discount > 0 && (
                 <div className="flex items-center justify-between">
-                  <span className="text-sm" style={{ color: '#D4A574' }}>{t('discount')}</span>
-                  <span className="text-sm font-semibold" style={{ color: '#D4A574' }}>
+                  <span className="text-sm" style={{ color: '#e91e63' }}>{t('discount')}</span>
+                  <span className="text-sm font-semibold" style={{ color: '#e91e63' }}>
                     -{formatCurrency(discount)}
                   </span>
                 </div>
               )}
-              <div className="flex items-center justify-between pt-1.5" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                <span className="text-sm font-semibold text-white">{t('total')}</span>
-                <p className="text-2xl font-bold" style={{ color: '#D4A574' }}>{formatCurrency(total)}</p>
+              <div className="flex items-center justify-between pt-1.5" style={{ borderTop: '1px solid #e5e7eb' }}>
+                <span className="text-sm font-semibold" style={{ color: '#1a1a1a' }}>{t('total')}</span>
+                <p className="text-2xl font-bold" style={{ color: '#e91e63' }}>{formatCurrency(total)}</p>
               </div>
             </div>
 
@@ -509,16 +511,17 @@ export default function Cart() {
                          font-bold text-white text-base touch-manipulation"
               style={{
                 background: completing
-                  ? 'rgba(255,255,255,0.05)'
-                  : 'linear-gradient(135deg, #065f46 0%, #10b981 100%)',
-                border: '1px solid rgba(16,185,129,0.3)',
+                  ? '#f1f5f9'
+                  : 'linear-gradient(135deg, #1b5e20 0%, #2e7d32 100%)',
+                border: completing ? '1px solid #e5e7eb' : '1px solid rgba(46,125,50,0.4)',
+                color: completing ? '#6b7280' : 'white',
                 opacity: completing ? 0.6 : 1,
               }}
             >
               {completing ? (
                 <>
                   <div className="w-5 h-5 border-2 rounded-full animate-spin"
-                    style={{ borderColor: 'rgba(255,255,255,0.2)', borderTopColor: '#fff' }} />
+                    style={{ borderColor: 'rgba(0,0,0,0.1)', borderTopColor: '#6b7280' }} />
                   {t('processing')}
                 </>
               ) : (

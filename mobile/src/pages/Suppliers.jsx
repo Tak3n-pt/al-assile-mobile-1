@@ -261,20 +261,20 @@ function OverviewTab({ supplier }) {
     <div style={{ paddingTop: '4px' }}>
       <div style={{
         borderRadius: '16px', padding: '1rem',
-        background: b < 0 ? 'rgba(239,68,68,0.08)' : b > 0 ? 'rgba(16,185,129,0.08)' : 'rgba(255,255,255,0.04)',
-        border:     b < 0 ? '1px solid rgba(239,68,68,0.18)' : b > 0 ? '1px solid rgba(16,185,129,0.18)' : '1px solid rgba(255,255,255,0.08)',
+        background: b < 0 ? 'rgba(211,47,47,0.06)' : b > 0 ? 'rgba(46,125,50,0.06)' : '#f1f5f9',
+        border:     b < 0 ? '1px solid rgba(211,47,47,0.2)' : b > 0 ? '1px solid rgba(46,125,50,0.2)' : '1px solid #e5e7eb',
         marginBottom: '12px',
       }}>
         <p style={{
           fontSize: '11px', fontWeight: '600', textTransform: 'uppercase',
           letterSpacing: '0.5px', marginBottom: '4px',
-          color: b < 0 ? '#f87171' : b > 0 ? '#34d399' : '#6b7280',
+          color: b < 0 ? '#d32f2f' : b > 0 ? '#2e7d32' : '#6b7280',
         }}>
           {b < 0 ? 'مستحق للمورد' : b > 0 ? 'رصيد دائن' : 'الرصيد'}
         </p>
         <p style={{
           fontSize: '28px', fontWeight: '700',
-          color: b < 0 ? '#f87171' : b > 0 ? '#34d399' : '#e5e7eb',
+          color: b < 0 ? '#d32f2f' : b > 0 ? '#2e7d32' : '#1a1a1a',
           margin: 0,
         }}>
           {formatCurrency(Math.abs(b))}
@@ -283,14 +283,14 @@ function OverviewTab({ supplier }) {
       {fields.length > 0 && (
         <div style={{
           borderRadius: '12px', padding: '12px',
-          background: 'rgba(255,255,255,0.04)',
-          border: '1px solid rgba(255,255,255,0.07)',
+          background: 'white',
+          border: '1px solid #e5e7eb',
           display: 'flex', flexDirection: 'column', gap: '10px',
         }}>
           {fields.map(({ label, value }) => (
             <div key={label}>
               <p style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#6b7280', margin: 0 }}>{label}</p>
-              <p style={{ fontSize: '14px', color: 'white', margin: '2px 0 0 0' }}>{value}</p>
+              <p style={{ fontSize: '14px', color: '#1a1a1a', margin: '2px 0 0 0' }}>{value}</p>
             </div>
           ))}
         </div>
@@ -305,7 +305,7 @@ function HistoryTab({ payments, onDelete, onEdit, isAdmin }) {
   if (payments.length === 0) {
     return (
       <div style={{ textAlign: 'center', paddingTop: '32px' }}>
-        <History size={40} style={{ color: '#2a3a52', display: 'block', margin: '0 auto 12px' }} />
+        <History size={40} style={{ color: '#cbd5e1', display: 'block', margin: '0 auto 12px' }} />
         <p style={{ color: '#6b7280', margin: 0 }}>لا توجد حركات مالية</p>
       </div>
     );
@@ -328,28 +328,28 @@ function HistoryTab({ payments, onDelete, onEdit, isAdmin }) {
           <div key={p.id} style={{
             borderRadius: '12px', padding: '12px',
             display: 'flex', alignItems: 'center', gap: '12px',
-            background: isOpening ? 'rgba(245,158,11,0.06)' : isCorrection ? 'rgba(59,130,246,0.06)' : 'rgba(255,255,255,0.04)',
-            border:     isOpening ? '1px solid rgba(245,158,11,0.15)' : isCorrection ? '1px solid rgba(59,130,246,0.15)' : '1px solid rgba(255,255,255,0.07)',
+            background: isOpening ? 'rgba(245,158,11,0.06)' : isCorrection ? 'rgba(57,73,171,0.06)' : 'white',
+            border:     isOpening ? '1px solid rgba(245,158,11,0.2)' : isCorrection ? '1px solid rgba(57,73,171,0.2)' : '1px solid #e5e7eb',
           }}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ fontSize: '14px', fontWeight: '600', color: 'white', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{methodLabel(p)}</p>
+              <p style={{ fontSize: '14px', fontWeight: '600', color: '#1a1a1a', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{methodLabel(p)}</p>
               <p style={{ fontSize: '11px', color: '#6b7280', margin: '2px 0 0 0' }}>
                 {new Date(p.date).toLocaleDateString('ar-DZ')}
                 {p.created_by_name && ` · ${p.created_by_name}`}
               </p>
-              {p.notes && <p style={{ fontSize: '11px', fontStyle: 'italic', marginTop: '2px', color: '#4a5568', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.notes}</p>}
+              {p.notes && <p style={{ fontSize: '11px', fontStyle: 'italic', marginTop: '2px', color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.notes}</p>}
             </div>
             <div style={{ flexShrink: 0 }}>
-              <p style={{ fontSize: '16px', fontWeight: '700', margin: 0, color: p.amount < 0 ? '#f87171' : isCorrection ? '#60a5fa' : '#34d399' }}>
+              <p style={{ fontSize: '16px', fontWeight: '700', margin: 0, color: p.amount < 0 ? '#d32f2f' : isCorrection ? '#3949AB' : '#2e7d32' }}>
                 {p.amount >= 0 ? '+' : ''}{formatCurrency(p.amount)}
               </p>
             </div>
             {!isReadOnly && isAdmin && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flexShrink: 0 }}>
-                <button onClick={() => onEdit(p)} style={{ padding: '6px', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: 'none', cursor: 'pointer', color: '#9ca3af', display: 'flex' }}>
+                <button onClick={() => onEdit(p)} style={{ padding: '6px', borderRadius: '8px', background: '#f1f5f9', border: 'none', cursor: 'pointer', color: '#6b7280', display: 'flex' }}>
                   <Edit2 size={13} />
                 </button>
-                <button onClick={() => onDelete(p)} style={{ padding: '6px', borderRadius: '8px', background: 'rgba(239,68,68,0.08)', border: 'none', cursor: 'pointer', color: '#f87171', display: 'flex' }}>
+                <button onClick={() => onDelete(p)} style={{ padding: '6px', borderRadius: '8px', background: 'rgba(211,47,47,0.08)', border: 'none', cursor: 'pointer', color: '#d32f2f', display: 'flex' }}>
                   <Trash2 size={13} />
                 </button>
               </div>
@@ -396,46 +396,46 @@ function SupplierPaymentModal({ supplier, onClose, onDone }) {
 
   return (
     <motion.div className="fixed inset-0 z-[60]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={submitting ? undefined : onClose} />
+      <div className="absolute inset-0 backdrop-blur-sm" style={{ background: 'rgba(0,0,0,0.35)' }} onClick={submitting ? undefined : onClose} />
       <motion.div className="absolute inset-x-0 bottom-0 rounded-t-3xl flex flex-col"
-        style={{ background: '#0d1120', border: '1px solid rgba(16,185,129,0.2)', maxHeight: '92vh', paddingBottom: 'env(safe-area-inset-bottom,0px)' }}
+        style={{ background: 'white', border: '1px solid rgba(46,125,50,0.3)', maxHeight: '92vh', paddingBottom: 'env(safe-area-inset-bottom,0px)', fontFamily: "'Cairo','Tajawal',sans-serif" }}
         initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 28 }}>
-        <div className="flex justify-center pt-3 pb-1"><div className="w-10 h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.15)' }} /></div>
+        <div className="flex justify-center pt-3 pb-1"><div className="w-10 h-1 rounded-full" style={{ background: '#cbd5e1' }} /></div>
         <div className="flex items-center justify-between px-5 py-3">
-          <h2 className="text-lg font-bold text-white">تسجيل دفعة للمورد</h2>
-          <button onClick={onClose} disabled={submitting} className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.06)', opacity: submitting ? 0.4 : 1 }}>
-            <X size={18} style={{ color: '#9ca3af' }} />
+          <h2 className="text-lg font-bold" style={{ color: '#1a1a1a' }}>تسجيل دفعة للمورد</h2>
+          <button onClick={onClose} disabled={submitting} className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: '#f1f5f9', opacity: submitting ? 0.4 : 1 }}>
+            <X size={18} style={{ color: '#6b7280' }} />
           </button>
         </div>
         <div className="flex-1 overflow-y-auto scroll-touch px-5 pb-3 space-y-3">
-          <div className="rounded-xl p-3" style={{ background: debt > 0 ? 'rgba(239,68,68,0.07)' : 'rgba(255,255,255,0.04)', border: debt > 0 ? '1px solid rgba(239,68,68,0.15)' : '1px solid rgba(255,255,255,0.07)' }}>
+          <div className="rounded-xl p-3" style={{ background: debt > 0 ? 'rgba(211,47,47,0.06)' : '#f1f5f9', border: debt > 0 ? '1px solid rgba(211,47,47,0.2)' : '1px solid #e5e7eb' }}>
             <p className="text-xs" style={{ color: '#6b7280' }}>{supplier.name} — {debt > 0 ? 'مستحق للمورد' : 'لا يوجد مستحقات'}</p>
-            <p className="text-xl font-bold" style={{ color: debt > 0 ? '#f87171' : '#34d399' }}>{formatCurrency(debt)}</p>
+            <p className="text-xl font-bold" style={{ color: debt > 0 ? '#d32f2f' : '#2e7d32' }}>{formatCurrency(debt)}</p>
           </div>
-          <div className="flex rounded-xl p-1" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
+          <div className="flex rounded-xl p-1" style={{ background: '#f1f5f9', border: '1px solid #e5e7eb' }}>
             {[{ id: 'general', label: 'دفعة عامة' }, { id: 'purchase', label: 'فاتورة شراء' }].map(({ id, label }) => (
               <button key={id} onClick={() => setApplyMode(id)} className="flex-1 py-2 rounded-lg text-xs font-semibold transition-all touch-manipulation"
-                style={{ background: applyMode === id ? 'rgba(212,165,116,0.15)' : 'transparent', color: applyMode === id ? '#D4A574' : '#4a5568', border: applyMode === id ? '1px solid rgba(212,165,116,0.25)' : '1px solid transparent' }}>
+                style={{ background: applyMode === id ? 'rgba(57,73,171,0.1)' : 'transparent', color: applyMode === id ? '#3949AB' : '#6b7280', border: applyMode === id ? '1px solid rgba(57,73,171,0.3)' : '1px solid transparent' }}>
                 {label}
               </button>
             ))}
           </div>
           {applyMode === 'purchase' && (
             <input type="number" inputMode="numeric" value={purchaseId} onChange={e => setPurchaseId(e.target.value)} placeholder="رقم فاتورة الشراء (اختياري)"
-              className="w-full px-4 py-2.5 rounded-xl text-white placeholder-gray-600 outline-none"
-              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(212,165,116,0.25)', fontSize: '15px' }} />
+              className="w-full px-4 py-2.5 rounded-xl placeholder-gray-400 outline-none"
+              style={{ background: 'white', border: '1.5px solid #90caf9', fontSize: '15px', color: '#1a1a1a' }} />
           )}
-          <div className="rounded-xl px-4 py-3 text-right" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-            <p className="text-xs font-medium" style={{ color: '#4a5568' }}>المبلغ المدفوع</p>
-            <p className="text-3xl font-bold text-white mt-1">
-              {amount ? formatCurrency(numeric) : <span style={{ color: '#2a3a52' }}>0.00 DA</span>}
+          <div className="rounded-xl px-4 py-3 text-right" style={{ background: 'white', border: '1.5px solid #90caf9' }}>
+            <p className="text-xs font-medium" style={{ color: '#6b7280' }}>المبلغ المدفوع</p>
+            <p className="text-3xl font-bold mt-1" style={{ color: '#e91e63' }}>
+              {amount ? formatCurrency(numeric) : <span style={{ color: '#cbd5e1' }}>0.00 DA</span>}
             </p>
           </div>
           {debt > 0 && (
             <div className="flex gap-2">
               {[25, 50, 75, 100].map(pct => (
                 <button key={pct} onClick={() => setAmount(String(Math.round(debt * pct / 100)))} className="flex-1 py-2 rounded-lg text-xs font-semibold touch-manipulation"
-                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', color: '#D4A574' }}>
+                  style={{ background: 'white', border: '1px solid #e5e7eb', color: '#3949AB' }}>
                   {pct === 100 ? 'الكل' : `${pct}%`}
                 </button>
               ))}
@@ -445,32 +445,32 @@ function SupplierPaymentModal({ supplier, onClose, onDone }) {
             {['1','2','3','4','5','6','7','8','9','.','0','⌫'].map(key => (
               <button key={key} onClick={() => key === '⌫' ? setAmount(p => p.slice(0, -1)) : handleDigit(key)}
                 className="py-3 rounded-xl text-base font-semibold touch-manipulation active:scale-95"
-                style={{ background: key === '⌫' ? 'rgba(239,68,68,0.08)' : 'rgba(255,255,255,0.04)', border: key === '⌫' ? '1px solid rgba(239,68,68,0.1)' : '1px solid rgba(255,255,255,0.06)', color: key === '⌫' ? '#f87171' : '#fff' }}>
+                style={{ background: key === '⌫' ? 'rgba(211,47,47,0.08)' : 'white', border: key === '⌫' ? '1px solid rgba(211,47,47,0.2)' : '1px solid #e5e7eb', color: key === '⌫' ? '#d32f2f' : '#1a1a1a' }}>
                 {key}
               </button>
             ))}
           </div>
-          <div className="flex rounded-xl p-1" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
+          <div className="flex rounded-xl p-1" style={{ background: '#f1f5f9', border: '1px solid #e5e7eb' }}>
             {['cash', 'bank'].map(m => (
               <button key={m} onClick={() => setMethod(m)} className="flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all touch-manipulation"
-                style={{ background: method === m ? 'rgba(212,165,116,0.15)' : 'transparent', color: method === m ? '#D4A574' : '#4a5568', border: method === m ? '1px solid rgba(212,165,116,0.25)' : '1px solid transparent' }}>
+                style={{ background: method === m ? 'rgba(57,73,171,0.1)' : 'transparent', color: method === m ? '#3949AB' : '#6b7280', border: method === m ? '1px solid rgba(57,73,171,0.3)' : '1px solid transparent' }}>
                 {m === 'cash' ? 'نقدي' : 'بنك'}
               </button>
             ))}
           </div>
           <input type="text" value={notes} onChange={e => setNotes(e.target.value)} placeholder="ملاحظات (اختياري)"
-            className="w-full px-4 py-2.5 rounded-xl text-white placeholder-gray-600 outline-none"
-            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', fontSize: '15px' }} />
+            className="w-full px-4 py-2.5 rounded-xl placeholder-gray-400 outline-none"
+            style={{ background: 'white', border: '1.5px solid #90caf9', fontSize: '15px', color: '#1a1a1a' }} />
           {error && (
-            <div className="rounded-xl p-3 flex items-start gap-2" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.15)' }}>
-              <AlertTriangle size={16} style={{ color: '#f87171' }} className="flex-shrink-0 mt-0.5" />
-              <p className="text-xs" style={{ color: '#f87171' }}>{error}</p>
+            <div className="rounded-xl p-3 flex items-start gap-2" style={{ background: 'rgba(211,47,47,0.06)', border: '1px solid rgba(211,47,47,0.2)' }}>
+              <AlertTriangle size={16} style={{ color: '#d32f2f' }} className="flex-shrink-0 mt-0.5" />
+              <p className="text-xs" style={{ color: '#d32f2f' }}>{error}</p>
             </div>
           )}
         </div>
-        <div className="px-5 py-3" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
-          <button onClick={submit} disabled={submitting || numeric <= 0} className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-white text-base touch-manipulation"
-            style={{ background: numeric > 0 && !submitting ? 'linear-gradient(135deg,#065f46 0%,#10b981 100%)' : 'rgba(255,255,255,0.04)', border: numeric > 0 && !submitting ? '1px solid rgba(16,185,129,0.3)' : '1px solid rgba(255,255,255,0.06)', opacity: numeric > 0 && !submitting ? 1 : 0.4 }}>
+        <div className="px-5 py-3" style={{ borderTop: '1px solid #e5e7eb', background: 'white' }}>
+          <button onClick={submit} disabled={submitting || numeric <= 0} className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-base touch-manipulation"
+            style={{ background: numeric > 0 && !submitting ? 'linear-gradient(135deg,#1b5e20 0%,#2e7d32 100%)' : '#f1f5f9', border: numeric > 0 && !submitting ? '1px solid rgba(46,125,50,0.4)' : '1px solid #e5e7eb', color: numeric > 0 && !submitting ? 'white' : '#9ca3af', opacity: numeric > 0 && !submitting ? 1 : 0.7 }}>
             <Wallet size={18} />
             {submitting ? 'جارٍ المعالجة...' : 'تسجيل الدفعة'}
           </button>
@@ -504,42 +504,42 @@ function EditSupplierPaymentSheet({ payment, onClose, onDone }) {
 
   return (
     <motion.div className="fixed inset-0 z-[60]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={submitting ? undefined : onClose} />
+      <div className="absolute inset-0 backdrop-blur-sm" style={{ background: 'rgba(0,0,0,0.35)' }} onClick={submitting ? undefined : onClose} />
       <motion.div className="absolute inset-x-0 bottom-0 rounded-t-3xl flex flex-col"
-        style={{ background: '#0d1120', border: '1px solid rgba(255,255,255,0.08)', maxHeight: '92vh', paddingBottom: 'env(safe-area-inset-bottom,0px)' }}
+        style={{ background: 'white', border: '1px solid #e5e7eb', maxHeight: '92vh', paddingBottom: 'env(safe-area-inset-bottom,0px)', fontFamily: "'Cairo','Tajawal',sans-serif" }}
         initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 28 }}>
-        <div className="flex justify-center pt-3 pb-1"><div className="w-10 h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.15)' }} /></div>
+        <div className="flex justify-center pt-3 pb-1"><div className="w-10 h-1 rounded-full" style={{ background: '#cbd5e1' }} /></div>
         <div className="flex items-center justify-between px-5 py-3">
-          <h2 className="text-lg font-bold text-white">تعديل الدفعة</h2>
+          <h2 className="text-lg font-bold" style={{ color: '#1a1a1a' }}>تعديل الدفعة</h2>
           <button onClick={onClose} disabled={submitting} className="w-9 h-9 rounded-full flex items-center justify-center"
-            style={{ background: 'rgba(255,255,255,0.06)', opacity: submitting ? 0.4 : 1 }}>
-            <X size={18} style={{ color: '#9ca3af' }} />
+            style={{ background: '#f1f5f9', opacity: submitting ? 0.4 : 1 }}>
+            <X size={18} style={{ color: '#6b7280' }} />
           </button>
         </div>
         <div className="flex-1 overflow-y-auto scroll-touch px-5 pb-3 space-y-3">
           <div>
-            <label className="block text-xs font-semibold mb-1.5" style={{ color: '#9ca3af' }}>المبلغ</label>
+            <label className="block text-xs font-semibold mb-1.5" style={{ color: '#6b7280' }}>المبلغ</label>
             <input type="number" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl text-white outline-none text-2xl font-bold text-right"
-              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }} />
+              className="w-full px-4 py-3 rounded-xl outline-none text-2xl font-bold text-right"
+              style={{ background: 'white', border: '1.5px solid #90caf9', color: '#e91e63' }} />
           </div>
           <div>
-            <label className="block text-xs font-semibold mb-1.5" style={{ color: '#9ca3af' }}>التاريخ</label>
+            <label className="block text-xs font-semibold mb-1.5" style={{ color: '#6b7280' }}>التاريخ</label>
             <input type="date" value={date} onChange={e => setDate(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl text-white outline-none"
-              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', fontSize: '16px' }} />
+              className="w-full px-4 py-3 rounded-xl outline-none"
+              style={{ background: 'white', border: '1.5px solid #90caf9', fontSize: '16px', color: '#1a1a1a' }} />
           </div>
           <div>
-            <label className="block text-xs font-semibold mb-1.5" style={{ color: '#9ca3af' }}>ملاحظات</label>
+            <label className="block text-xs font-semibold mb-1.5" style={{ color: '#6b7280' }}>ملاحظات</label>
             <input type="text" value={notes} onChange={e => setNotes(e.target.value)} placeholder="ملاحظات (اختياري)"
-              className="w-full px-4 py-3 rounded-xl text-white placeholder-gray-600 outline-none"
-              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', fontSize: '16px' }} />
+              className="w-full px-4 py-3 rounded-xl placeholder-gray-400 outline-none"
+              style={{ background: 'white', border: '1.5px solid #90caf9', fontSize: '16px', color: '#1a1a1a' }} />
           </div>
-          {error && <p className="text-xs text-center" style={{ color: '#f87171' }}>{error}</p>}
+          {error && <p className="text-xs text-center" style={{ color: '#d32f2f' }}>{error}</p>}
         </div>
-        <div className="px-5 py-3" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
-          <button onClick={submit} disabled={!canSubmit} className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-white text-base touch-manipulation"
-            style={{ background: canSubmit ? 'linear-gradient(135deg,#1e3a5f 0%,#2563eb 100%)' : 'rgba(255,255,255,0.04)', border: canSubmit ? '1px solid rgba(37,99,235,0.4)' : '1px solid rgba(255,255,255,0.06)', opacity: canSubmit ? 1 : 0.5 }}>
+        <div className="px-5 py-3" style={{ borderTop: '1px solid #e5e7eb', background: 'white' }}>
+          <button onClick={submit} disabled={!canSubmit} className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-base touch-manipulation"
+            style={{ background: canSubmit ? 'linear-gradient(135deg,#1e3a8a 0%,#3949AB 100%)' : '#f1f5f9', border: canSubmit ? '1px solid rgba(57,73,171,0.4)' : '1px solid #e5e7eb', color: canSubmit ? 'white' : '#9ca3af', opacity: canSubmit ? 1 : 0.7 }}>
             {submitting ? <Loader2 size={18} className="animate-spin" /> : <Edit2 size={16} />}
             {submitting ? 'جارٍ الحفظ...' : 'حفظ التغييرات'}
           </button>
@@ -589,25 +589,25 @@ function SupplierDetailSheet({ supplierId, onClose, onChanged, isAdmin, onEditRe
 
   return (
     <motion.div className="fixed inset-0 z-50" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 backdrop-blur-sm" style={{ background: 'rgba(0,0,0,0.35)' }} onClick={onClose} />
       <motion.div className="absolute inset-x-0 bottom-0 rounded-t-3xl flex flex-col"
-        style={{ background: '#0d1120', border: '1px solid rgba(255,255,255,0.08)', maxHeight: '92vh', paddingBottom: 'env(safe-area-inset-bottom,0px)' }}
+        style={{ background: 'white', border: '1px solid #e5e7eb', maxHeight: '92vh', paddingBottom: 'env(safe-area-inset-bottom,0px)', fontFamily: "'Cairo','Tajawal',sans-serif" }}
         initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
         transition={{ type: 'spring', damping: 28, stiffness: 280 }}>
 
         <div className="flex justify-center pt-3 pb-1">
-          <div className="w-10 h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.15)' }} />
+          <div className="w-10 h-1 rounded-full" style={{ background: '#cbd5e1' }} />
         </div>
 
         {/* Supplier header */}
         <div className="flex items-center justify-between px-5 py-3">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-              style={{ background: 'rgba(212,165,116,0.12)', border: '1px solid rgba(212,165,116,0.25)' }}>
-              <Truck size={18} style={{ color: '#D4A574' }} />
+              style={{ background: 'rgba(57,73,171,0.1)', border: '1px solid rgba(57,73,171,0.25)' }}>
+              <Truck size={18} style={{ color: '#3949AB' }} />
             </div>
             <div className="min-w-0">
-              <h2 className="text-base font-bold text-white truncate">{supplier?.name || '...'}</h2>
+              <h2 className="text-base font-bold truncate" style={{ color: '#1a1a1a' }}>{supplier?.name || '...'}</h2>
               {supplier?.phone && <p className="text-xs truncate" style={{ color: '#6b7280' }}>{supplier.phone}</p>}
             </div>
           </div>
@@ -615,35 +615,35 @@ function SupplierDetailSheet({ supplierId, onClose, onChanged, isAdmin, onEditRe
             {supplier && (
               <button onClick={() => onEditRequest(supplier)}
                 className="w-9 h-9 flex items-center justify-center rounded-full touch-manipulation"
-                style={{ background: 'rgba(255,255,255,0.06)' }}>
-                <Edit2 size={15} style={{ color: '#9ca3af' }} />
+                style={{ background: '#f1f5f9' }}>
+                <Edit2 size={15} style={{ color: '#6b7280' }} />
               </button>
             )}
             {isAdmin && supplier && (
               <button onClick={onDeleteSupplier}
                 className="w-9 h-9 flex items-center justify-center rounded-full touch-manipulation"
-                style={{ background: 'rgba(239,68,68,0.08)' }}>
-                <Trash2 size={15} style={{ color: '#f87171' }} />
+                style={{ background: 'rgba(211,47,47,0.08)' }}>
+                <Trash2 size={15} style={{ color: '#d32f2f' }} />
               </button>
             )}
             <button onClick={onClose}
               className="w-9 h-9 flex items-center justify-center rounded-full"
-              style={{ background: 'rgba(255,255,255,0.06)' }}>
-              <X size={18} style={{ color: '#9ca3af' }} />
+              style={{ background: '#f1f5f9' }}>
+              <X size={18} style={{ color: '#6b7280' }} />
             </button>
           </div>
         </div>
 
         {/* Tabs */}
         <div className="px-5 pb-3">
-          <div className="flex rounded-xl p-1" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
+          <div className="flex rounded-xl p-1" style={{ background: '#f1f5f9', border: '1px solid #e5e7eb' }}>
             {[{ id: 'overview', label: 'نظرة عامة' }, { id: 'history', label: 'السجل المالي' }].map(({ id, label }) => (
               <button key={id} onClick={() => setTab(id)}
                 className="flex-1 py-2 rounded-lg text-xs font-semibold transition-all touch-manipulation"
                 style={{
-                  background: tab === id ? 'rgba(212,165,116,0.15)' : 'transparent',
-                  color:      tab === id ? '#D4A574' : '#4a5568',
-                  border:     tab === id ? '1px solid rgba(212,165,116,0.25)' : '1px solid transparent',
+                  background: tab === id ? 'rgba(57,73,171,0.1)' : 'transparent',
+                  color:      tab === id ? '#3949AB' : '#6b7280',
+                  border:     tab === id ? '1px solid rgba(57,73,171,0.3)' : '1px solid transparent',
                 }}>
                 {label}
               </button>
@@ -661,10 +661,10 @@ function SupplierDetailSheet({ supplierId, onClose, onChanged, isAdmin, onEditRe
           )}
         </div>
 
-        <div className="px-5 py-3" style={{ borderTop: '1px solid rgba(255,255,255,0.07)', background: 'rgba(13,17,32,0.96)' }}>
+        <div className="px-5 py-3" style={{ borderTop: '1px solid #e5e7eb', background: 'white' }}>
           <button onClick={() => setShowPayment(true)} disabled={!supplier}
             className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-white text-base touch-manipulation"
-            style={{ background: 'linear-gradient(135deg,#065f46 0%,#10b981 100%)', border: '1px solid rgba(16,185,129,0.3)' }}>
+            style={{ background: 'linear-gradient(135deg,#1b5e20 0%,#2e7d32 100%)', border: '1px solid rgba(46,125,50,0.4)' }}>
             <Wallet size={18} />
             تسجيل دفعة للمورد
           </button>

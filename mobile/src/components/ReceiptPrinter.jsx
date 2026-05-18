@@ -22,9 +22,10 @@ export default function ReceiptPrinter({ sale, settings }) {
         className="flex items-center justify-center gap-2 w-full px-5 py-3 rounded-xl font-semibold text-sm
                    transition-all touch-manipulation"
         style={{
-          background: 'rgba(212,165,116,0.1)',
-          border: '1px solid rgba(212,165,116,0.2)',
-          color: '#D4A574',
+          background: 'white',
+          border: '1.5px solid #90caf9',
+          color: '#3949AB',
+          fontFamily: "'Cairo','Tajawal',sans-serif",
         }}
       >
         <Receipt size={17} />

@@ -98,7 +98,8 @@ export default function ReceiptPreview({ sale, settings, isOpen, onClose }) {
         >
           {/* Backdrop */}
           <div
-            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            className="absolute inset-0"
+            style={{ background: 'rgba(0,0,0,0.35)' }}
             onClick={isBusy ? undefined : onClose}
           />
 
@@ -106,11 +107,12 @@ export default function ReceiptPreview({ sale, settings, isOpen, onClose }) {
           <motion.div
             className="absolute inset-x-0 bottom-0 rounded-t-3xl overflow-hidden"
             style={{
-              background: '#0a0a0a',
-              border: '1px solid rgba(212,165,116,0.2)',
+              background: 'white',
+              border: '1px solid #e5e7eb',
               maxHeight: '92vh',
               display: 'flex',
               flexDirection: 'column',
+              fontFamily: "'Cairo','Tajawal',sans-serif",
             }}
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
@@ -121,13 +123,13 @@ export default function ReceiptPreview({ sale, settings, isOpen, onClose }) {
             <div className="flex justify-center pt-2 pb-1">
               <div
                 className="w-10 h-1 rounded-full"
-                style={{ background: 'rgba(212,165,116,0.3)' }}
+                style={{ background: '#e5e7eb' }}
               />
             </div>
 
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-3">
-              <h2 className="text-lg font-semibold" style={{ color: '#D4A574' }}>
+              <h2 className="text-lg font-semibold" style={{ color: '#1a1a1a' }}>
                 {t('receiptPreview')}
               </h2>
               <button
@@ -135,8 +137,8 @@ export default function ReceiptPreview({ sale, settings, isOpen, onClose }) {
                 disabled={isBusy}
                 className="p-2 rounded-full touch-manipulation"
                 style={{
-                  background: 'rgba(255,255,255,0.05)',
-                  color: '#9ca3af',
+                  background: 'transparent',
+                  color: '#6b7280',
                   opacity: isBusy ? 0.4 : 1,
                 }}
                 aria-label={t('closePreview')}
@@ -161,7 +163,8 @@ export default function ReceiptPreview({ sale, settings, isOpen, onClose }) {
                     color: '#111111',
                     borderRadius: '6px',
                     padding: '16px 12px',
-                    boxShadow: '0 8px 24px rgba(0,0,0,0.45)',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.10), 0 1px 3px rgba(0,0,0,0.08)',
+                    border: '1px solid #e5e7eb',
                     // Simulated torn edges top/bottom
                     clipPath:
                       'polygon(0% 4px, 3% 0%, 6% 4px, 9% 0%, 12% 4px, 15% 0%, 18% 4px, 21% 0%, 24% 4px, 27% 0%, 30% 4px, 33% 0%, 36% 4px, 39% 0%, 42% 4px, 45% 0%, 48% 4px, 51% 0%, 54% 4px, 57% 0%, 60% 4px, 63% 0%, 66% 4px, 69% 0%, 72% 4px, 75% 0%, 78% 4px, 81% 0%, 84% 4px, 87% 0%, 90% 4px, 93% 0%, 96% 4px, 100% 0%, 100% calc(100% - 4px), 97% 100%, 94% calc(100% - 4px), 91% 100%, 88% calc(100% - 4px), 85% 100%, 82% calc(100% - 4px), 79% 100%, 76% calc(100% - 4px), 73% 100%, 70% calc(100% - 4px), 67% 100%, 64% calc(100% - 4px), 61% 100%, 58% calc(100% - 4px), 55% 100%, 52% calc(100% - 4px), 49% 100%, 46% calc(100% - 4px), 43% 100%, 40% calc(100% - 4px), 37% 100%, 34% calc(100% - 4px), 31% 100%, 28% calc(100% - 4px), 25% 100%, 22% calc(100% - 4px), 19% 100%, 16% calc(100% - 4px), 13% 100%, 10% calc(100% - 4px), 7% 100%, 4% calc(100% - 4px), 0% 100%)',
@@ -192,10 +195,10 @@ export default function ReceiptPreview({ sale, settings, isOpen, onClose }) {
                   style={{
                     color:
                       status === 'error'
-                        ? '#f87171'
+                        ? '#d32f2f'
                         : status === 'done'
-                        ? '#34d399'
-                        : '#9ca3af',
+                        ? '#2e7d32'
+                        : '#6b7280',
                   }}
                 >
                   {message}
@@ -207,8 +210,8 @@ export default function ReceiptPreview({ sale, settings, isOpen, onClose }) {
             <div
               className="px-4 py-3"
               style={{
-                borderTop: '1px solid rgba(212,165,116,0.15)',
-                background: 'rgba(10,10,10,0.95)',
+                borderTop: '1px solid #e5e7eb',
+                background: 'white',
                 // Safe-area padding for phones with a home bar
                 paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))',
               }}
@@ -221,9 +224,10 @@ export default function ReceiptPreview({ sale, settings, isOpen, onClose }) {
                   disabled={isBusy}
                   className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl font-semibold text-sm touch-manipulation"
                   style={{
-                    background: 'rgba(255,255,255,0.05)',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    color: '#e5e7eb',
+                    background: 'white',
+                    border: '1.5px solid #90caf9',
+                    color: '#1a1a1a',
+                    fontFamily: "'Cairo','Tajawal',sans-serif",
                     opacity: isBusy ? 0.4 : 1,
                   }}
                 >
@@ -240,27 +244,23 @@ export default function ReceiptPreview({ sale, settings, isOpen, onClose }) {
                   style={{
                     background:
                       status === 'done'
-                        ? 'rgba(16,185,129,0.2)'
+                        ? '#c8e6c9'
                         : status === 'error'
-                        ? 'rgba(239,68,68,0.15)'
+                        ? '#ffcdd2'
                         : !bluetoothSupported
-                        ? 'rgba(255,255,255,0.04)'
-                        : 'linear-gradient(135deg, #8B6914 0%, #D4A574 100%)',
-                    border:
-                      status === 'done'
-                        ? '1px solid rgba(16,185,129,0.4)'
-                        : status === 'error'
-                        ? '1px solid rgba(239,68,68,0.3)'
-                        : '1px solid rgba(212,165,116,0.3)',
+                        ? '#cfd8dc'
+                        : 'linear-gradient(135deg, #3949AB 0%, #5C6BC0 100%)',
+                    border: 'none',
                     color:
                       status === 'done'
-                        ? '#34d399'
+                        ? '#1b5e20'
                         : status === 'error'
-                        ? '#f87171'
+                        ? '#b71c1c'
                         : !bluetoothSupported
-                        ? '#6b7280'
-                        : '#ffffff',
-                    opacity: isBusy ? 0.7 : !bluetoothSupported ? 0.5 : 1,
+                        ? '#546e7a'
+                        : 'white',
+                    fontFamily: "'Cairo','Tajawal',sans-serif",
+                    opacity: isBusy ? 0.7 : !bluetoothSupported ? 0.7 : 1,
                   }}
                 >
                   {status === 'idle' && <><Printer size={17} />{t('print')}</>}

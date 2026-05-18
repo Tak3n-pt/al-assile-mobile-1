@@ -108,7 +108,7 @@ export default function PaymentModal({ total, hasClient, clientName, clientCredi
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         className="fixed inset-0 z-50"
-        style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }}
+        style={{ background: 'rgba(0,0,0,0.35)', backdropFilter: 'blur(4px)' }}
         onClick={e => { if (e.target === e.currentTarget) onClose(); }}
       >
         <motion.div
@@ -118,27 +118,28 @@ export default function PaymentModal({ total, hasClient, clientName, clientCredi
           transition={{ type: 'spring', damping: 28, stiffness: 280 }}
           className="absolute bottom-0 left-0 right-0 rounded-t-3xl flex flex-col"
           style={{
-            background: '#0d1120',
-            border: '1px solid rgba(255,255,255,0.08)',
+            background: 'white',
+            border: '1px solid #e5e7eb',
             maxHeight: '85vh',
             paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+            fontFamily: "'Cairo','Tajawal',sans-serif",
           }}
         >
           {/* Handle */}
           <div className="flex justify-center pt-3 pb-1">
-            <div className="w-10 h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.15)' }} />
+            <div className="w-10 h-1 rounded-full" style={{ background: '#cbd5e1' }} />
           </div>
 
           {/* Header - fixed */}
           <div className="flex items-center justify-between px-5 py-3 flex-shrink-0">
-            <h2 className="text-lg font-bold text-white">{t('payment')}</h2>
+            <h2 className="text-lg font-bold" style={{ color: '#1a1a1a' }}>{t('payment')}</h2>
             <button
               onClick={onClose}
               className="w-8 h-8 flex items-center justify-center rounded-full"
-              style={{ background: 'rgba(255,255,255,0.06)' }}
+              style={{ background: '#f1f5f9' }}
               aria-label={t('closeLabel')}
             >
-              <X size={18} style={{ color: '#9ca3af' }} />
+              <X size={18} style={{ color: '#6b7280' }} />
             </button>
           </div>
 
@@ -149,10 +150,10 @@ export default function PaymentModal({ total, hasClient, clientName, clientCredi
           <div className="px-5 pb-4">
             <div
               className="rounded-2xl p-4 flex items-center justify-between"
-              style={{ background: 'rgba(212,165,116,0.07)', border: '1px solid rgba(212,165,116,0.15)' }}
+              style={{ background: 'rgba(233,30,99,0.06)', border: '1px solid rgba(233,30,99,0.2)' }}
             >
-              <span className="text-sm font-medium" style={{ color: '#8B7355' }}>{t('totalDue')}</span>
-              <span className="text-2xl font-bold" style={{ color: '#D4A574' }}>{formatCurrency(total)}</span>
+              <span className="text-sm font-medium" style={{ color: '#6b7280' }}>{t('totalDue')}</span>
+              <span className="text-2xl font-bold" style={{ color: '#e91e63' }}>{formatCurrency(total)}</span>
             </div>
           </div>
 
@@ -160,7 +161,7 @@ export default function PaymentModal({ total, hasClient, clientName, clientCredi
           <div className="px-5 pb-4">
             <div
               className="flex rounded-xl p-1"
-              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}
+              style={{ background: '#f1f5f9', border: '1px solid #e5e7eb' }}
             >
               {[
                 { id: 'cash', label: t('cash'), icon: Banknote },
@@ -175,9 +176,9 @@ export default function PaymentModal({ total, hasClient, clientName, clientCredi
                     className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg
                                text-sm font-semibold transition-all touch-manipulation"
                     style={{
-                      background: method === id ? 'rgba(212,165,116,0.15)' : 'transparent',
-                      color: method === id ? '#D4A574' : '#4a5568',
-                      border: method === id ? '1px solid rgba(212,165,116,0.25)' : '1px solid transparent',
+                      background: method === id ? 'rgba(57,73,171,0.1)' : 'transparent',
+                      color: method === id ? '#3949AB' : '#6b7280',
+                      border: method === id ? '1px solid rgba(57,73,171,0.3)' : '1px solid transparent',
                       opacity: disabled ? 0.35 : 1,
                       cursor: disabled ? 'not-allowed' : 'pointer',
                     }}
@@ -196,9 +197,9 @@ export default function PaymentModal({ total, hasClient, clientName, clientCredi
               <div className="px-5 pb-3">
                 <div
                   className="rounded-xl px-4 py-3"
-                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+                  style={{ background: 'white', border: '1.5px solid #90caf9' }}
                 >
-                  <label htmlFor="mobile-payment-amount" className="block text-xs font-medium mb-1 text-right" style={{ color: '#4a5568' }}>
+                  <label htmlFor="mobile-payment-amount" className="block text-xs font-medium mb-1 text-right" style={{ color: '#6b7280' }}>
                     {t('amountPaid')}
                   </label>
                   <div className="flex items-baseline justify-end gap-2">
@@ -217,11 +218,11 @@ export default function PaymentModal({ total, hasClient, clientName, clientCredi
                       }}
                       placeholder="0"
                       autoComplete="off"
-                      className="flex-1 bg-transparent outline-none text-right text-2xl font-bold text-white"
+                      className="flex-1 bg-transparent outline-none text-right text-2xl font-bold"
                       // 16px minimum so iOS doesn't auto-zoom on focus
-                      style={{ fontSize: '24px', minWidth: 0 }}
+                      style={{ fontSize: '24px', minWidth: 0, color: '#e91e63' }}
                     />
-                    <span className="text-lg font-semibold" style={{ color: '#4a5568' }}>DA</span>
+                    <span className="text-lg font-semibold" style={{ color: '#6b7280' }}>DA</span>
                   </div>
                 </div>
 
@@ -231,9 +232,9 @@ export default function PaymentModal({ total, hasClient, clientName, clientCredi
                     onClick={() => setAmountPaid(String(total))}
                     className="flex-1 py-2 rounded-lg text-xs font-semibold touch-manipulation"
                     style={{
-                      background: numericPaid === total ? 'rgba(212,165,116,0.15)' : 'rgba(255,255,255,0.04)',
-                      border:     numericPaid === total ? '1px solid rgba(212,165,116,0.3)' : '1px solid rgba(255,255,255,0.06)',
-                      color:      numericPaid === total ? '#D4A574' : '#6b7280',
+                      background: numericPaid === total ? 'rgba(57,73,171,0.1)' : 'white',
+                      border:     numericPaid === total ? '1px solid rgba(57,73,171,0.35)' : '1px solid #e5e7eb',
+                      color:      numericPaid === total ? '#3949AB' : '#6b7280',
                     }}
                   >
                     {t('exact')}
@@ -247,9 +248,9 @@ export default function PaymentModal({ total, hasClient, clientName, clientCredi
                         onClick={() => setAmountPaid(String(val))}
                         className="flex-1 py-2 rounded-lg text-xs font-semibold touch-manipulation"
                         style={{
-                          background: active ? 'rgba(212,165,116,0.15)' : 'rgba(255,255,255,0.04)',
-                          border:     active ? '1px solid rgba(212,165,116,0.3)' : '1px solid rgba(255,255,255,0.06)',
-                          color:      active ? '#D4A574' : '#6b7280',
+                          background: active ? 'rgba(57,73,171,0.1)' : 'white',
+                          border:     active ? '1px solid rgba(57,73,171,0.35)' : '1px solid #e5e7eb',
+                          color:      active ? '#3949AB' : '#6b7280',
                         }}
                       >
                         {pct}%
@@ -266,9 +267,9 @@ export default function PaymentModal({ total, hasClient, clientName, clientCredi
                       onClick={() => setAmountPaid(String(q.value))}
                       className="flex-1 py-2 rounded-lg text-xs font-semibold touch-manipulation"
                       style={{
-                        background: numericPaid === q.value ? 'rgba(212,165,116,0.15)' : 'rgba(255,255,255,0.04)',
-                        border:     numericPaid === q.value ? '1px solid rgba(212,165,116,0.3)' : '1px solid rgba(255,255,255,0.06)',
-                        color:      numericPaid === q.value ? '#D4A574' : '#6b7280',
+                        background: numericPaid === q.value ? 'rgba(57,73,171,0.1)' : 'white',
+                        border:     numericPaid === q.value ? '1px solid rgba(57,73,171,0.35)' : '1px solid #e5e7eb',
+                        color:      numericPaid === q.value ? '#3949AB' : '#6b7280',
                       }}
                     >
                       {formatCurrency(q.value)}
@@ -285,9 +286,9 @@ export default function PaymentModal({ total, hasClient, clientName, clientCredi
                     onClick={() => key === '⌫' ? handleBackspace() : handleDigit(key)}
                     className="py-3 rounded-xl text-base font-semibold touch-manipulation transition-all active:scale-95"
                     style={{
-                      background: key === '⌫' ? 'rgba(239,68,68,0.08)' : 'rgba(255,255,255,0.04)',
-                      border: key === '⌫' ? '1px solid rgba(239,68,68,0.1)' : '1px solid rgba(255,255,255,0.06)',
-                      color: key === '⌫' ? '#f87171' : '#fff',
+                      background: key === '⌫' ? 'rgba(211,47,47,0.08)' : 'white',
+                      border: key === '⌫' ? '1px solid rgba(211,47,47,0.2)' : '1px solid #e5e7eb',
+                      color: key === '⌫' ? '#d32f2f' : '#1a1a1a',
                     }}
                   >
                     {key}
@@ -301,14 +302,14 @@ export default function PaymentModal({ total, hasClient, clientName, clientCredi
                   <div
                     className="rounded-xl px-4 py-3 flex items-center justify-between"
                     style={{
-                      background: change >= 0 ? 'rgba(16,185,129,0.07)' : 'rgba(245,158,11,0.07)',
-                      border:     change >= 0 ? '1px solid rgba(16,185,129,0.15)' : '1px solid rgba(245,158,11,0.15)',
+                      background: change >= 0 ? 'rgba(46,125,50,0.06)' : 'rgba(245,158,11,0.08)',
+                      border:     change >= 0 ? '1px solid rgba(46,125,50,0.2)' : '1px solid rgba(245,158,11,0.25)',
                     }}
                   >
-                    <span className="text-sm font-medium" style={{ color: change >= 0 ? '#34d399' : '#f59e0b' }}>
+                    <span className="text-sm font-medium" style={{ color: change >= 0 ? '#2e7d32' : '#b45309' }}>
                       {change >= 0 ? t('change') : t('remaining')}
                     </span>
-                    <span className="text-lg font-bold" style={{ color: change >= 0 ? '#34d399' : '#f59e0b' }}>
+                    <span className="text-lg font-bold" style={{ color: change >= 0 ? '#2e7d32' : '#b45309' }}>
                       {formatCurrency(Math.abs(change))}
                     </span>
                   </div>
@@ -320,12 +321,12 @@ export default function PaymentModal({ total, hasClient, clientName, clientCredi
                 <div className="px-5 pb-3">
                   <div
                     className="rounded-xl p-3"
-                    style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.18)' }}
+                    style={{ background: 'rgba(57,73,171,0.06)', border: '1px solid rgba(57,73,171,0.25)' }}
                   >
-                    <p className="text-xs font-semibold mb-1" style={{ color: '#60a5fa' }}>
+                    <p className="text-xs font-semibold mb-1" style={{ color: '#3949AB' }}>
                       {t('overpayChooseChange')}
                     </p>
-                    <p className="text-sm font-bold mb-3" style={{ color: '#60a5fa' }}>
+                    <p className="text-sm font-bold mb-3" style={{ color: '#3949AB' }}>
                       +{formatCurrency(change)}
                     </p>
                     <div className="flex gap-2">
@@ -333,9 +334,9 @@ export default function PaymentModal({ total, hasClient, clientName, clientCredi
                         onClick={() => setOverpayDisposition('change')}
                         className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-semibold touch-manipulation"
                         style={{
-                          background: overpayDisposition === 'change' ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.04)',
-                          border:     overpayDisposition === 'change' ? '1px solid rgba(59,130,246,0.4)' : '1px solid rgba(255,255,255,0.06)',
-                          color:      overpayDisposition === 'change' ? '#60a5fa' : '#6b7280',
+                          background: overpayDisposition === 'change' ? 'rgba(57,73,171,0.15)' : 'white',
+                          border:     overpayDisposition === 'change' ? '1px solid rgba(57,73,171,0.4)' : '1px solid #e5e7eb',
+                          color:      overpayDisposition === 'change' ? '#3949AB' : '#6b7280',
                         }}
                       >
                         <ArrowDownCircle size={14} />
@@ -346,9 +347,9 @@ export default function PaymentModal({ total, hasClient, clientName, clientCredi
                         disabled={!hasClient}
                         className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-semibold touch-manipulation"
                         style={{
-                          background: overpayDisposition === 'credit' ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.04)',
-                          border:     overpayDisposition === 'credit' ? '1px solid rgba(16,185,129,0.4)' : '1px solid rgba(255,255,255,0.06)',
-                          color:      overpayDisposition === 'credit' ? '#34d399' : '#6b7280',
+                          background: overpayDisposition === 'credit' ? 'rgba(46,125,50,0.12)' : 'white',
+                          border:     overpayDisposition === 'credit' ? '1px solid rgba(46,125,50,0.4)' : '1px solid #e5e7eb',
+                          color:      overpayDisposition === 'credit' ? '#2e7d32' : '#6b7280',
                           opacity: hasClient ? 1 : 0.4,
                         }}
                       >
@@ -357,7 +358,7 @@ export default function PaymentModal({ total, hasClient, clientName, clientCredi
                       </button>
                     </div>
                     {!hasClient && overpayDisposition === 'credit' && (
-                      <p className="text-[11px] mt-2" style={{ color: '#f87171' }}>
+                      <p className="text-[11px] mt-2" style={{ color: '#d32f2f' }}>
                         {t('clientRequired')} — {t('clientRequiredDesc')}
                       </p>
                     )}
@@ -371,9 +372,9 @@ export default function PaymentModal({ total, hasClient, clientName, clientCredi
             <div className="px-5 pb-4">
               <div
                 className="rounded-xl p-4 text-center"
-                style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.15)' }}
+                style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)' }}
               >
-                <p className="text-sm font-semibold" style={{ color: '#f59e0b' }}>
+                <p className="text-sm font-semibold" style={{ color: '#b45309' }}>
                   {t('fullCreditNotice')}
                 </p>
                 <p className="text-xs mt-1" style={{ color: '#6b7280' }}>
@@ -389,14 +390,14 @@ export default function PaymentModal({ total, hasClient, clientName, clientCredi
             <div className="px-5 pb-4">
               <div
                 className="rounded-xl p-4 flex items-start gap-3"
-                style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.3)' }}
+                style={{ background: 'rgba(211,47,47,0.08)', border: '1px solid rgba(211,47,47,0.3)' }}
               >
                 <span className="text-xl flex-shrink-0">🚫</span>
                 <div>
-                  <p className="text-sm font-semibold" style={{ color: '#f87171' }}>
+                  <p className="text-sm font-semibold" style={{ color: '#d32f2f' }}>
                     {t('clientIsCashOnly')}
                   </p>
-                  <p className="text-xs mt-1" style={{ color: '#9ca3af' }}>
+                  <p className="text-xs mt-1" style={{ color: '#6b7280' }}>
                     {t('clientIsCashOnlyDesc')}
                   </p>
                 </div>
@@ -409,11 +410,11 @@ export default function PaymentModal({ total, hasClient, clientName, clientCredi
             <div className="px-5 pb-4">
               <div
                 className="rounded-xl p-4 flex items-start gap-3"
-                style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.15)' }}
+                style={{ background: 'rgba(211,47,47,0.06)', border: '1px solid rgba(211,47,47,0.2)' }}
               >
-                <AlertTriangle size={18} className="flex-shrink-0 mt-0.5" style={{ color: '#f87171' }} />
+                <AlertTriangle size={18} className="flex-shrink-0 mt-0.5" style={{ color: '#d32f2f' }} />
                 <div>
-                  <p className="text-sm font-semibold" style={{ color: '#f87171' }}>
+                  <p className="text-sm font-semibold" style={{ color: '#d32f2f' }}>
                     {t('clientRequired')}
                   </p>
                   <p className="text-xs mt-1" style={{ color: '#6b7280' }}>
@@ -429,11 +430,11 @@ export default function PaymentModal({ total, hasClient, clientName, clientCredi
             <div className="px-5 pb-4">
               <div
                 className="rounded-xl p-4 flex items-center justify-between"
-                style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.15)' }}
+                style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)' }}
               >
                 <div>
                   <p className="text-xs font-medium" style={{ color: '#6b7280' }}>{t('remainingDebt')}</p>
-                  <p className="text-sm font-bold" style={{ color: '#f59e0b' }}>
+                  <p className="text-sm font-bold" style={{ color: '#b45309' }}>
                     {formatCurrency(total - numericPaid)} {t('willBeAddedToBalance')}
                   </p>
                 </div>
@@ -448,11 +449,12 @@ export default function PaymentModal({ total, hasClient, clientName, clientCredi
               value={notes}
               onChange={e => setNotes(e.target.value)}
               placeholder={t('notesOptional')}
-              className="w-full px-4 py-3 rounded-xl text-white placeholder-gray-600 outline-none"
+              className="w-full px-4 py-3 rounded-xl placeholder-gray-400 outline-none"
               style={{
-                background: 'rgba(255,255,255,0.04)',
-                border: '1px solid rgba(255,255,255,0.07)',
+                background: 'white',
+                border: '1.5px solid #90caf9',
                 fontSize: '16px',
+                color: '#1a1a1a',
               }}
             />
           </div>
@@ -464,20 +466,20 @@ export default function PaymentModal({ total, hasClient, clientName, clientCredi
                 className="rounded-xl px-4 py-2.5 text-sm font-semibold text-center"
                 style={{
                   background: summary.tone === 'green'
-                    ? 'rgba(16,185,129,0.10)'
+                    ? 'rgba(46,125,50,0.08)'
                     : summary.tone === 'amber'
                       ? 'rgba(245,158,11,0.10)'
-                      : 'rgba(59,130,246,0.10)',
+                      : 'rgba(57,73,171,0.08)',
                   border: summary.tone === 'green'
-                    ? '1px solid rgba(16,185,129,0.25)'
+                    ? '1px solid rgba(46,125,50,0.25)'
                     : summary.tone === 'amber'
-                      ? '1px solid rgba(245,158,11,0.25)'
-                      : '1px solid rgba(59,130,246,0.25)',
+                      ? '1px solid rgba(245,158,11,0.3)'
+                      : '1px solid rgba(57,73,171,0.25)',
                   color: summary.tone === 'green'
-                    ? '#34d399'
+                    ? '#2e7d32'
                     : summary.tone === 'amber'
-                      ? '#fbbf24'
-                      : '#60a5fa',
+                      ? '#b45309'
+                      : '#3949AB',
                 }}
               >
                 {summary.text}
@@ -491,13 +493,14 @@ export default function PaymentModal({ total, hasClient, clientName, clientCredi
               onClick={handleComplete}
               disabled={!canComplete}
               className="w-full flex items-center justify-center gap-2.5 py-4 rounded-2xl
-                         font-bold text-white text-base touch-manipulation transition-all"
+                         font-bold text-base touch-manipulation transition-all"
               style={{
                 background: canComplete
-                  ? 'linear-gradient(135deg, #065f46 0%, #10b981 100%)'
-                  : 'rgba(255,255,255,0.04)',
-                border: canComplete ? '1px solid rgba(16,185,129,0.3)' : '1px solid rgba(255,255,255,0.06)',
-                opacity: canComplete ? 1 : 0.4,
+                  ? 'linear-gradient(135deg, #1b5e20 0%, #2e7d32 100%)'
+                  : '#f1f5f9',
+                border: canComplete ? '1px solid rgba(46,125,50,0.4)' : '1px solid #e5e7eb',
+                color: canComplete ? 'white' : '#9ca3af',
+                opacity: canComplete ? 1 : 0.7,
               }}
             >
               <CheckCircle2 size={20} />

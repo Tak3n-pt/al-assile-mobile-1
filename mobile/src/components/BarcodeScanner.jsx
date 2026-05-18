@@ -151,7 +151,7 @@ export default function BarcodeScanner({ isOpen, onScan, onClose }) {
           {/* Title */}
           <div className="mb-8 text-center px-6">
             <div className="flex items-center justify-center gap-2 mb-2">
-              <ScanLine size={20} style={{ color: '#D4A574' }} />
+              <ScanLine size={20} style={{ color: '#3949AB' }} />
               <h2 className="text-lg font-bold text-white">{t('scanBarcode')}</h2>
             </div>
             <p className="text-sm" style={{ color: '#4a5568' }}>
@@ -265,7 +265,7 @@ export default function BarcodeScanner({ isOpen, onScan, onClose }) {
             <div
               className="w-2 h-2 rounded-full"
               style={{
-                background: scanned ? '#10b981' : '#D4A574',
+                background: scanned ? '#10b981' : '#3949AB',
                 animation: scanned ? 'none' : 'statusBlink 1.2s ease-in-out infinite',
               }}
             />
