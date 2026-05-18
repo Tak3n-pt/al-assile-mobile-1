@@ -84,8 +84,10 @@ router.post('/push', (req, res) => {
     //    so we can re-apply the quantity deductions afterward.
     //    We group by product_id to get total deduction per product.
     const unsyncedDeductions = db.prepare(`
-      SELECT si.product_id, SUM(si.quantity) AS total_qty
+      SELECT si.product_id,
+        SUM(CASE WHEN s.status = 'return' THEN -si.quantity ELSE si.quantity END) AS total_qty
       FROM sale_items si
+      JOIN sales s ON s.id = si.sale_id
       JOIN sync_log sl ON sl.entity_type = 'sale' AND sl.entity_id = si.sale_id
       WHERE sl.synced = 0
       GROUP BY si.product_id
@@ -285,34 +287,25 @@ router.post('/push', (req, res) => {
       }
     }
 
-    // 4e. Reconcile supplier_payments. Same preserve-pending strategy as
-    //     clients/suppliers: mobile-created payments that haven't been pulled
-    //     up by desktop yet must survive the wipe.
-    const pendingSPIds = new Set(
-      db.prepare(`SELECT DISTINCT entity_id FROM sync_log
-                  WHERE entity_type='supplier_payment' AND synced=0`).all().map(r => r.entity_id)
-    );
-    if (pendingSPIds.size > 0) {
-      const ph = [...pendingSPIds].map(() => '?').join(',');
-      db.prepare(`DELETE FROM supplier_payments WHERE id NOT IN (${ph})`).run(...pendingSPIds);
-    } else {
-      db.prepare('DELETE FROM supplier_payments').run();
+    // 4e. Reconcile supplier_payments — only wipe+reinsert desktop-originated
+    //     rows (remote_id LIKE 'desktop-%'). Mobile-originated rows stay untouched.
+    const oldDesktopSPIds = db.prepare(
+      `SELECT id FROM supplier_payments WHERE remote_id LIKE 'desktop-%'`
+    ).all().map(r => r.id);
+    if (oldDesktopSPIds.length > 0) {
+      const ph = oldDesktopSPIds.map(() => '?').join(',');
+      db.prepare(`DELETE FROM supplier_payments WHERE id IN (${ph})`).run(...oldDesktopSPIds);
     }
     const insertSP = db.prepare(`
-      INSERT OR REPLACE INTO supplier_payments
-        (id, supplier_id, purchase_id, amount, date, method, notes,
+      INSERT INTO supplier_payments
+        (supplier_id, purchase_id, amount, date, method, notes,
          batch_id, created_by, remote_id, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     for (const sp of supplier_payments) {
-      if (pendingSPIds.has(sp.id)) continue;
-      // Guard: if the referenced supplier wasn't inserted (e.g. it was in the
-      // pending mobile set and we skipped the collision), drop this payment.
-      // Without FK on supplier_id we'd orphan it silently; explicit check.
       const supExists = db.prepare('SELECT 1 FROM suppliers WHERE id = ?').get(sp.supplier_id);
       if (!supExists) continue;
       insertSP.run(
-        sp.id,
         sp.supplier_id,
         sp.purchase_id || null,
         sp.amount,
@@ -321,7 +314,7 @@ router.post('/push', (req, res) => {
         sp.notes       || null,
         sp.batch_id    || null,
         sp.created_by  || null,
-        sp.remote_id   || null,
+        `desktop-${sp.id}`,
         sp.created_at  || new Date().toISOString()
       );
     }
