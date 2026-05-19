@@ -371,7 +371,7 @@ const translations = {
     noCameraFound: 'No camera found on this device',
     cameraNeedsHttps: 'Camera requires a secure (HTTPS) page',
     cameraUnavailable: 'Camera unavailable',
-    cameraPermissionHint: 'Check your browser site settings and allow camera access.',
+    cameraPermissionHint: 'Android: Settings → Apps → Al Assile → Permissions → Camera → Allow. Or in Chrome: tap the lock icon → Site settings → Camera → Allow.',
     scanned: 'Scanned!',
 
     // Copyright
@@ -793,7 +793,7 @@ const translations = {
     noCameraFound: 'لا توجد كاميرا على هذا الجهاز',
     cameraNeedsHttps: 'الكاميرا تتطلب صفحة آمنة (HTTPS)',
     cameraUnavailable: 'الكاميرا غير متاحة',
-    cameraPermissionHint: 'تحقق من إعدادات موقع المتصفح واسمح بالوصول إلى الكاميرا.',
+    cameraPermissionHint: 'اندرويد: الإعدادات ← التطبيقات ← Al Assile ← الأذونات ← الكاميرا ← سماح. أو في كروم: اضغط على القفل ← إعدادات الموقع ← الكاميرا ← سماح.',
     scanned: 'تم المسح!',
 
     // Copyright

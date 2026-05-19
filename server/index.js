@@ -56,6 +56,14 @@ const app = express();
 // CORS - allow all origins so any phone on the local network can connect.
 app.use(cors());
 
+// Explicitly allow camera access for PWA barcode scanning.
+// Without this, some CDN/proxy layers (e.g. Render.com) may inject a
+// restrictive Permissions-Policy that blocks getUserMedia.
+app.use((_req, res, next) => {
+  res.setHeader('Permissions-Policy', 'camera=*, microphone=()');
+  next();
+});
+
 // gzip responses; especially important for the initial product catalogue
 // which can be large when image_data is included in sync payloads.
 app.use(compression());
