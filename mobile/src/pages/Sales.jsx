@@ -396,7 +396,7 @@ function AddProductDialog({ barcode: initBarcode, api, onClose, onAdded }) {
     display:'block',width:'100%',boxSizing:'border-box',
     border:'none',borderBottom:'1px solid #ccc',
     outline:'none',fontSize:'0.92rem',
-    padding:'0.45rem 0',background:'transparent',textAlign:'right',
+    padding:'0.45rem 0',background:'transparent',textAlign:'right',color:'#111',
   };
   const labelStyle = { fontSize:'0.75rem',color:'#888',display:'block',marginBottom:'0.15rem' };
   const rowStyle   = { marginBottom:'0.85rem' };
