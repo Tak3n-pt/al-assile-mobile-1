@@ -290,9 +290,9 @@ export default function BarcodeScanner({ isOpen, onScan, onClose }) {
               0%, 100% { opacity: 1; }
               50%       { opacity: 0.3; }
             }
-            /* Suppress the html5-qrcode header */
-            #barcode-reader > div:first-child { display: none !important; }
-            #barcode-reader video { width: 100% !important; height: 100% !important; object-fit: cover; }
+            /* Suppress the html5-qrcode header — use dynamic readerId, not static string */
+            #${readerId} > div:first-child { display: none !important; }
+            #${readerId} video { width: 100% !important; height: 100% !important; object-fit: cover; }
           `}</style>
         </motion.div>
       )}
