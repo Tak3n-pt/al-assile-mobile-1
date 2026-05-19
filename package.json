@@ -10,11 +10,12 @@
     "install:all": "npm install && cd mobile && npm install"
   },
   "dependencies": {
-    "better-sqlite3": "^9.2.2",
     "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^9.2.2",
     "compression": "^1.7.4",
     "cors": "^2.8.5",
     "express": "^4.18.2",
+    "express-rate-limit": "^8.5.2",
     "jsonwebtoken": "^9.0.2"
   }
 }

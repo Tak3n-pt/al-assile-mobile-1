@@ -11,6 +11,7 @@ const cors        = require('cors');
 const compression = require('compression');
 const path        = require('path');
 const os          = require('os');
+const rateLimit   = require('express-rate-limit');
 
 // Database
 const db = require('./database/connection');
@@ -53,7 +54,6 @@ try {
 const app = express();
 
 // CORS - allow all origins so any phone on the local network can connect.
-// In production restrict this to your known mobile app origin.
 app.use(cors());
 
 // gzip responses; especially important for the initial product catalogue
@@ -63,6 +63,24 @@ app.use(compression());
 // Parse JSON bodies.  50 MB limit accommodates sync pushes that contain
 // base64 product images.
 app.use(express.json({ limit: '50mb' }));
+
+// ---------------------------------------------------------------------------
+// Rate limiting — protect login and sync-push from brute-force
+// ---------------------------------------------------------------------------
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20,                   // 20 attempts per IP per window
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'Too many requests, please try again later.' },
+});
+const syncPushLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 30,             // 30 pushes per minute is more than enough for any desktop
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'Sync push rate limit exceeded.' },
+});
 
 // ---------------------------------------------------------------------------
 // Request logging (lightweight, no external dependency)
@@ -78,9 +96,10 @@ app.use((req, _res, next) => {
 // ---------------------------------------------------------------------------
 
 // Auth - no JWT required (this is where you get the token)
-app.use('/api/auth', authRouter);
+app.use('/api/auth', authLimiter, authRouter);
 
 // Sync - secured by X-Sync-Key header (desktop-to-mobile channel)
+app.use('/api/sync/push', syncPushLimiter);
 app.use('/api/sync', syncRouter);
 
 // Mobile API - all routes below require a valid JWT
