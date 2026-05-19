@@ -1,127 +1,166 @@
-import React, { useEffect, useRef, useState, useId } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ScanLine, Check, AlertTriangle } from 'lucide-react';
 import { t } from '../utils/i18n.js';
 
 /*
-  Usage:
-    <BarcodeScanner
-      isOpen={showScanner}
-      onScan={(barcode) => handleBarcodeScan(barcode)}
-      onClose={() => setShowScanner(false)}
-    />
+  Strategy:
+  1. getUserMedia directly → <video> is visible immediately (no black-screen startup)
+  2. If BarcodeDetector API available (Android Chrome, Edge): rAF loop on video → instant native scan
+  3. Else (iOS Safari): draw video frame to canvas every 250ms → Html5Qrcode.scanFile (static, no DOM)
+
+  This eliminates:
+  - Dynamic import latency (library still lazy-loaded but camera is already on)
+  - The 100ms artificial delay
+  - html5-qrcode DOM manipulation that fights our CSS and causes black viewfinder
 */
 
 export default function BarcodeScanner({ isOpen, onScan, onClose }) {
-  const scannerRef = useRef(null);
-  // Unique DOM id per mount — html5-qrcode targets by id, so reusing a singleton
-  // "barcode-reader" across rapid open/close/open can race with an in-flight
-  // previous instance that still holds the node. useId() makes each mount
-  // address its own private element.
-  const readerId = useId().replace(/:/g, '-') + '-barcode-reader';
+  const videoRef    = useRef(null);
+  const streamRef   = useRef(null);
+  const rafRef      = useRef(null);
+  const pollRef     = useRef(null);
+  const closeTimer  = useRef(null);
+  const stoppedRef  = useRef(false);
 
-  // Success flash state — covers the viewfinder on scan so the user sees a
-  // green check instead of a black frame during MediaStream release.
-  const [scanned, setScanned] = useState(false);
-  // User-facing error (camera denied, no camera, etc.) — replaces the silent
-  // empty-viewfinder state where the modal would just look frozen.
-  const [startError, setStartError] = useState(null);
+  const [scanned,     setScanned]     = useState(false);
+  const [startError,  setStartError]  = useState(null);
+  const [cameraReady, setCameraReady] = useState(false);
 
-  // Keep onScan fresh via a ref so the effect (which only re-runs on isOpen)
-  // always calls the LATEST handler. Without this, mid-session updates to the
-  // `products` list that regenerate handleBarcodeScan would be ignored.
-  const onScanRef = useRef(onScan);
+  const onScanRef  = useRef(onScan);
   const onCloseRef = useRef(onClose);
-  useEffect(() => { onScanRef.current = onScan; }, [onScan]);
+  useEffect(() => { onScanRef.current  = onScan;  }, [onScan]);
   useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
-
-  // Tracked close-after-success timer so we can cancel it if the user dismisses
-  // the modal manually during the 180ms window.
-  const closeTimerRef = useRef(null);
 
   useEffect(() => {
     if (!isOpen) {
       setScanned(false);
       setStartError(null);
+      setCameraReady(false);
       return;
     }
 
-    let html5QrcodeInstance = null;
-    let stopped = false;
+    stoppedRef.current = false;
 
-    const startScanner = async () => {
-      try {
-        const { Html5Qrcode } = await import('html5-qrcode');
+    // ── helpers ──────────────────────────────────────────────
+    const stopAll = () => {
+      stoppedRef.current = true;
+      cancelAnimationFrame(rafRef.current);
+      clearTimeout(pollRef.current);
+      streamRef.current?.getTracks().forEach(tr => tr.stop());
+      streamRef.current = null;
+    };
 
-        // Wait for the DOM element to be available
-        await new Promise(resolve => setTimeout(resolve, 100));
+    const handleDetected = (rawValue) => {
+      if (stoppedRef.current) return;
+      stopAll();
+      setScanned(true);
+      try { onScanRef.current?.(rawValue); } catch (e) { console.error('onScan threw:', e); }
+      closeTimer.current = setTimeout(() => {
+        closeTimer.current = null;
+        onCloseRef.current?.();
+      }, 180);
+    };
 
-        if (stopped || !document.getElementById(readerId)) return;
-
-        html5QrcodeInstance = new Html5Qrcode(readerId);
-        scannerRef.current = html5QrcodeInstance;
-
-        await html5QrcodeInstance.start(
-          { facingMode: 'environment' },
-          { fps: 10, qrbox: { width: 250, height: 250 } },
-          (decodedText) => {
-            if (stopped) return;
-            stopped = true;
-
-            // Show the success overlay IMMEDIATELY so the user gets instant
-            // visual confirmation instead of a black viewfinder while the
-            // MediaStream releases (100-500ms on mobile).
-            setScanned(true);
-
-            // Deliver the scan right away via ref (fresh handler, not stale).
-            try { onScanRef.current && onScanRef.current(decodedText); }
-            catch (e) { console.error('onScan handler threw:', e); }
-
-            // Stop the camera in the background; the cleanup effect will also
-            // call stop() when isOpen flips to false. Both are safe (catch swallows).
-            html5QrcodeInstance.stop().catch(() => {});
-
-            // Close the modal after a short beat so the success state is visible.
-            closeTimerRef.current = setTimeout(() => {
-              closeTimerRef.current = null;
-              onCloseRef.current && onCloseRef.current();
-            }, 180);
-          },
-          () => {
-            // Scan error — suppress, happens constantly while scanning
-          }
-        );
-      } catch (err) {
-        console.error('BarcodeScanner start error:', err);
-        // Translate common errors into user-facing messages. The modal otherwise
-        // just shows an empty black viewfinder and users think it's frozen.
-        const msg = String(err && (err.message || err.name) || '');
-        if (/NotAllowed|Permission|denied/i.test(msg)) {
-          setStartError('permission');
-        } else if (/NotFound|NotReadable|camera/i.test(msg)) {
-          setStartError('no-camera');
-        } else if (/Not supported|secure/i.test(msg)) {
-          setStartError('insecure');
-        } else {
-          setStartError('unknown');
+    // ── BarcodeDetector path (Chrome/Android — very fast) ────
+    const scanWithNative = (detector) => {
+      const tick = async () => {
+        if (stoppedRef.current) return;
+        const v = videoRef.current;
+        if (v && v.readyState >= 2) {
+          try {
+            const results = await detector.detect(v);
+            if (results.length > 0) { handleDetected(results[0].rawValue); return; }
+          } catch { /* ignore per-frame errors */ }
         }
+        rafRef.current = requestAnimationFrame(tick);
+      };
+      rafRef.current = requestAnimationFrame(tick);
+    };
+
+    // ── Html5Qrcode.scanFile fallback (iOS / older browsers) ─
+    // Uses the static method only — no DOM element needed, no UI fighting.
+    const scanWithFallback = () => {
+      const canvas = document.createElement('canvas');
+      const ctx    = canvas.getContext('2d');
+      let   html5QrcodeModule = null;
+
+      const poll = async () => {
+        if (stoppedRef.current) return;
+        const v = videoRef.current;
+        if (!v || v.videoWidth === 0) { pollRef.current = setTimeout(poll, 300); return; }
+
+        canvas.width  = v.videoWidth;
+        canvas.height = v.videoHeight;
+        ctx.drawImage(v, 0, 0);
+
+        try {
+          if (!html5QrcodeModule) {
+            const mod = await import('html5-qrcode');
+            html5QrcodeModule = mod.Html5Qrcode;
+          }
+          const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.9));
+          const file = new File([blob], 'frame.jpg', { type: 'image/jpeg' });
+          const result = await html5QrcodeModule.scanFile(file, false);
+          if (result) { handleDetected(result); return; }
+        } catch { /* no barcode in this frame — normal */ }
+
+        pollRef.current = setTimeout(poll, 250); // ~4fps is enough for barcodes
+      };
+
+      pollRef.current = setTimeout(poll, 600); // give the camera time to focus first
+    };
+
+    // ── start camera ─────────────────────────────────────────
+    const startCamera = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode:  'environment',
+            width:  { ideal: 1280 },
+            height: { ideal: 720 },
+          }
+        });
+
+        if (stoppedRef.current) { stream.getTracks().forEach(tr => tr.stop()); return; }
+        streamRef.current = stream;
+
+        const v = videoRef.current;
+        if (!v) { stopAll(); return; }
+
+        v.srcObject = stream;
+        // playsInline is critical for iOS — prevent fullscreen takeover
+        await v.play();
+        setCameraReady(true);
+
+        if ('BarcodeDetector' in window) {
+          const detector = new window.BarcodeDetector({
+            formats: [
+              'ean_13', 'ean_8', 'upc_a', 'upc_e',
+              'code_128', 'code_39', 'code_93', 'codabar',
+              'itf', 'qr_code', 'data_matrix', 'pdf417',
+            ]
+          });
+          scanWithNative(detector);
+        } else {
+          scanWithFallback();
+        }
+      } catch (err) {
+        const msg = String(err?.message || err?.name || '');
+        if (/NotAllowed|Permission|denied/i.test(msg)) setStartError('permission');
+        else if (/NotFound|NotReadable/i.test(msg))    setStartError('no-camera');
+        else if (/secure|https/i.test(msg))            setStartError('insecure');
+        else                                            setStartError('unknown');
       }
     };
 
-    startScanner();
+    startCamera();
 
     return () => {
-      stopped = true;
-      if (closeTimerRef.current) {
-        clearTimeout(closeTimerRef.current);
-        closeTimerRef.current = null;
-      }
-      if (scannerRef.current) {
-        scannerRef.current.stop().catch(() => {});
-        scannerRef.current = null;
-      }
+      if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; }
+      stopAll();
     };
-  }, [isOpen, readerId]);
+  }, [isOpen]);
 
   return (
     <AnimatePresence>
@@ -137,7 +176,7 @@ export default function BarcodeScanner({ isOpen, onScan, onClose }) {
           {/* Close button */}
           <button
             onClick={onClose}
-            className="absolute top-safe right-4 w-11 h-11 flex items-center justify-center rounded-full z-10 touch-manipulation"
+            className="absolute right-4 w-11 h-11 flex items-center justify-center rounded-full z-10 touch-manipulation"
             style={{
               top: 'calc(env(safe-area-inset-top, 0px) + 16px)',
               background: 'rgba(255,255,255,0.1)',
@@ -163,48 +202,60 @@ export default function BarcodeScanner({ isOpen, onScan, onClose }) {
           <div className="relative" style={{ width: 300, height: 300 }}>
             {/* Animated border */}
             <div
-              className="absolute inset-0 rounded-2xl"
+              className="absolute inset-0 rounded-2xl pointer-events-none"
               style={{
                 border: '2px solid rgba(212,165,116,0.6)',
                 animation: 'scannerPulse 2s ease-in-out infinite',
                 boxShadow: '0 0 20px rgba(212,165,116,0.2), inset 0 0 20px rgba(212,165,116,0.05)',
+                zIndex: 2,
               }}
             />
 
             {/* Corner accents */}
             {[
-              { top: -2, left: -2, borderTop: '3px solid #D4A574', borderLeft: '3px solid #D4A574', borderTopLeftRadius: 12 },
-              { top: -2, right: -2, borderTop: '3px solid #D4A574', borderRight: '3px solid #D4A574', borderTopRightRadius: 12 },
-              { bottom: -2, left: -2, borderBottom: '3px solid #D4A574', borderLeft: '3px solid #D4A574', borderBottomLeftRadius: 12 },
-              { bottom: -2, right: -2, borderBottom: '3px solid #D4A574', borderRight: '3px solid #D4A574', borderBottomRightRadius: 12 },
+              { top: -2,  left:  -2, borderTop:    '3px solid #D4A574', borderLeft:  '3px solid #D4A574', borderTopLeftRadius:     12 },
+              { top: -2,  right: -2, borderTop:    '3px solid #D4A574', borderRight: '3px solid #D4A574', borderTopRightRadius:    12 },
+              { bottom: -2, left: -2, borderBottom: '3px solid #D4A574', borderLeft:  '3px solid #D4A574', borderBottomLeftRadius:  12 },
+              { bottom: -2, right: -2, borderBottom:'3px solid #D4A574', borderRight: '3px solid #D4A574', borderBottomRightRadius: 12 },
             ].map((style, i) => (
-              <div
-                key={i}
-                className="absolute"
-                style={{ width: 24, height: 24, ...style }}
-              />
+              <div key={i} className="absolute" style={{ width: 24, height: 24, zIndex: 3, ...style }} />
             ))}
 
             {/* Scan line animation */}
             <div
-              className="absolute left-2 right-2"
+              className="absolute left-2 right-2 pointer-events-none"
               style={{
                 height: 2,
                 background: 'linear-gradient(90deg, transparent, #D4A574, transparent)',
                 animation: 'scanLine 1.8s ease-in-out infinite',
                 borderRadius: 1,
+                zIndex: 2,
               }}
             />
 
-            {/* The actual scanner element — unique id per mount */}
-            <div
-              id={readerId}
-              className="w-full h-full rounded-2xl overflow-hidden"
-              style={{ background: '#000' }}
+            {/* Live video — rendered directly, no library DOM wrangling */}
+            <video
+              ref={videoRef}
+              playsInline
+              muted
+              className="absolute inset-0 w-full h-full rounded-2xl"
+              style={{ objectFit: 'cover', background: '#111' }}
             />
 
-            {/* Error overlay — shown when camera start fails (permission denied,
-                no camera, HTTP context). Replaces the silent black viewfinder. */}
+            {/* Startup shimmer — visible while camera is initialising */}
+            {!cameraReady && !startError && (
+              <div
+                className="absolute inset-0 rounded-2xl flex items-center justify-center"
+                style={{ background: '#111', zIndex: 1 }}
+              >
+                <div
+                  className="w-8 h-8 rounded-full border-2 animate-spin"
+                  style={{ borderColor: 'rgba(212,165,116,0.2)', borderTopColor: '#D4A574' }}
+                />
+              </div>
+            )}
+
+            {/* Error overlay */}
             <AnimatePresence>
               {startError && (
                 <motion.div
@@ -212,28 +263,24 @@ export default function BarcodeScanner({ isOpen, onScan, onClose }) {
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   className="absolute inset-0 rounded-2xl flex flex-col items-center justify-center px-6 text-center"
-                  style={{ background: 'rgba(185,28,28,0.94)' }}
+                  style={{ background: 'rgba(185,28,28,0.94)', zIndex: 4 }}
                   role="alert"
                 >
                   <AlertTriangle size={36} style={{ color: '#fff' }} />
                   <p className="mt-3 text-white font-semibold text-sm">
                     {startError === 'permission' ? t('cameraPermissionDenied')
                       : startError === 'no-camera' ? t('noCameraFound')
-                      : startError === 'insecure' ? t('cameraNeedsHttps')
+                      : startError === 'insecure'  ? t('cameraNeedsHttps')
                       : t('cameraUnavailable')}
                   </p>
                   <p className="mt-2 text-xs" style={{ color: 'rgba(255,255,255,0.75)' }}>
-                    {startError === 'permission'
-                      ? t('cameraPermissionHint')
-                      : ''}
+                    {startError === 'permission' ? t('cameraPermissionHint') : ''}
                   </p>
                 </motion.div>
               )}
             </AnimatePresence>
 
-            {/* Success overlay — covers the viewfinder the instant a scan succeeds
-                so the user sees a green check instead of the black frame that
-                results while the MediaStream is releasing. */}
+            {/* Success overlay */}
             <AnimatePresence>
               {scanned && (
                 <motion.div
@@ -244,6 +291,7 @@ export default function BarcodeScanner({ isOpen, onScan, onClose }) {
                   className="absolute inset-0 rounded-2xl flex items-center justify-center"
                   style={{
                     background: 'linear-gradient(135deg, rgba(16,185,129,0.92) 0%, rgba(5,150,105,0.92) 100%)',
+                    zIndex: 4,
                   }}
                 >
                   <motion.div
@@ -260,7 +308,7 @@ export default function BarcodeScanner({ isOpen, onScan, onClose }) {
             </AnimatePresence>
           </div>
 
-          {/* Scanning status — aria-live so a screen reader announces the scan result */}
+          {/* Scanning status */}
           <div className="mt-8 flex items-center gap-2" aria-live="polite" aria-atomic="true">
             <div
               className="w-2 h-2 rounded-full"
@@ -274,7 +322,6 @@ export default function BarcodeScanner({ isOpen, onScan, onClose }) {
             </p>
           </div>
 
-          {/* Inline keyframes */}
           <style>{`
             @keyframes scannerPulse {
               0%, 100% { border-color: rgba(212,165,116,0.5); box-shadow: 0 0 16px rgba(212,165,116,0.15); }
@@ -290,9 +337,6 @@ export default function BarcodeScanner({ isOpen, onScan, onClose }) {
               0%, 100% { opacity: 1; }
               50%       { opacity: 0.3; }
             }
-            /* Suppress the html5-qrcode header — use dynamic readerId, not static string */
-            #${readerId} > div:first-child { display: none !important; }
-            #${readerId} video { width: 100% !important; height: 100% !important; object-fit: cover; }
           `}</style>
         </motion.div>
       )}
