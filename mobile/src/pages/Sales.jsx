@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, X, Check, Save } from 'lucide-react';
 import { useApi } from '../hooks/useApi.jsx';
 import BarcodeScanner from '../components/BarcodeScanner.jsx';
+import ProductBrowser from '../components/ProductBrowser.jsx';
 
 function todayStr() {
   const d = new Date();
@@ -775,6 +776,7 @@ export default function Sales() {
 
   const [showMenu, setShowMenu]     = useState(false);
   const [showScanner, setShowScanner]   = useState(false);
+  const [showBrowser, setShowBrowser]   = useState(false);
 
   /* dialog state */
   const [showAddProduct, setShowAddProduct]     = useState(false);
@@ -827,6 +829,19 @@ export default function Sales() {
   function updateQty(idx, qty)     { setItems(p => { const n=[...p]; n[idx]={...n[idx],quantity:qty}; return n; }); }
   function updatePrice(idx, price) { setItems(p => { const n=[...p]; n[idx]={...n[idx],unit_price:price}; return n; }); }
   function removeItem(idx)          { setItems(p => p.filter((_,i) => i!==idx)); }
+
+  const removeProduct = useCallback((product) => {
+    setItems(prev => {
+      const idx = prev.findIndex(i => i.product_id === product.id);
+      if (idx < 0) return prev;
+      if (prev[idx].quantity > 1) {
+        const next = [...prev];
+        next[idx] = { ...next[idx], quantity: next[idx].quantity - 1 };
+        return next;
+      }
+      return prev.filter((_, i) => i !== idx);
+    });
+  }, []);
 
   function handleScan(barcode) {
     setShowScanner(false);
@@ -985,6 +1000,37 @@ export default function Sales() {
         </button>
         <button onClick={() => setShowCustomerQuery(true)} style={{background:'none',border:'1px solid #ccc',borderRadius:6,padding:'0.3rem 0.4rem',cursor:'pointer',flexShrink:0,lineHeight:1}}>
           <PersonIcon size={20}/>
+        </button>
+        {/* Grid browse button */}
+        <button
+          onClick={() => setShowBrowser(true)}
+          title="تصفح المنتجات"
+          style={{
+            background: items.length > 0
+              ? 'linear-gradient(135deg,#2b5be8,#4f8eff)'
+              : 'none',
+            border: items.length > 0 ? 'none' : '1px solid #ccc',
+            borderRadius: 6, padding:'0.3rem 0.5rem', cursor:'pointer',
+            flexShrink:0, lineHeight:1, position:'relative',
+          }}>
+          <svg width={22} height={22} viewBox="0 0 22 22" fill="none">
+            {[[2,2],[9,2],[16,2],[2,9],[9,9],[16,9],[2,16],[9,16],[16,16]].map(([x,y],i) => (
+              <rect key={i} x={x} y={y} width={5} height={5} rx={1.5}
+                fill={items.length > 0 ? 'white' : '#555'}/>
+            ))}
+          </svg>
+          {items.length > 0 && (
+            <span style={{
+              position:'absolute', top:-6, right:-6,
+              background:'#ef4444', color:'white',
+              borderRadius:10, minWidth:17, height:17,
+              fontSize:'0.62rem', fontWeight:800,
+              display:'flex', alignItems:'center', justifyContent:'center',
+              border:'2px solid white', lineHeight:1, padding:'0 3px',
+            }}>
+              {items.reduce((s,i)=>s+i.quantity,0)}
+            </span>
+          )}
         </button>
 
         {/* Search input */}
@@ -1178,6 +1224,16 @@ export default function Sales() {
       )}
 
       {showInvoices && <InvoicesReportView api={api} onClose={() => setShowInvoices(false)}/>}
+
+      <ProductBrowser
+        isOpen={showBrowser}
+        onClose={() => setShowBrowser(false)}
+        products={products}
+        items={items}
+        onAddProduct={addProduct}
+        onRemoveProduct={removeProduct}
+        getPriceForTier={getPriceForTier}
+      />
     </div>
   );
 }
