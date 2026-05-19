@@ -367,13 +367,14 @@ const translations = {
 
     // Barcode scanner
     closeScanner: 'Close scanner',
-    cameraPermissionDenied: 'Camera access denied',
+    cameraPermissionDenied: 'Camera access blocked',
     noCameraFound: 'No camera found on this device',
     cameraNeedsHttps: 'Camera requires a secure (HTTPS) page',
     cameraUnavailable: 'Camera unavailable',
-    cameraPermissionHint: 'Android: Settings → Apps → Al Assile → Permissions → Camera → Allow. Or in Chrome: tap the lock icon → Site settings → Camera → Allow.',
-    useCameraApp: 'Take a Photo Instead',
-    noBarcodeInPhoto: 'No barcode found — try again',
+    cameraPermissionHint: 'In Chrome: tap the lock icon (🔒) in the address bar → Site settings → Camera → Allow.',
+    cameraIntroTitle: 'Camera permission needed',
+    cameraIntroBody: 'When Chrome asks "Allow camera access?", tap Allow.',
+    cameraIntroBtn: 'Open Camera',
     scanned: 'Scanned!',
 
     // Copyright
@@ -791,13 +792,14 @@ const translations = {
 
     // Barcode scanner
     closeScanner: 'إغلاق الماسح',
-    cameraPermissionDenied: 'تم رفض الوصول إلى الكاميرا',
+    cameraPermissionDenied: 'الكاميرا محظورة',
     noCameraFound: 'لا توجد كاميرا على هذا الجهاز',
     cameraNeedsHttps: 'الكاميرا تتطلب صفحة آمنة (HTTPS)',
     cameraUnavailable: 'الكاميرا غير متاحة',
-    cameraPermissionHint: 'اندرويد: الإعدادات ← التطبيقات ← Al Assile ← الأذونات ← الكاميرا ← سماح. أو في كروم: اضغط على القفل ← إعدادات الموقع ← الكاميرا ← سماح.',
-    useCameraApp: 'التقط صورة بدلاً من ذلك',
-    noBarcodeInPhoto: 'لم يُعثر على باركود — حاول مجدداً',
+    cameraPermissionHint: 'في كروم: اضغط على القفل (🔒) في شريط العنوان ← إعدادات الموقع ← الكاميرا ← سماح.',
+    cameraIntroTitle: 'مطلوب إذن الكاميرا',
+    cameraIntroBody: 'عندما يسأل كروم "السماح للكاميرا؟"، اضغط سماح.',
+    cameraIntroBtn: 'فتح الكاميرا',
     scanned: 'تم المسح!',
 
     // Copyright
