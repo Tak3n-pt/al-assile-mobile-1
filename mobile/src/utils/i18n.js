@@ -372,6 +372,8 @@ const translations = {
     cameraNeedsHttps: 'Camera requires a secure (HTTPS) page',
     cameraUnavailable: 'Camera unavailable',
     cameraPermissionHint: 'Android: Settings → Apps → Al Assile → Permissions → Camera → Allow. Or in Chrome: tap the lock icon → Site settings → Camera → Allow.',
+    useCameraApp: 'Take a Photo Instead',
+    noBarcodeInPhoto: 'No barcode found — try again',
     scanned: 'Scanned!',
 
     // Copyright
@@ -794,6 +796,8 @@ const translations = {
     cameraNeedsHttps: 'الكاميرا تتطلب صفحة آمنة (HTTPS)',
     cameraUnavailable: 'الكاميرا غير متاحة',
     cameraPermissionHint: 'اندرويد: الإعدادات ← التطبيقات ← Al Assile ← الأذونات ← الكاميرا ← سماح. أو في كروم: اضغط على القفل ← إعدادات الموقع ← الكاميرا ← سماح.',
+    useCameraApp: 'التقط صورة بدلاً من ذلك',
+    noBarcodeInPhoto: 'لم يُعثر على باركود — حاول مجدداً',
     scanned: 'تم المسح!',
 
     // Copyright
