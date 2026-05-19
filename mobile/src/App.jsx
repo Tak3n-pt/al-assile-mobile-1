@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './hooks/useAuth.jsx';
 import { CartProvider } from './hooks/useCart.jsx';
@@ -31,9 +31,23 @@ function ProtectedRoute({ children }) {
 function AppLayout() {
   const { isAuthenticated } = useAuth();
   const location = useLocation();
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  useEffect(() => {
+    const up = () => setIsOnline(true);
+    const down = () => setIsOnline(false);
+    window.addEventListener('online', up);
+    window.addEventListener('offline', down);
+    return () => { window.removeEventListener('online', up); window.removeEventListener('offline', down); };
+  }, []);
 
   return (
     <div className="flex flex-col h-full" style={{ background: 'white' }}>
+      {!isOnline && (
+        <div style={{ background: '#ef4444', color: '#fff', textAlign: 'center', padding: '7px 12px', fontSize: '13px', fontWeight: 600, letterSpacing: '0.01em', flexShrink: 0 }}>
+          No connection — working offline
+        </div>
+      )}
       <div className="flex-1 overflow-hidden relative">
         <Routes>
           <Route path="/login" element={<Login />} />
