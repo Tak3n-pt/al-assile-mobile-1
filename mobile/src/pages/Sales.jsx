@@ -643,15 +643,24 @@ function CheckoutDialog({ items, api, onSaved, onClose }) {
 }
 
 /* ── Invoices report view ───────────────────────────────────────────────────── */
+function sevenDaysAgoStr() {
+  const d = new Date();
+  d.setDate(d.getDate() - 7);
+  return d.toISOString().split('T')[0];
+}
+
 function InvoicesReportView({ api, onClose }) {
   const today = todayStr();
-  const [from, setFrom]         = useState(today);
+  const [from, setFrom]         = useState(sevenDaysAgoStr);
   const [to, setTo]             = useState(today);
   const [q, setQ]               = useState('');
   const [methods, setMethods]   = useState({ cash:true, credit:true, card:true, check:true });
   const [results, setResults]   = useState([]);
   const [loading, setLoading]   = useState(false);
   const [searched, setSearched] = useState(false);
+
+  // Auto-load results on open so the user doesn't see a blank screen
+  useEffect(() => { doSearch(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const METHOD_LABELS = { cash:'النقد', credit:'الاجل', card:'بطاقة', check:'شيك' };
 
