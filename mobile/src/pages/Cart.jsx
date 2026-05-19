@@ -275,6 +275,24 @@ export default function Cart() {
         </div>
       </div>
 
+      {/* Tarif Selector — always visible so user can set price tier before adding items */}
+      <div className="flex-shrink-0 flex items-center gap-2 px-4 py-2 border-b" style={{ borderColor: '#e5e7eb', background: '#fafafa' }}>
+        <span className="text-xs font-medium" style={{ color: '#6b7280' }}>{t('tarif')}</span>
+        {[1, 2, 3].map((n) => (
+          <button
+            key={n}
+            onClick={() => setSaleTarif(n)}
+            className="flex-1 py-2 rounded-xl text-xs font-bold touch-manipulation"
+            style={{
+              background: saleTarif === n ? '#3949AB' : '#f1f5f9',
+              color:      saleTarif === n ? '#fff'    : '#6b7280',
+            }}
+          >
+            {n}
+          </button>
+        ))}
+      </div>
+
       {/* Empty state */}
       {isEmpty && (
         <div className="flex-1 flex flex-col items-center justify-center px-6 text-center gap-5">
@@ -306,27 +324,6 @@ export default function Cart() {
       {!isEmpty && (
         <>
           <div className="flex-1 overflow-y-auto scroll-touch px-4 py-4 space-y-3">
-            {/* Sale-level tarif selector — sets price tier for the whole sale.
-                Per-line override available via the chip on each row below. */}
-            {items.length > 0 && (
-              <div className="flex items-center gap-2 p-2 rounded-2xl mb-1" style={{ background: 'white', border: '1px solid #e5e7eb' }}>
-                <span className="text-xs font-medium px-2" style={{ color: '#6b7280' }}>{t('tarif')}</span>
-                {[1, 2, 3].map((n) => (
-                  <button
-                    key={n}
-                    onClick={() => setSaleTarif(n)}
-                    className="flex-1 py-2 rounded-xl text-xs font-bold touch-manipulation"
-                    style={{
-                      background: saleTarif === n ? '#3949AB' : '#f1f5f9',
-                      color:      saleTarif === n ? '#fff'    : '#6b7280',
-                    }}
-                  >
-                    {n}
-                  </button>
-                ))}
-              </div>
-            )}
-
             {/* Cart items */}
             <AnimatePresence initial={false}>
               {items.map((line) => {
