@@ -1,35 +1,29 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ScanLine, Check, AlertTriangle, Camera } from 'lucide-react';
+import { X, ScanLine, Check, AlertTriangle } from 'lucide-react';
 import { t } from '../utils/i18n.js';
 
 /*
   Strategy:
   1. getUserMedia directly → <video> is visible immediately (no black-screen startup)
-  2. If BarcodeDetector API available (Android Chrome): rAF loop on video → instant native scan
-  3. Else (iOS Safari): draw video frame to canvas every 250ms → Html5Qrcode.scanFile
+  2. If BarcodeDetector API available (Android Chrome, Edge): rAF loop on video → instant native scan
+  3. Else (iOS Safari): draw video frame to canvas every 250ms → Html5Qrcode.scanFile (static, no DOM)
 
-  PWA permission fallback:
-  - When installed as a standalone WebAPK, Chrome needs its OWN camera permission
-    which is separate from the browser's. If denied and the user can't find the
-    Android app permission settings, we offer a "Take a Photo Instead" button.
-  - This uses <input capture="environment"> which opens the native camera app
-    directly — no getUserMedia permission required at all.
+  PWA note: manifest uses display:minimal-ui so the installed app shares Chrome's browser
+  camera permission instead of requiring a separate WebAPK permission.
 */
 
 export default function BarcodeScanner({ isOpen, onScan, onClose }) {
-  const videoRef     = useRef(null);
-  const streamRef    = useRef(null);
-  const rafRef       = useRef(null);
-  const pollRef      = useRef(null);
-  const closeTimer   = useRef(null);
-  const stoppedRef   = useRef(false);
-  const fileInputRef = useRef(null);
+  const videoRef    = useRef(null);
+  const streamRef   = useRef(null);
+  const rafRef      = useRef(null);
+  const pollRef     = useRef(null);
+  const closeTimer  = useRef(null);
+  const stoppedRef  = useRef(false);
 
-  const [scanned,       setScanned]       = useState(false);
-  const [startError,    setStartError]    = useState(null);
-  const [cameraReady,   setCameraReady]   = useState(false);
-  const [photoError,    setPhotoError]    = useState(false);
+  const [scanned,     setScanned]     = useState(false);
+  const [startError,  setStartError]  = useState(null);
+  const [cameraReady, setCameraReady] = useState(false);
 
   const onScanRef  = useRef(onScan);
   const onCloseRef = useRef(onClose);
@@ -41,13 +35,11 @@ export default function BarcodeScanner({ isOpen, onScan, onClose }) {
       setScanned(false);
       setStartError(null);
       setCameraReady(false);
-      setPhotoError(false);
       return;
     }
 
     stoppedRef.current = false;
 
-    // ── helpers ──────────────────────────────────────────────
     const stopAll = () => {
       stoppedRef.current = true;
       cancelAnimationFrame(rafRef.current);
@@ -67,7 +59,7 @@ export default function BarcodeScanner({ isOpen, onScan, onClose }) {
       }, 180);
     };
 
-    // ── BarcodeDetector path (Chrome/Android — very fast) ────
+    // BarcodeDetector path (Chrome/Android — very fast)
     const scanWithNative = (detector) => {
       const tick = async () => {
         if (stoppedRef.current) return;
@@ -83,7 +75,7 @@ export default function BarcodeScanner({ isOpen, onScan, onClose }) {
       rafRef.current = requestAnimationFrame(tick);
     };
 
-    // ── Html5Qrcode.scanFile fallback (iOS / older browsers) ─
+    // Html5Qrcode.scanFile fallback (iOS / older browsers)
     const scanWithFallback = () => {
       const canvas = document.createElement('canvas');
       const ctx    = canvas.getContext('2d');
@@ -115,7 +107,6 @@ export default function BarcodeScanner({ isOpen, onScan, onClose }) {
       pollRef.current = setTimeout(poll, 600);
     };
 
-    // ── start camera ─────────────────────────────────────────
     const startCamera = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -165,52 +156,6 @@ export default function BarcodeScanner({ isOpen, onScan, onClose }) {
     };
   }, [isOpen]);
 
-  // ── File-capture fallback (bypasses getUserMedia permission) ──
-  // Opens the native Android camera app via <input capture="environment">.
-  // No Chrome camera permission needed — the camera app handles it itself.
-  const handleFileCapture = async (e) => {
-    const file = e.target.files?.[0];
-    // Reset immediately so the same file can trigger again
-    if (fileInputRef.current) fileInputRef.current.value = '';
-    if (!file) return;
-
-    setPhotoError(false);
-    try {
-      let barcode = null;
-
-      // Try BarcodeDetector first (available on Android Chrome)
-      if ('BarcodeDetector' in window) {
-        try {
-          const bitmap = await createImageBitmap(file);
-          const detector = new window.BarcodeDetector({
-            formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'qr_code'],
-          });
-          const results = await detector.detect(bitmap);
-          if (results.length > 0) barcode = results[0].rawValue;
-        } catch { /* fall through to html5-qrcode */ }
-      }
-
-      // Fallback: html5-qrcode
-      if (!barcode) {
-        const mod = await import('html5-qrcode');
-        barcode = await mod.Html5Qrcode.scanFile(file, false);
-      }
-
-      if (barcode) {
-        setScanned(true);
-        try { onScanRef.current?.(barcode); } catch (e) { console.error('onScan threw:', e); }
-        closeTimer.current = setTimeout(() => {
-          closeTimer.current = null;
-          onCloseRef.current?.();
-        }, 180);
-      } else {
-        setPhotoError(true);
-      }
-    } catch {
-      setPhotoError(true);
-    }
-  };
-
   return (
     <AnimatePresence>
       {isOpen && (
@@ -222,16 +167,6 @@ export default function BarcodeScanner({ isOpen, onScan, onClose }) {
           className="fixed inset-0 z-50 flex flex-col items-center justify-center"
           style={{ background: 'rgba(0,0,0,0.92)', backdropFilter: 'blur(6px)' }}
         >
-          {/* Hidden file input — opens native camera app, no getUserMedia perm needed */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            className="hidden"
-            onChange={handleFileCapture}
-          />
-
           {/* Close button */}
           <button
             onClick={onClose}
@@ -259,7 +194,6 @@ export default function BarcodeScanner({ isOpen, onScan, onClose }) {
 
           {/* Camera viewfinder */}
           <div className="relative" style={{ width: 300, height: 300 }}>
-            {/* Animated border */}
             <div
               className="absolute inset-0 rounded-2xl pointer-events-none"
               style={{
@@ -270,7 +204,6 @@ export default function BarcodeScanner({ isOpen, onScan, onClose }) {
               }}
             />
 
-            {/* Corner accents */}
             {[
               { top: -2,  left:  -2, borderTop:    '3px solid #D4A574', borderLeft:  '3px solid #D4A574', borderTopLeftRadius:     12 },
               { top: -2,  right: -2, borderTop:    '3px solid #D4A574', borderRight: '3px solid #D4A574', borderTopRightRadius:    12 },
@@ -280,7 +213,6 @@ export default function BarcodeScanner({ isOpen, onScan, onClose }) {
               <div key={i} className="absolute" style={{ width: 24, height: 24, zIndex: 3, ...style }} />
             ))}
 
-            {/* Scan line animation */}
             <div
               className="absolute left-2 right-2 pointer-events-none"
               style={{
@@ -292,7 +224,6 @@ export default function BarcodeScanner({ isOpen, onScan, onClose }) {
               }}
             />
 
-            {/* Live video */}
             <video
               ref={videoRef}
               playsInline
@@ -301,7 +232,6 @@ export default function BarcodeScanner({ isOpen, onScan, onClose }) {
               style={{ objectFit: 'cover', background: '#111' }}
             />
 
-            {/* Startup shimmer */}
             {!cameraReady && !startError && (
               <div
                 className="absolute inset-0 rounded-2xl flex items-center justify-center"
@@ -314,51 +244,30 @@ export default function BarcodeScanner({ isOpen, onScan, onClose }) {
               </div>
             )}
 
-            {/* Error overlay */}
             <AnimatePresence>
               {startError && (
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="absolute inset-0 rounded-2xl flex flex-col items-center justify-center px-4 text-center"
+                  className="absolute inset-0 rounded-2xl flex flex-col items-center justify-center px-6 text-center"
                   style={{ background: 'rgba(185,28,28,0.94)', zIndex: 4 }}
                   role="alert"
                 >
-                  <AlertTriangle size={32} style={{ color: '#fff' }} />
+                  <AlertTriangle size={36} style={{ color: '#fff' }} />
                   <p className="mt-3 text-white font-semibold text-sm">
                     {startError === 'permission' ? t('cameraPermissionDenied')
                       : startError === 'no-camera' ? t('noCameraFound')
                       : startError === 'insecure'  ? t('cameraNeedsHttps')
                       : t('cameraUnavailable')}
                   </p>
-
-                  {/* Permission denied: show hint + Take Photo button */}
-                  {startError === 'permission' && (
-                    <>
-                      <p className="mt-2 text-xs leading-relaxed" style={{ color: 'rgba(255,255,255,0.75)' }}>
-                        {t('cameraPermissionHint')}
-                      </p>
-                      <button
-                        onClick={() => fileInputRef.current?.click()}
-                        className="mt-4 flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm touch-manipulation"
-                        style={{ background: '#fff', color: '#b91c1c' }}
-                      >
-                        <Camera size={16} />
-                        {t('useCameraApp')}
-                      </button>
-                      {photoError && (
-                        <p className="mt-2 text-xs" style={{ color: 'rgba(255,255,255,0.75)' }}>
-                          {t('noBarcodeInPhoto')}
-                        </p>
-                      )}
-                    </>
-                  )}
+                  <p className="mt-2 text-xs leading-relaxed" style={{ color: 'rgba(255,255,255,0.75)' }}>
+                    {startError === 'permission' ? t('cameraPermissionHint') : ''}
+                  </p>
                 </motion.div>
               )}
             </AnimatePresence>
 
-            {/* Success overlay */}
             <AnimatePresence>
               {scanned && (
                 <motion.div
@@ -386,7 +295,6 @@ export default function BarcodeScanner({ isOpen, onScan, onClose }) {
             </AnimatePresence>
           </div>
 
-          {/* Scanning status */}
           <div className="mt-8 flex items-center gap-2" aria-live="polite" aria-atomic="true">
             <div
               className="w-2 h-2 rounded-full"

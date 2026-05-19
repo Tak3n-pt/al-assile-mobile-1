@@ -3,7 +3,7 @@
   "short_name": "Al Assile",
   "description": "Field sales POS for Al Assile date products",
   "start_url": "/",
-  "display": "standalone",
+  "display": "minimal-ui",
   "orientation": "portrait",
   "background_color": "#080c14",
   "theme_color": "#D4A574",
