@@ -4,25 +4,36 @@ const CartContext = createContext(null);
 
 const STORAGE_KEY = 'mobile_cart';
 
+// Resolve the unit price for the chosen tarif. Falls back to tarif 1 if the
+// product doesn't carry a value for the requested tier (server returns 0 in
+// that case via COALESCE).
+export function getPriceForTarif(product, tarif) {
+  if (!product) return 0;
+  if (tarif === 2 && (product.selling_price2 || 0) > 0) return product.selling_price2;
+  if (tarif === 3 && (product.selling_price3 || 0) > 0) return product.selling_price3;
+  return product.selling_price || 0;
+}
+
 function loadCart() {
   try {
     const raw = sessionStorage.getItem(STORAGE_KEY);
-    if (!raw) return { items: new Map(), client: null };
+    if (!raw) return { items: new Map(), client: null, saleTarif: 1 };
     const parsed = JSON.parse(raw);
     return {
       items: new Map(parsed.items || []),
       client: parsed.client || null,
+      saleTarif: parsed.saleTarif || 1,
     };
   } catch {
-    return { items: new Map(), client: null };
+    return { items: new Map(), client: null, saleTarif: 1 };
   }
 }
 
-function saveCart(items, client) {
+function saveCart(items, client, saleTarif) {
   try {
     sessionStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ items: Array.from(items.entries()), client })
+      JSON.stringify({ items: Array.from(items.entries()), client, saleTarif })
     );
   } catch {
     // Storage full or unavailable — silently ignore
@@ -30,13 +41,15 @@ function saveCart(items, client) {
 }
 
 export function CartProvider({ children }) {
-  const [items, setItems] = useState(() => loadCart().items);
-  const [client, setClientState] = useState(() => loadCart().client);
+  const initial = loadCart();
+  const [items, setItems] = useState(() => initial.items);
+  const [client, setClientState] = useState(() => initial.client);
+  const [saleTarif, setSaleTarifState] = useState(() => initial.saleTarif);
 
-  // Persist whenever items or client change
+  // Persist whenever items, client, or saleTarif change
   useEffect(() => {
-    saveCart(items, client);
-  }, [items, client]);
+    saveCart(items, client, saleTarif);
+  }, [items, client, saleTarif]);
 
   const addItem = useCallback((product, quantity = 1) => {
     setItems(prev => {
@@ -46,13 +59,45 @@ export function CartProvider({ children }) {
         const newQty = Math.min(existing.quantity + quantity, product.quantity ?? Infinity);
         next.set(product.id, { ...existing, quantity: newQty });
       } else {
-        next.set(product.id, { product, quantity: Math.min(quantity, product.quantity ?? Infinity) });
+        // New lines inherit the current sale-level tarif; the user can override
+        // per-line afterward via setLineTarif.
+        next.set(product.id, {
+          product,
+          quantity: Math.min(quantity, product.quantity ?? Infinity),
+          tarif: saleTarif,
+        });
       }
       return next;
     });
 
     // Haptic feedback
     if (navigator.vibrate) navigator.vibrate(30);
+  }, [saleTarif]);
+
+  // Set sale-level tarif AND re-tag every existing cart line so users don't
+  // end up with a mixed-tarif cart when they flip the tab "for the whole sale".
+  const setSaleTarif = useCallback((n) => {
+    const tarif = (n === 2 || n === 3) ? n : 1;
+    setSaleTarifState(tarif);
+    setItems(prev => {
+      const next = new Map();
+      for (const [id, line] of prev) {
+        next.set(id, { ...line, tarif });
+      }
+      return next;
+    });
+  }, []);
+
+  // Per-line override — leaves the sale-level tarif untouched
+  const setLineTarif = useCallback((productId, n) => {
+    const tarif = (n === 2 || n === 3) ? n : 1;
+    setItems(prev => {
+      const next = new Map(prev);
+      const existing = next.get(productId);
+      if (!existing) return prev;
+      next.set(productId, { ...existing, tarif });
+      return next;
+    });
   }, []);
 
   const removeItem = useCallback((productId) => {
@@ -89,16 +134,22 @@ export function CartProvider({ children }) {
   const clear = useCallback(() => {
     setItems(new Map());
     setClientState(null);
+    setSaleTarifState(1);
     sessionStorage.removeItem(STORAGE_KEY);
   }, []);
 
+  // Resolve the unit price for a cart line — accounts for per-line tarif override
+  const getLineUnitPrice = useCallback((line) => {
+    return getPriceForTarif(line.product, line.tarif || saleTarif);
+  }, [saleTarif]);
+
   const getTotal = useCallback(() => {
     let total = 0;
-    for (const { product, quantity } of items.values()) {
-      total += (product.selling_price || 0) * quantity;
+    for (const line of items.values()) {
+      total += getLineUnitPrice(line) * line.quantity;
     }
     return total;
-  }, [items]);
+  }, [items, getLineUnitPrice]);
 
   const getItemCount = useCallback(() => {
     let count = 0;
@@ -118,16 +169,20 @@ export function CartProvider({ children }) {
   const value = useMemo(() => ({
     items,
     client,
+    saleTarif,
     addItem,
     removeItem,
     updateQuantity,
     setClient,
+    setSaleTarif,
+    setLineTarif,
     clear,
     getTotal,
     getItemCount,
     getItemsArray,
+    getLineUnitPrice,
     isInCart,
-  }), [items, client, addItem, removeItem, updateQuantity, setClient, clear, getTotal, getItemCount, getItemsArray, isInCart]);
+  }), [items, client, saleTarif, addItem, removeItem, updateQuantity, setClient, setSaleTarif, setLineTarif, clear, getTotal, getItemCount, getItemsArray, getLineUnitPrice, isInCart]);
 
   return (
     <CartContext.Provider value={value}>

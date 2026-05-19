@@ -34,6 +34,7 @@ const translations = {
     // Cart
     cart: 'Cart',
     cartEmpty: 'Cart is empty',
+    tarif: 'Tarif',
     addProductsToStart: 'Add products to start a sale',
     browseProducts: 'Browse Products',
     clear: 'Clear',
@@ -459,6 +460,7 @@ const translations = {
     // Cart
     cart: 'السلة',
     cartEmpty: 'السلة فارغة',
+    tarif: 'تعريفة',
     addProductsToStart: 'أضف منتجات لبدء عملية بيع',
     browseProducts: 'تصفح المنتجات',
     clear: 'مسح',

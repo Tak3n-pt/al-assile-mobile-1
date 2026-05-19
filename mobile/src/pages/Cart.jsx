@@ -16,7 +16,11 @@ import { t } from '../utils/i18n.js';
 export default function Cart() {
   const navigate = useNavigate();
   const api = useApi();
-  const { getItemsArray, updateQuantity, removeItem, client, setClient, clear, getTotal } = useCart();
+  const {
+    getItemsArray, updateQuantity, removeItem,
+    client, setClient, clear, getTotal,
+    saleTarif, setSaleTarif, setLineTarif, getLineUnitPrice,
+  } = useCart();
 
   const [showClientModal, setShowClientModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -54,10 +58,10 @@ export default function Cart() {
         payment_method: paymentData.payment_method || 'cash',
         notes: paymentData.notes || null,
         discount: discount > 0 ? discount : undefined,
-        items: items.map(({ product, quantity }) => ({
-          product_id: product.id,
-          quantity,
-          unit_price: product.selling_price,
+        items: items.map((line) => ({
+          product_id: line.product.id,
+          quantity:   line.quantity,
+          unit_price: getLineUnitPrice(line),
         })),
       };
 
@@ -302,11 +306,48 @@ export default function Cart() {
       {!isEmpty && (
         <>
           <div className="flex-1 overflow-y-auto scroll-touch px-4 py-4 space-y-3">
+            {/* Sale-level tarif selector — sets price tier for the whole sale.
+                Per-line override available via the chip on each row below. */}
+            {items.length > 0 && (
+              <div className="flex items-center gap-2 p-2 rounded-2xl mb-1" style={{ background: 'white', border: '1px solid #e5e7eb' }}>
+                <span className="text-xs font-medium px-2" style={{ color: '#6b7280' }}>{t('tarif')}</span>
+                {[1, 2, 3].map((n) => (
+                  <button
+                    key={n}
+                    onClick={() => setSaleTarif(n)}
+                    className="flex-1 py-2 rounded-xl text-xs font-bold touch-manipulation"
+                    style={{
+                      background: saleTarif === n ? '#3949AB' : '#f1f5f9',
+                      color:      saleTarif === n ? '#fff'    : '#6b7280',
+                    }}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {/* Cart items */}
             <AnimatePresence initial={false}>
-              {items.map(({ product, quantity }) => {
-                const lineTotal = product.selling_price * quantity;
+              {items.map((line) => {
+                const { product, quantity } = line;
+                const lineTarif = line.tarif || saleTarif;
+                const unitPrice = getLineUnitPrice(line);
+                const lineTotal = unitPrice * quantity;
                 const maxQty = product.quantity ?? 999;
+
+                const cycleTarif = () => {
+                  // Cycle 1 → 2 → 3 → 1, skipping tiers the product doesn't offer.
+                  const candidates = [1, 2, 3].filter(n =>
+                    n === 1 ||
+                    (n === 2 && (product.selling_price2 || 0) > 0) ||
+                    (n === 3 && (product.selling_price3 || 0) > 0)
+                  );
+                  if (candidates.length < 2) return;  // only tarif 1 available
+                  const idx = candidates.indexOf(lineTarif);
+                  const next = candidates[(idx + 1) % candidates.length];
+                  setLineTarif(product.id, next);
+                };
 
                 return (
                   <motion.div
@@ -328,12 +369,26 @@ export default function Cart() {
                       <X size={14} style={{ color: '#d32f2f' }} />
                     </button>
 
-                    {/* Name & price */}
+                    {/* Name & price + per-line tarif chip */}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold truncate" style={{ color: '#1a1a1a' }}>{product.name}</p>
-                      <p className="text-xs" style={{ color: '#6b7280' }}>
-                        {formatCurrency(product.selling_price)} {t('each')}
-                      </p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <button
+                          onClick={cycleTarif}
+                          className="px-1.5 py-0.5 rounded text-[10px] font-bold touch-manipulation"
+                          style={{
+                            background: 'rgba(57,73,171,0.1)',
+                            color: '#3949AB',
+                            border: '1px solid rgba(57,73,171,0.2)',
+                          }}
+                          aria-label={`Tarif ${lineTarif}`}
+                        >
+                          T{lineTarif}
+                        </button>
+                        <p className="text-xs" style={{ color: '#6b7280' }}>
+                          {formatCurrency(unitPrice)} {t('each')}
+                        </p>
+                      </div>
                     </div>
 
                     {/* Qty stepper */}
