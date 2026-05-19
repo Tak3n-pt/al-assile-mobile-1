@@ -812,6 +812,7 @@ export default function Purchases() {
 
       {showAddProduct && (
         <AddProductDialog
+          key={addProductBarcode}
           barcode={addProductBarcode}
           api={api}
           onClose={() => setShowAddProduct(false)}

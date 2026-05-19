@@ -1137,6 +1137,7 @@ export default function Sales() {
 
       {showAddProduct && (
         <AddProductDialog
+          key={addProductBarcode}
           barcode={addProductBarcode}
           api={api}
           onClose={() => setShowAddProduct(false)}
