@@ -7,7 +7,6 @@ export default function BarcodeScanner({ isOpen, onScan, onClose }) {
   const videoRef   = useRef(null);
   const streamRef  = useRef(null);
   const rafRef     = useRef(null);
-  const pollRef    = useRef(null);
   const closeTimer = useRef(null);
   const stoppedRef = useRef(false);
 
@@ -33,7 +32,6 @@ export default function BarcodeScanner({ isOpen, onScan, onClose }) {
     const stopAll = () => {
       stoppedRef.current = true;
       cancelAnimationFrame(rafRef.current);
-      clearTimeout(pollRef.current);
       streamRef.current?.getTracks().forEach(tr => tr.stop());
       streamRef.current = null;
     };
@@ -49,6 +47,7 @@ export default function BarcodeScanner({ isOpen, onScan, onClose }) {
       }, 180);
     };
 
+    // ── Native BarcodeDetector (Android Chrome / Edge) ───────────────────────
     const scanWithNative = (detector) => {
       const tick = async () => {
         if (stoppedRef.current) return;
@@ -57,33 +56,37 @@ export default function BarcodeScanner({ isOpen, onScan, onClose }) {
           try {
             const results = await detector.detect(v);
             if (results.length > 0) { handleDetected(results[0].rawValue); return; }
-          } catch { /* per-frame error, ignore */ }
+          } catch { /* per-frame error */ }
         }
         rafRef.current = requestAnimationFrame(tick);
       };
       rafRef.current = requestAnimationFrame(tick);
     };
 
-    const scanWithFallback = () => {
+    // ── zbar-wasm fallback (iOS / unsupported browsers) ───────────────────────
+    const scanWithZbar = async () => {
+      const { scanImageData } = await import('@undecaf/zbar-wasm/inlined');
       const canvas = document.createElement('canvas');
-      const ctx    = canvas.getContext('2d');
-      let   lib    = null;
-      const poll = async () => {
+      const ctx    = canvas.getContext('2d', { willReadFrequently: true });
+      let lastW = 0, lastH = 0;
+
+      const tick = async () => {
         if (stoppedRef.current) return;
         const v = videoRef.current;
-        if (!v || v.videoWidth === 0) { pollRef.current = setTimeout(poll, 300); return; }
-        canvas.width = v.videoWidth; canvas.height = v.videoHeight;
+        if (!v || v.videoWidth === 0) { rafRef.current = requestAnimationFrame(tick); return; }
+        if (v.videoWidth !== lastW || v.videoHeight !== lastH) {
+          canvas.width  = lastW = v.videoWidth;
+          canvas.height = lastH = v.videoHeight;
+        }
         ctx.drawImage(v, 0, 0);
         try {
-          if (!lib) { const m = await import('html5-qrcode'); lib = m.Html5Qrcode; }
-          const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.9));
-          const file = new File([blob], 'f.jpg', { type: 'image/jpeg' });
-          const result = await lib.scanFile(file, false);
-          if (result) { handleDetected(result); return; }
-        } catch { /* no barcode in frame */ }
-        pollRef.current = setTimeout(poll, 250);
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const symbols   = await scanImageData(imageData);
+          if (symbols.length > 0) { handleDetected(symbols[0].decode()); return; }
+        } catch { /* per-frame error */ }
+        rafRef.current = requestAnimationFrame(tick);
       };
-      pollRef.current = setTimeout(poll, 600);
+      rafRef.current = requestAnimationFrame(tick);
     };
 
     navigator.mediaDevices.getUserMedia({
@@ -102,7 +105,7 @@ export default function BarcodeScanner({ isOpen, onScan, onClose }) {
           });
           scanWithNative(detector);
         } else {
-          scanWithFallback();
+          scanWithZbar();
         }
       });
     }).catch(err => {
