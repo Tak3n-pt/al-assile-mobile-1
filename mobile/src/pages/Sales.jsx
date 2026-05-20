@@ -143,7 +143,7 @@ function ProductCard({ product, cartQty, price, onTap }) {
 /* ── Main POS Sales page ──────────────────────────────────────────────────── */
 export default function Sales() {
   const navigate = useNavigate();
-  const { request } = useApi();
+  const { get } = useApi();
   const { addItem, saleTarif, setSaleTarif, getItemCount, items } = useCart();
 
   const [products, setProducts] = useState([]);
@@ -153,9 +153,9 @@ export default function Sales() {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    request('GET', '/api/products')
+    get('/api/products')
       .then(data => {
-        if (!cancelled) setProducts(Array.isArray(data) ? data : (data?.products || []));
+        if (!cancelled) setProducts(Array.isArray(data) ? data : []);
       })
       .catch(() => {})
       .finally(() => { if (!cancelled) setLoading(false); });
