@@ -15,5 +15,8 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: false,
+    rollupOptions: {
+      external: (id) => id.includes('@undecaf/zbar-wasm'),
+    },
   },
 });

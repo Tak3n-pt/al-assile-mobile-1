@@ -65,7 +65,13 @@ export default function BarcodeScanner({ isOpen, onScan, onClose }) {
 
     // ── zbar-wasm fallback (iOS / unsupported browsers) ───────────────────────
     const scanWithZbar = async () => {
-      const { scanImageData } = await import('@undecaf/zbar-wasm/inlined');
+      let scanImageData;
+      try {
+        ({ scanImageData } = await import('@undecaf/zbar-wasm/inlined'));
+      } catch {
+        setStartError('unknown');
+        return;
+      }
       const canvas = document.createElement('canvas');
       const ctx    = canvas.getContext('2d', { willReadFrequently: true });
       let lastW = 0, lastH = 0;
