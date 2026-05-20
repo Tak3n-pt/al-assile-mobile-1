@@ -14,6 +14,20 @@ export function getPriceForTarif(product, tarif) {
   return product.selling_price || 0;
 }
 
+export function getAvailableTarifs(product) {
+  if (!product) return [1];
+  return [1, 2, 3].filter(n =>
+    n === 1 ||
+    (n === 2 && (product.selling_price2 || 0) > 0) ||
+    (n === 3 && (product.selling_price3 || 0) > 0)
+  );
+}
+
+export function resolveTarifForProduct(product, requestedTarif) {
+  const tarif = (requestedTarif === 2 || requestedTarif === 3) ? requestedTarif : 1;
+  return getAvailableTarifs(product).includes(tarif) ? tarif : 1;
+}
+
 function loadCart() {
   try {
     const raw = sessionStorage.getItem(STORAGE_KEY);
@@ -61,10 +75,11 @@ export function CartProvider({ children }) {
       } else {
         // New lines inherit the current sale-level tarif; the user can override
         // per-line afterward via setLineTarif.
+        const lineTarif = resolveTarifForProduct(product, saleTarif);
         next.set(product.id, {
           product,
           quantity: Math.min(quantity, product.quantity ?? Infinity),
-          tarif: saleTarif,
+          tarif: lineTarif,
         });
       }
       return next;
@@ -82,7 +97,7 @@ export function CartProvider({ children }) {
     setItems(prev => {
       const next = new Map();
       for (const [id, line] of prev) {
-        next.set(id, { ...line, tarif });
+        next.set(id, { ...line, tarif: resolveTarifForProduct(line.product, tarif) });
       }
       return next;
     });
@@ -95,7 +110,7 @@ export function CartProvider({ children }) {
       const next = new Map(prev);
       const existing = next.get(productId);
       if (!existing) return prev;
-      next.set(productId, { ...existing, tarif });
+      next.set(productId, { ...existing, tarif: resolveTarifForProduct(existing.product, tarif) });
       return next;
     });
   }, []);

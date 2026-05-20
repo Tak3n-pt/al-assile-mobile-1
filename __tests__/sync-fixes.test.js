@@ -15,6 +15,7 @@ const http = require('node:http');
 
 process.env.JWT_SECRET   = 'test-secret';
 process.env.SYNC_KEY     = 'test-sync-key';
+process.env.SYNC_API_KEY = 'test-sync-key';
 process.env.NODE_ENV     = 'test';
 
 // Inject an in-memory better-sqlite3 connection BEFORE any route module is
@@ -38,6 +39,8 @@ initDatabase(db);
 const salesRouter      = require('../server/routes/sales.js');
 const clientsRouter    = require('../server/routes/clients.js');
 const suppliersRouter  = require('../server/routes/suppliers.js');
+const productsRouter   = require('../server/routes/products.js');
+const syncRouter       = require('../server/routes/sync.js');
 
 function buildApp({ role = 'admin', userId = 1 } = {}) {
   const app = express();
@@ -45,6 +48,8 @@ function buildApp({ role = 'admin', userId = 1 } = {}) {
   app.use((req, _res, next) => { req.user = { role, userId }; next(); });
   app.use('/api/clients',   clientsRouter);
   app.use('/api/suppliers', suppliersRouter);
+  app.use('/api/products',  productsRouter);
+  app.use('/api/sync',      syncRouter);
   app.use('/api/sales',     salesRouter);
   return app;
 }
@@ -55,15 +60,18 @@ function listen(app) {
   });
 }
 
-function call(srv, method, path, body) {
+function call(srv, method, path, body, extraHeaders = {}) {
   return new Promise((resolve, reject) => {
     const port = srv.address().port;
     const data = body ? JSON.stringify(body) : null;
+    const headers = { ...extraHeaders };
+    if (data) {
+      headers['content-type'] = 'application/json';
+      headers['content-length'] = Buffer.byteLength(data);
+    }
     const req = http.request({
       port, path, method,
-      headers: data
-        ? { 'content-type': 'application/json', 'content-length': Buffer.byteLength(data) }
-        : {},
+      headers,
     }, res => {
       let buf = '';
       res.on('data', c => buf += c);
@@ -446,6 +454,58 @@ test('Route ordering: PATCH /payments/:id reaches the right handler', async () =
     const r = await call(srv, 'PATCH', '/api/suppliers/payments/99999', { amount: 100 });
     assert.equal(r.status, 404, 'reached payments handler (not /:id)');
     assert.match(r.body.error, /Payment not found/i);
+  } finally { srv.close(); }
+});
+
+// ============================================================================
+// TEST 13 — Website-created products are emitted to desktop sync with all tarifs
+// ============================================================================
+test('POST /api/products logs create and /api/sync/pull returns full tarif payload', async () => {
+  seed();
+  const app = buildApp();
+  const srv = await listen(app);
+  try {
+    const create = await call(srv, 'POST', '/api/products', {
+      name: 'Mobile Product',
+      description: 'Created on website',
+      selling_price: 100,
+      selling_price2: 200,
+      selling_price3: 300,
+      purchase_price: 70,
+      unit: 'kg',
+      barcode: 'MOB-1',
+      category: 'Dates',
+      quantity: 12,
+      min_stock_alert: 2,
+    });
+    assert.equal(create.status, 200, 'product create ok');
+    const productId = create.body.data.id;
+
+    const log = db.prepare(`SELECT * FROM sync_log WHERE entity_type = 'product' AND entity_id = ?`).get(productId);
+    assert.ok(log, 'product create logged');
+    assert.equal(log.action, 'create');
+    assert.equal(log.synced, 0);
+
+    const pull = await call(
+      srv,
+      'GET',
+      '/api/sync/pull',
+      null,
+      { 'x-sync-key': 'test-sync-key' }
+    );
+    assert.equal(pull.status, 200, 'sync pull ok');
+    const product = pull.body.products.find(p => p.id === productId);
+    assert.ok(product, 'created product is in sync pull');
+    assert.equal(product.__action, 'create');
+    assert.equal(product.selling_price, 100);
+    assert.equal(product.selling_price2, 200);
+    assert.equal(product.selling_price3, 300);
+    assert.equal(product.purchase_price, 70);
+    assert.equal(product.category, 'Dates');
+    assert.equal(product.quantity, 12);
+
+    const after = db.prepare(`SELECT synced FROM sync_log WHERE id = ?`).get(log.id);
+    assert.equal(after.synced, 1, 'product log consumed by pull');
   } finally { srv.close(); }
 });
 

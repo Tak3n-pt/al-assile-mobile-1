@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useCart, getPriceForTarif } from '../hooks/useCart.jsx';
+import { useCart, getPriceForTarif, resolveTarifForProduct } from '../hooks/useCart.jsx';
 import { useApi } from '../hooks/useApi.jsx';
 
 const imageCache = new Map();
@@ -43,9 +43,10 @@ function ProductImage({ productId, hasImage, name }) {
   return <img src={src} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />;
 }
 
-function ProductCard({ product, cartQty, price, onTap }) {
+function ProductCard({ product, cartQty, price, selectedTarif, effectiveTarif, onTap }) {
   const [pressed, setPressed] = useState(false);
   const outOfStock = (product.quantity || 0) <= 0;
+  const usesFallbackTarif = selectedTarif !== effectiveTarif;
 
   const handleTap = () => {
     if (outOfStock) return;
@@ -75,6 +76,18 @@ function ProductCard({ product, cartQty, price, onTap }) {
     >
       <div style={{ height: 110, position: 'relative', overflow: 'hidden' }}>
         <ProductImage productId={product.id} hasImage={product.has_image} name={product.name} />
+
+        <div style={{
+          position: 'absolute', bottom: 6, right: 6,
+          background: usesFallbackTarif ? 'rgba(17,24,39,0.72)' : 'rgba(57,73,171,0.9)',
+          borderRadius: 8,
+          padding: '2px 7px',
+          border: '1px solid rgba(255,255,255,0.35)',
+        }}>
+          <span style={{ color: 'white', fontSize: '0.62rem', fontWeight: 800, fontFamily: 'Cairo, sans-serif' }}>
+            T{effectiveTarif}
+          </span>
+        </div>
 
         {cartQty > 0 && (
           <div style={{
@@ -138,7 +151,7 @@ function ProductCard({ product, cartQty, price, onTap }) {
 export default function Sales() {
   const navigate = useNavigate();
   const { get } = useApi();
-  const { addItem, saleTarif, getItemCount, items } = useCart();
+  const { addItem, saleTarif, setSaleTarif, getItemCount, items } = useCart();
 
   const [products, setProducts] = useState([]);
   const [search, setSearch] = useState('');
@@ -249,6 +262,48 @@ export default function Sales() {
         </div>
       </div>
 
+      {/* Tarif */}
+      <div style={{
+        flexShrink: 0,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        padding: '9px 12px 0',
+        background: '#F0F2F5',
+      }}>
+        <span style={{
+          color: '#6b7280',
+          fontSize: '0.72rem',
+          fontWeight: 700,
+          fontFamily: 'Cairo, sans-serif',
+          whiteSpace: 'nowrap',
+        }}>
+          التعريفة
+        </span>
+        {[1, 2, 3].map(n => (
+          <button
+            key={n}
+            onClick={() => setSaleTarif(n)}
+            style={{
+              flex: 1,
+              minHeight: 38,
+              border: saleTarif === n ? '1px solid #3949AB' : '1px solid #e5e7eb',
+              borderRadius: 12,
+              background: saleTarif === n ? '#3949AB' : 'white',
+              color: saleTarif === n ? 'white' : '#4b5563',
+              fontWeight: 800,
+              fontSize: '0.82rem',
+              fontFamily: 'Cairo, sans-serif',
+              cursor: 'pointer',
+              boxShadow: saleTarif === n ? '0 4px 12px rgba(57,73,171,0.22)' : '0 1px 4px rgba(0,0,0,0.04)',
+            }}
+            aria-label={`Tarif ${n}`}
+          >
+            T{n}
+          </button>
+        ))}
+      </div>
+
       {/* Product grid */}
       <div style={{
         flex: 1, overflowY: 'auto',
@@ -293,6 +348,7 @@ export default function Sales() {
             {filtered.map(product => {
               const cartLine = items.get(product.id);
               const cartQty = cartLine ? cartLine.quantity : 0;
+              const effectiveTarif = resolveTarifForProduct(product, saleTarif);
               const price = getPriceForTarif(product, saleTarif);
               return (
                 <ProductCard
@@ -300,6 +356,8 @@ export default function Sales() {
                   product={product}
                   cartQty={cartQty}
                   price={price}
+                  selectedTarif={saleTarif}
+                  effectiveTarif={effectiveTarif}
                   onTap={addItem}
                 />
               );

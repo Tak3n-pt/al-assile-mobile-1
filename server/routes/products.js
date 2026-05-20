@@ -162,36 +162,48 @@ router.post('/', (req, res) => {
   }
 
   try {
-    const result = db.prepare(`
-      INSERT INTO products (
-        name, description, selling_price, selling_price2, selling_price3, purchase_price,
-        unit, barcode, category, is_favorite,
-        quantity, min_stock_alert,
-        expiry_date, tax_rate, unit_package, higher_package, box_color, image_data,
-        is_active, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
-    `).run(
-      String(name).trim(),
-      description || null,
-      parseFloat(selling_price) || 0,
-      parseFloat(selling_price2) || 0,
-      parseFloat(selling_price3) || 0,
-      parseFloat(purchase_price) || 0,
-      unit || 'pcs',
-      barcode || null,
-      category || null,
-      is_favorite ? 1 : 0,
-      parseFloat(quantity) || 0,
-      parseFloat(min_stock_alert) || 0,
-      expiry_date || null,
-      parseFloat(tax_rate) || 0,
-      parseFloat(unit_package) || 0,
-      higher_package || null,
-      box_color || null,
-      image_data || null
-    );
+    const createProduct = db.transaction(() => {
+      const result = db.prepare(`
+        INSERT INTO products (
+          name, description, selling_price, selling_price2, selling_price3, purchase_price,
+          unit, barcode, category, is_favorite,
+          quantity, min_stock_alert,
+          expiry_date, tax_rate, unit_package, higher_package, box_color, image_data,
+          is_active, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
+      `).run(
+        String(name).trim(),
+        description || null,
+        parseFloat(selling_price) || 0,
+        parseFloat(selling_price2) || 0,
+        parseFloat(selling_price3) || 0,
+        parseFloat(purchase_price) || 0,
+        unit || 'pcs',
+        barcode || null,
+        category || null,
+        is_favorite ? 1 : 0,
+        parseFloat(quantity) || 0,
+        parseFloat(min_stock_alert) || 0,
+        expiry_date || null,
+        parseFloat(tax_rate) || 0,
+        parseFloat(unit_package) || 0,
+        higher_package || null,
+        box_color || null,
+        image_data || null
+      );
 
-    const product = db.prepare(PRODUCT_SELECT).get(result.lastInsertRowid);
+      // Product creation on the website must flow back to the desktop on the
+      // next sync pull. Keep this in the same transaction as the product row.
+      db.prepare(`
+        INSERT INTO sync_log (entity_type, entity_id, action, synced)
+        VALUES ('product', ?, 'create', 0)
+      `).run(result.lastInsertRowid);
+
+      return result.lastInsertRowid;
+    });
+
+    const productId = createProduct();
+    const product = db.prepare(PRODUCT_SELECT).get(productId);
     return res.json({ success: true, data: product });
   } catch (err) {
     console.error('[products] POST / error:', err.message);
@@ -238,29 +250,31 @@ router.patch('/:id', (req, res) => {
       image_data:       b.image_data       !== undefined ? (b.image_data || null)                : existing.image_data,
     };
 
-    db.prepare(`
-      UPDATE products SET
-        name = ?, description = ?, selling_price = ?, selling_price2 = ?, selling_price3 = ?,
-        purchase_price = ?, unit = ?, barcode = ?, category = ?, is_favorite = ?,
-        quantity = ?, min_stock_alert = ?,
-        expiry_date = ?, tax_rate = ?, unit_package = ?, higher_package = ?, box_color = ?,
-        image_data = ?,
-        updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `).run(
-      v.name, v.description, v.selling_price, v.selling_price2, v.selling_price3,
-      v.purchase_price, v.unit, v.barcode, v.category, v.is_favorite,
-      v.quantity, v.min_stock_alert,
-      v.expiry_date, v.tax_rate, v.unit_package, v.higher_package, v.box_color,
-      v.image_data,
-      id
-    );
+    db.transaction(() => {
+      db.prepare(`
+        UPDATE products SET
+          name = ?, description = ?, selling_price = ?, selling_price2 = ?, selling_price3 = ?,
+          purchase_price = ?, unit = ?, barcode = ?, category = ?, is_favorite = ?,
+          quantity = ?, min_stock_alert = ?,
+          expiry_date = ?, tax_rate = ?, unit_package = ?, higher_package = ?, box_color = ?,
+          image_data = ?,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).run(
+        v.name, v.description, v.selling_price, v.selling_price2, v.selling_price3,
+        v.purchase_price, v.unit, v.barcode, v.category, v.is_favorite,
+        v.quantity, v.min_stock_alert,
+        v.expiry_date, v.tax_rate, v.unit_package, v.higher_package, v.box_color,
+        v.image_data,
+        id
+      );
 
-    // Log mutation so the desktop pull can propagate the change back.
-    db.prepare(`
-      INSERT INTO sync_log (entity_type, entity_id, action, synced)
-      VALUES ('product', ?, 'update', 0)
-    `).run(id);
+      // Log mutation so the desktop pull can propagate the change back.
+      db.prepare(`
+        INSERT INTO sync_log (entity_type, entity_id, action, synced)
+        VALUES ('product', ?, 'update', 0)
+      `).run(id);
+    })();
 
     const updated = db.prepare(PRODUCT_SELECT).get(id);
     return res.json({ success: true, data: updated });
@@ -282,14 +296,18 @@ router.delete('/:id', (req, res) => {
     return res.status(400).json({ success: false, error: 'Invalid product id' });
   }
   try {
-    const info = db.prepare('UPDATE products SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(id);
-    if (info.changes === 0) return res.status(404).json({ success: false, error: 'Product not found' });
+    const softDelete = db.transaction(() => {
+      const info = db.prepare('UPDATE products SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(id);
+      if (info.changes === 0) return false;
 
-    // Log mutation so desktop pull picks up the soft-delete (is_active=0).
-    db.prepare(`
-      INSERT INTO sync_log (entity_type, entity_id, action, synced)
-      VALUES ('product', ?, 'update', 0)
-    `).run(id);
+      // Log mutation so desktop pull picks up the soft-delete (is_active=0).
+      db.prepare(`
+        INSERT INTO sync_log (entity_type, entity_id, action, synced)
+        VALUES ('product', ?, 'update', 0)
+      `).run(id);
+      return true;
+    });
+    if (!softDelete()) return res.status(404).json({ success: false, error: 'Product not found' });
 
     return res.json({ success: true });
   } catch (err) {

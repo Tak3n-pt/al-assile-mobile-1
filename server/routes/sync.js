@@ -848,8 +848,14 @@ router.get('/pull', (req, res) => {
     if (productIds.length > 0) {
       const ph = productIds.map(() => '?').join(',');
       const rows = db.prepare(`
-        SELECT id, name, description, selling_price, unit, barcode,
-               is_favorite, is_active, quantity, min_stock_alert,
+        SELECT id, name, description,
+               selling_price,
+               COALESCE(selling_price2, 0) AS selling_price2,
+               COALESCE(selling_price3, 0) AS selling_price3,
+               purchase_price,
+               unit, barcode, category,
+               is_favorite, is_active, quantity, min_stock_alert, is_resale,
+               expiry_date, tax_rate, unit_package, higher_package, box_color,
                created_at, updated_at
         FROM products WHERE id IN (${ph})
       `).all(...productIds);
