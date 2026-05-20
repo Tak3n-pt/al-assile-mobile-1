@@ -3,10 +3,31 @@ import { useNavigate } from 'react-router-dom';
 import { useCart, getPriceForTarif } from '../hooks/useCart.jsx';
 import { useApi } from '../hooks/useApi.jsx';
 
-function ProductImage({ path, name }) {
-  const [broken, setBroken] = useState(false);
+const imageCache = new Map();
+
+function ProductImage({ productId, hasImage, name }) {
+  const [src, setSrc] = useState(() => imageCache.get(productId) || null);
+
+  useEffect(() => {
+    if (!hasImage || src) return;
+    const token = localStorage.getItem('mobile_token');
+    let cancelled = false;
+    fetch(`/api/products/${productId}/image`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+      .then(r => r.json())
+      .then(json => {
+        if (!cancelled && json?.data) {
+          imageCache.set(productId, json.data);
+          setSrc(json.data);
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [productId, hasImage]);
+
   const initials = (name || '?').slice(0, 2).toUpperCase();
-  if (!path || broken) {
+  if (!src) {
     return (
       <div style={{
         width: '100%', height: '100%',
@@ -19,14 +40,7 @@ function ProductImage({ path, name }) {
       </div>
     );
   }
-  return (
-    <img
-      src={`/api/products/image/${path}`}
-      alt={name}
-      onError={() => setBroken(true)}
-      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-    />
-  );
+  return <img src={src} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />;
 }
 
 function ProductCard({ product, cartQty, price, onTap }) {
@@ -60,7 +74,7 @@ function ProductCard({ product, cartQty, price, onTap }) {
       }}
     >
       <div style={{ height: 110, position: 'relative', overflow: 'hidden' }}>
-        <ProductImage path={product.image_path} name={product.name} />
+        <ProductImage productId={product.id} hasImage={product.has_image} name={product.name} />
 
         {cartQty > 0 && (
           <div style={{
