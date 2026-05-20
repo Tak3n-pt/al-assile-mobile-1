@@ -943,7 +943,7 @@ router.get('/status', (req, res) => {
       SELECT created_at FROM sales ORDER BY created_at DESC LIMIT 1
     `).get();
 
-    const SYNC_PULL_VERSION = 'since-watermark-v2';
+    const SYNC_PULL_VERSION = 'since-watermark-v3-stock-safe';
 
     const totalLog = db.prepare(`SELECT COUNT(*) AS c FROM sync_log WHERE entity_type='sale'`).get();
 
