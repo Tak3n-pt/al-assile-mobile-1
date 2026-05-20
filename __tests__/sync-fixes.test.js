@@ -510,6 +510,53 @@ test('POST /api/products logs create and /api/sync/pull returns full tarif paylo
 });
 
 // ============================================================================
+// TEST 14 — Product create + sale in same pull does not double-deduct stock
+// ============================================================================
+test('sync pull sends pre-sale product quantity when sale is in same response', async () => {
+  seed();
+  const app = buildApp();
+  const srv = await listen(app);
+  try {
+    const createProduct = await call(srv, 'POST', '/api/products', {
+      name: 'Same Pull Product',
+      selling_price: 50,
+      quantity: 10,
+      unit: 'pcs',
+    });
+    assert.equal(createProduct.status, 200, 'product create ok');
+    const productId = createProduct.body.data.id;
+
+    const createSale = await call(srv, 'POST', '/api/sales', {
+      client_id: 1,
+      date: new Date().toISOString().slice(0, 10),
+      paid_amount: 0,
+      payment_method: 'cash',
+      notes: 'same pull stock test',
+      items: [{ product_id: productId, quantity: 2, unit_price: 50 }],
+    });
+    assert.equal(createSale.status, 201, 'sale create ok');
+
+    const storedAfterSale = db.prepare('SELECT quantity FROM products WHERE id = ?').get(productId);
+    assert.equal(storedAfterSale.quantity, 8, 'server stock already deducted by sale');
+
+    const pull = await call(
+      srv,
+      'GET',
+      '/api/sync/pull',
+      null,
+      { 'x-sync-key': 'test-sync-key' }
+    );
+    assert.equal(pull.status, 200, 'sync pull ok');
+    const product = pull.body.products.find(p => p.id === productId);
+    assert.ok(product, 'product is included in pull');
+    assert.equal(product.quantity, 10, 'product quantity is pre-sale so desktop sale import deducts once');
+    const sale = pull.body.sales.find(s => s.id === createSale.body.data.id);
+    assert.ok(sale, 'sale is included in pull');
+    assert.equal(sale.items[0].quantity, 2, 'sale item carries the stock movement');
+  } finally { srv.close(); }
+});
+
+// ============================================================================
 // Run all tests
 // ============================================================================
 (async () => {

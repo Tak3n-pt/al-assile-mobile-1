@@ -859,6 +859,31 @@ router.get('/pull', (req, res) => {
                created_at, updated_at
         FROM products WHERE id IN (${ph})
       `).all(...productIds);
+
+      // Product rows are snapshots of current stock. If a mobile sale is
+      // included in this same pull response, that stock movement is already
+      // reflected in products.quantity, and the desktop will also apply the
+      // sale items while importing the sale. Add back those in-flight sale
+      // movements here so desktop lands on the same final quantity, not a
+      // double-deducted one.
+      const inFlightSaleQuantityByProduct = new Map();
+      for (const sale of salesOut) {
+        if (sale.__action === 'delete') continue;
+        const sign = sale.status === 'return' || (Number(sale.total) || 0) < 0 ? -1 : 1;
+        for (const item of sale.items || []) {
+          const productId = item.product_id;
+          const qty = sign * (Number(item.quantity) || 0);
+          inFlightSaleQuantityByProduct.set(
+            productId,
+            (inFlightSaleQuantityByProduct.get(productId) || 0) + qty
+          );
+        }
+      }
+      for (const row of rows) {
+        const qty = inFlightSaleQuantityByProduct.get(row.id);
+        if (qty) row.quantity = (Number(row.quantity) || 0) + qty;
+      }
+
       const existingById = new Map(rows.map(r => [r.id, r]));
 
       for (const pid of productIds) {
