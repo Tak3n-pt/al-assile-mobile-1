@@ -172,7 +172,7 @@ export default function Sales() {
 
   return (
     <div style={{
-      minHeight: '100dvh',
+      height: '100dvh',
       background: '#F0F2F5',
       display: 'flex', flexDirection: 'column',
       fontFamily: 'Cairo, Tajawal, sans-serif',
