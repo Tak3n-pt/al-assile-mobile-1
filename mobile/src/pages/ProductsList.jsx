@@ -30,6 +30,7 @@ export default function ProductsList() {
   const [showImport,      setShowImport]      = useState(false);
   const [showMore,        setShowMore]        = useState(false);
   const [showBarcodeMaker, setShowBarcodeMaker] = useState(false);
+  const [initBarcode, setInitBarcode] = useState('');
   const [productAction,   setProductAction]   = useState(null);
   const [hintHidden,      setHintHidden]      = useState(() => localStorage.getItem('pl_hint_hidden') === '1');
   const [selectedIds,     setSelectedIds]     = useState(new Set());
@@ -53,7 +54,8 @@ export default function ProductsList() {
 
   useEffect(() => {
     const act = location.state?.action;
-    if (act === 'add')            setShowAddProduct(true);
+    const bc  = location.state?.barcode || '';
+    if (act === 'add')               { setInitBarcode(bc); setShowAddProduct(true); }
     else if (act === 'edit-prices')  setShowEditPrices(true);
     else if (act === 'add-category') setShowAddCategory(true);
     else if (act === 'import')       setShowImport(true);
@@ -290,9 +292,10 @@ export default function ProductsList() {
       <BarcodeScanner isOpen={showScanner} onScan={handleBarcodeScan} onClose={() => setShowScanner(false)} />
       <AddProductSheet
         visible={showAddProduct}
-        onClose={() => setShowAddProduct(false)}
+        onClose={() => { setShowAddProduct(false); setInitBarcode(''); }}
         onSaved={() => fetchProducts(true)}
         products={products}
+        initialBarcode={initBarcode}
       />
       <EditPricesSheet
         visible={showEditPrices}
@@ -484,7 +487,7 @@ function APFImageUpload({ value, onChange }) {
   );
 }
 
-function AddProductSheet({ visible, onClose, onSaved, products }) {
+function AddProductSheet({ visible, onClose, onSaved, products, initialBarcode = '' }) {
   const api = useApi();
   const EMPTY = {
     name: '', description: '', barcode: '',
@@ -508,7 +511,7 @@ function AddProductSheet({ visible, onClose, onSaved, products }) {
 
   useEffect(() => {
     if (!visible) return;
-    setForm(EMPTY);
+    setForm({ ...EMPTY, barcode: initialBarcode || '' });
     setError('');
 
     // Synchronous fallbacks so the dropdowns are never empty while the

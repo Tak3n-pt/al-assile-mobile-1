@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Trash2, Plus, Minus, X, ShoppingBag, ChevronRight,
@@ -12,12 +12,13 @@ import ClientSelector from '../components/ClientSelector.jsx';
 import PaymentModal from '../components/PaymentModal.jsx';
 import ReceiptPrinter from '../components/ReceiptPrinter.jsx';
 import { t } from '../utils/i18n.js';
+import BarcodeScanner from '../components/BarcodeScanner.jsx';
 
 export default function Cart() {
   const navigate = useNavigate();
   const api = useApi();
   const {
-    getItemsArray, updateQuantity, removeItem,
+    getItemsArray, updateQuantity, removeItem, addItem,
     client, setClient, clear, getTotal,
     saleTarif, setSaleTarif, setLineTarif, getLineUnitPrice,
   } = useCart();
@@ -31,10 +32,48 @@ export default function Cart() {
   const [error, setError] = useState('');
   const [settings, setSettings] = useState({});
   const [discountInput, setDiscountInput] = useState('');
+  const [showScanner, setShowScanner] = useState(false);
+  const [scanToast, setScanToast] = useState(null);
+  const [scanProducts, setScanProducts] = useState([]);
+  const scanProductsRef = useRef([]);
+  const scanProductsLoaded = useRef(false);
 
   useEffect(() => {
     api.get('/api/settings').then(setSettings).catch(() => {});
   }, []);
+
+  const openScanner = useCallback(async () => {
+    if (!scanProductsLoaded.current) {
+      try {
+        const data = await api.get('/api/products');
+        const list = Array.isArray(data) ? data : [];
+        setScanProducts(list);
+        scanProductsRef.current = list;
+        scanProductsLoaded.current = true;
+      } catch {}
+    }
+    setShowScanner(true);
+  }, [api]);
+
+  const showScanToast = useCallback((type, msg) => {
+    setScanToast({ type, msg });
+    setTimeout(() => setScanToast(null), 2200);
+  }, []);
+
+  const handleCartScan = useCallback((raw) => {
+    const barcode = String(raw || '').replace(/[\r\n\t]/g, '').trim();
+    if (!barcode) return;
+    const list = scanProductsRef.current;
+    let found = list.find(p => p.barcode === barcode);
+    if (!found) {
+      const stripped = barcode.replace(/^0+/, '');
+      if (stripped) found = list.find(p => p.barcode && String(p.barcode).replace(/^0+/, '') === stripped);
+    }
+    if (!found) { showScanToast('error', 'لم يُعثر على المنتج'); return; }
+    if ((found.quantity || 0) <= 0) { showScanToast('error', 'نفذت الكمية'); return; }
+    addItem(found);
+    showScanToast('success', found.name);
+  }, [addItem, showScanToast]);
 
   const items = getItemsArray();
   const subtotal = getTotal();
@@ -260,6 +299,23 @@ export default function Cart() {
           </button>
 
           <h1 className="text-xl font-bold text-white flex-1">{t('cart')}</h1>
+
+          <button
+            onClick={openScanner}
+            style={{
+              background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.3)',
+              borderRadius: 10, width: 38, height: 38,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', flexShrink: 0,
+            }}
+            aria-label="مسح الباركود"
+          >
+            <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2} strokeLinecap="round">
+              <path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/>
+              <line x1="7" y1="12" x2="7" y2="12.01"/><line x1="12" y1="8" x2="12" y2="16"/>
+              <line x1="17" y1="12" x2="17" y2="12.01"/>
+            </svg>
+          </button>
 
           {!isEmpty && (
             <button
@@ -606,6 +662,28 @@ export default function Cart() {
           onConfirm={handleCompleteSale}
           onClose={() => setShowPaymentModal(false)}
         />
+      )}
+
+      {/* Barcode scanner */}
+      <BarcodeScanner
+        isOpen={showScanner}
+        onScan={handleCartScan}
+        onClose={() => setShowScanner(false)}
+      />
+
+      {/* Scan toast */}
+      {scanToast && (
+        <div style={{
+          position: 'fixed', top: 70, left: '50%', transform: 'translateX(-50%)',
+          zIndex: 200, pointerEvents: 'none',
+          background: scanToast.type === 'success' ? '#22c55e' : '#ef4444',
+          color: 'white', borderRadius: 12, padding: '9px 18px',
+          fontFamily: 'Cairo, sans-serif', fontWeight: 700, fontSize: '0.88rem',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
+          maxWidth: '80vw', textAlign: 'center',
+        }}>
+          {scanToast.type === 'success' ? `✓ تمت إضافة: ${scanToast.msg}` : `✗ ${scanToast.msg}`}
+        </div>
       )}
     </div>
   );

@@ -500,6 +500,7 @@ function ProductsTab({ itemCount }) {
   const [loadError, setLoadError] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
   const [scanToast, setScanToast] = useState(null);
+  const [notFoundBarcode, setNotFoundBarcode] = useState(null);
   const productsRef = useRef([]);
 
   useEffect(() => { productsRef.current = products; }, [products]);
@@ -529,7 +530,7 @@ function ProductsTab({ itemCount }) {
       const stripped = barcode.replace(/^0+/, '');
       if (stripped) found = list.find(p => p.barcode && String(p.barcode).replace(/^0+/, '') === stripped);
     }
-    if (!found) { showToast('error', 'لم يُعثر على المنتج'); return; }
+    if (!found) { setNotFoundBarcode(barcode); return; }
     if ((found.quantity || 0) <= 0) { showToast('error', 'نفذت الكمية'); return; }
     addItem(found);
     showToast('success', found.name);
@@ -605,6 +606,78 @@ function ProductsTab({ itemCount }) {
         onScan={handleBarcodeScan}
         onClose={() => setShowScanner(false)}
       />
+
+      {notFoundBarcode && (
+        <div
+          onClick={() => setNotFoundBarcode(null)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 300,
+            display: 'flex', alignItems: 'flex-end',
+            background: 'rgba(0,0,0,0.45)',
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: 'white', borderRadius: '20px 20px 0 0',
+              padding: '24px 20px 36px', width: '100%',
+              fontFamily: 'Cairo, sans-serif', direction: 'rtl',
+            }}
+          >
+            <div style={{ textAlign: 'center', marginBottom: 20 }}>
+              <div style={{
+                width: 56, height: 56, borderRadius: '50%',
+                background: 'rgba(239,68,68,0.1)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                margin: '0 auto 12px',
+              }}>
+                <svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth={2} strokeLinecap="round">
+                  <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M11 8v4m0 3h.01"/>
+                </svg>
+              </div>
+              <div style={{ fontWeight: 700, fontSize: '1rem', color: '#1a1a1a', marginBottom: 6 }}>
+                لم يُعثر على المنتج
+              </div>
+              <div style={{
+                color: '#6b7280', fontSize: '0.78rem',
+                fontFamily: 'monospace', background: '#f3f4f6',
+                borderRadius: 8, padding: '4px 12px', display: 'inline-block',
+              }}>
+                {notFoundBarcode}
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                const bc = notFoundBarcode;
+                setNotFoundBarcode(null);
+                navigate('/products/list', { state: { action: 'add', barcode: bc } });
+              }}
+              style={{
+                width: '100%', padding: '13px 0',
+                background: 'linear-gradient(135deg, #3949AB 0%, #5C6BC0 100%)',
+                color: 'white', border: 'none', borderRadius: 14,
+                fontWeight: 700, fontSize: '0.95rem',
+                fontFamily: 'Cairo, sans-serif', cursor: 'pointer', marginBottom: 10,
+                boxShadow: '0 4px 14px rgba(57,73,171,0.35)',
+              }}
+            >
+              إضافة منتج جديد
+            </button>
+            <button
+              onClick={() => setNotFoundBarcode(null)}
+              style={{
+                width: '100%', padding: '12px 0',
+                background: '#f3f4f6', color: '#6b7280',
+                border: 'none', borderRadius: 14,
+                fontWeight: 600, fontSize: '0.9rem',
+                fontFamily: 'Cairo, sans-serif', cursor: 'pointer',
+              }}
+            >
+              إغلاق
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Grid */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '10px 12px', paddingBottom: itemCount > 0 ? 90 : 16 }}>
