@@ -61,7 +61,7 @@ export default function ClientsList() {
       setClients(Array.isArray(res?.data) ? res.data : (Array.isArray(res) ? res : []));
     } catch (err) { console.error(err); setLoadError('تعذّر تحميل العملاء'); }
     finally { setLoading(false); setRefreshing(false); }
-  }, []);
+  }, [api]);
 
   const fetchAudit = useCallback(async (silent = false) => {
     if (!silent) setLoading(true); else setRefreshing(true);
@@ -212,6 +212,14 @@ export default function ClientsList() {
 // ─── Standard list view (modes: all / owes / credit) ────────────────────────
 
 function ClientListView({ clients, mode, filter, query, totalOwed, totalCredit, onFilterChange, onQueryChange, onSelect }) {
+  const groups = useMemo(() => {
+    const map = {};
+    clients.forEach(c => { const key = c.category || ''; (map[key] = map[key] || []).push(c); });
+    return Object.keys(map)
+      .sort((a, b) => (!a && !b) ? 0 : !a ? 1 : !b ? -1 : a.localeCompare(b, 'ar'))
+      .map(k => ({ cat: k || null, items: map[k] }));
+  }, [clients]);
+  const multiGroup = groups.length > 1;
   return (
     <>
       <div className="flex-shrink-0 px-4 pt-3 pb-2">
@@ -268,31 +276,43 @@ function ClientListView({ clients, mode, filter, query, totalOwed, totalCredit, 
             <Users size={44} className="mx-auto mb-3" style={{ color: '#9ca3af' }} />
             <p style={{ color: '#6b7280' }}>لا يوجد عملاء</p>
           </div>
-        ) : (
-          <div className="space-y-2">
-            {clients.map(c => (
-              <motion.button
-                key={c.id} whileTap={{ scale: 0.98 }}
-                onClick={() => onSelect(c.id)}
-                className="w-full flex items-center gap-3 p-3.5 rounded-xl text-left touch-manipulation"
-                style={{ background: 'white', boxShadow: '0 1px 4px rgba(0,0,0,0.08)', border: 'none' }}
-              >
-                <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-                  style={{ background: '#E8EAF6' }}>
-                  <User size={17} style={{ color: '#3949AB' }} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold truncate" style={{ color: '#1a1a1a' }}>{c.name}</p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    {c.phone && <span className="text-xs flex items-center gap-1" style={{ color: '#9ca3af' }}><Phone size={10} />{c.phone}</span>}
-                    <BalanceBadge balance={c.balance} />
+        ) : groups.map(({ cat, items }) => (
+          <div key={cat || '__none__'}>
+            {multiGroup && (
+              <div className="flex items-center gap-2 mt-4 mb-2 first:mt-1">
+                <span className="text-xs font-bold px-2.5 py-0.5 rounded-full flex-shrink-0"
+                  style={{ background: '#E8EAF6', color: '#3949AB' }}>
+                  {cat || 'بدون فئة'}
+                </span>
+                <span className="text-[10px] flex-shrink-0" style={{ color: '#9ca3af' }}>({items.length})</span>
+                <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
+              </div>
+            )}
+            <div className="space-y-2">
+              {items.map(c => (
+                <motion.button
+                  key={c.id} whileTap={{ scale: 0.98 }}
+                  onClick={() => onSelect(c.id)}
+                  className="w-full flex items-center gap-3 p-3.5 rounded-xl text-left touch-manipulation"
+                  style={{ background: 'white', boxShadow: '0 1px 4px rgba(0,0,0,0.08)', border: 'none' }}
+                >
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                    style={{ background: '#E8EAF6' }}>
+                    <User size={17} style={{ color: '#3949AB' }} />
                   </div>
-                </div>
-                <ChevronRight size={15} style={{ color: '#ccc' }} />
-              </motion.button>
-            ))}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold truncate" style={{ color: '#1a1a1a' }}>{c.name}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      {c.phone && <span className="text-xs flex items-center gap-1" style={{ color: '#9ca3af' }}><Phone size={10} />{c.phone}</span>}
+                      <BalanceBadge balance={c.balance} />
+                    </div>
+                  </div>
+                  <ChevronRight size={15} style={{ color: '#ccc' }} />
+                </motion.button>
+              ))}
+            </div>
           </div>
-        )}
+        ))}
       </div>
     </>
   );
@@ -1059,6 +1079,7 @@ function AddClientSheet({ onClose, onCreated }) {
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
   const [notes, setNotes] = useState('');
+  const [category, setCategory] = useState('');
   const [balanceSign, setBalanceSign] = useState('none');
   const [balanceAmount, setBalanceAmount] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -1078,7 +1099,7 @@ function AddClientSheet({ onClose, onCreated }) {
     if (!canSubmit) return;
     setSubmitting(true); setError('');
     try {
-      const res = await api.post('/api/clients', { name: name.trim(), phone: phone.trim() || null, address: address.trim() || null, notes: notes.trim() || null, initial_balance: computeBalance() });
+      const res = await api.post('/api/clients', { name: name.trim(), phone: phone.trim() || null, address: address.trim() || null, notes: notes.trim() || null, category: category.trim() || null, initial_balance: computeBalance() });
       onCreated(res?.data || res);
     } catch (err) { setError(err?.message || 'فشل إنشاء العميل'); }
     finally { setSubmitting(false); }
@@ -1102,10 +1123,11 @@ function AddClientSheet({ onClose, onCreated }) {
         </div>
         <div className="flex-1 overflow-y-auto scroll-touch px-5 pb-3 space-y-3">
           {[
-            { v: name,    set: setName,    label: 'اسم العميل', required: true, type: 'text' },
-            { v: phone,   set: setPhone,   label: 'رقم الهاتف', type: 'tel' },
-            { v: address, set: setAddress, label: 'العنوان', type: 'text' },
-            { v: notes,   set: setNotes,   label: 'ملاحظات', type: 'text' },
+            { v: name,     set: setName,     label: 'اسم العميل', required: true, type: 'text' },
+            { v: phone,    set: setPhone,    label: 'رقم الهاتف', type: 'tel' },
+            { v: address,  set: setAddress,  label: 'العنوان', type: 'text' },
+            { v: category, set: setCategory, label: 'الفئة', type: 'text' },
+            { v: notes,    set: setNotes,    label: 'ملاحظات', type: 'text' },
           ].map((f, i) => (
             <div key={i}>
               <label className="block text-xs font-semibold mb-1.5" style={{ color: '#6b7280' }}>
@@ -1217,11 +1239,12 @@ function FundingSheet({ client, onClose, onDone }) {
 
 function EditClientSheet({ client, onClose, onDone }) {
   const api = useApi();
-  const [name,    setName]    = useState(client.name    || '');
-  const [phone,   setPhone]   = useState(client.phone   || '');
-  const [email,   setEmail]   = useState(client.email   || '');
-  const [address, setAddress] = useState(client.address || '');
-  const [notes,   setNotes]   = useState(client.notes   || '');
+  const [name,     setName]     = useState(client.name     || '');
+  const [phone,    setPhone]    = useState(client.phone    || '');
+  const [email,    setEmail]    = useState(client.email    || '');
+  const [address,  setAddress]  = useState(client.address  || '');
+  const [category, setCategory] = useState(client.category || '');
+  const [notes,    setNotes]    = useState(client.notes    || '');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const canSubmit = name.trim().length > 0 && !submitting;
@@ -1229,7 +1252,7 @@ function EditClientSheet({ client, onClose, onDone }) {
   const submit = async () => {
     if (!canSubmit) return;
     setSubmitting(true); setError('');
-    try { await api.patch(`/api/clients/${client.id}`, { name: name.trim(), phone: phone.trim(), email: email.trim(), address: address.trim(), notes: notes.trim() }); onDone(); }
+    try { await api.patch(`/api/clients/${client.id}`, { name: name.trim(), phone: phone.trim(), email: email.trim(), address: address.trim(), notes: notes.trim(), category: category.trim() }); onDone(); }
     catch (err) { setError(err?.message || 'فشل التحديث'); }
     finally { setSubmitting(false); }
   };
@@ -1247,11 +1270,12 @@ function EditClientSheet({ client, onClose, onDone }) {
         </div>
         <div className="flex-1 overflow-y-auto scroll-touch px-5 pb-3 space-y-3">
           {[
-            { v: name,    set: setName,    label: 'الاسم', required: true, type: 'text' },
-            { v: phone,   set: setPhone,   label: 'الهاتف', type: 'tel' },
-            { v: email,   set: setEmail,   label: 'البريد الإلكتروني', type: 'email' },
-            { v: address, set: setAddress, label: 'العنوان', type: 'text' },
-            { v: notes,   set: setNotes,   label: 'ملاحظات', type: 'text' },
+            { v: name,     set: setName,     label: 'الاسم', required: true, type: 'text' },
+            { v: phone,    set: setPhone,    label: 'الهاتف', type: 'tel' },
+            { v: email,    set: setEmail,    label: 'البريد الإلكتروني', type: 'email' },
+            { v: address,  set: setAddress,  label: 'العنوان', type: 'text' },
+            { v: category, set: setCategory, label: 'الفئة', type: 'text' },
+            { v: notes,    set: setNotes,    label: 'ملاحظات', type: 'text' },
           ].map((f, i) => (
             <div key={i}>
               <label className="block text-xs font-semibold mb-1.5" style={{ color: '#6b7280' }}>{f.label}{f.required && <span style={{ color: '#f87171' }}> *</span>}</label>

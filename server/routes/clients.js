@@ -170,7 +170,7 @@ router.get('/:id', (req, res) => {
  * desktop can reproduce the balance from transaction history.
  */
 router.post('/', (req, res) => {
-  const { name, phone, address, email, notes } = req.body;
+  const { name, phone, address, email, notes, category } = req.body;
   // Coerce the optional opening balance. Any non-number becomes 0.
   const initialBalance = Math.round((Number(req.body?.initial_balance) || 0) * 100) / 100;
 
@@ -181,14 +181,15 @@ router.post('/', (req, res) => {
   try {
     const txn = db.transaction(() => {
       const result = db.prepare(`
-        INSERT INTO clients (name, phone, address, email, notes, balance)
-        VALUES (?, ?, ?, ?, ?, 0)
+        INSERT INTO clients (name, phone, address, email, notes, balance, category)
+        VALUES (?, ?, ?, ?, ?, 0, ?)
       `).run(
         name.trim(),
         phone || null,
         address || null,
         email || null,
-        notes || null
+        notes || null,
+        category?.trim() || null
       );
       const newId = result.lastInsertRowid;
       // Stamp remote_id so the sync replay is idempotent and future desktop
@@ -254,7 +255,8 @@ router.patch('/:id', (req, res) => {
   if (typeof req.body?.phone   === 'string') fields.phone   = req.body.phone.trim().slice(0, 50) || null;
   if (typeof req.body?.email   === 'string') fields.email   = req.body.email.trim().slice(0, 200) || null;
   if (typeof req.body?.address === 'string') fields.address = req.body.address.trim().slice(0, 500) || null;
-  if (typeof req.body?.notes   === 'string') fields.notes   = req.body.notes.trim().slice(0, 1000) || null;
+  if (typeof req.body?.notes    === 'string') fields.notes    = req.body.notes.trim().slice(0, 1000) || null;
+  if (typeof req.body?.category === 'string') fields.category = req.body.category.trim().slice(0, 100) || null;
 
   if (Object.keys(fields).length === 0) {
     return res.status(400).json({ success: false, error: 'No editable fields supplied' });

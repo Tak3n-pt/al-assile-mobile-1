@@ -253,6 +253,9 @@ const initDatabase = (db) => {
       db.exec('ALTER TABLE clients ADD COLUMN remote_id TEXT');
       db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_clients_remote_id ON clients(remote_id) WHERE remote_id IS NOT NULL');
     }
+    if (!cols.includes('category')) {
+      db.exec('ALTER TABLE clients ADD COLUMN category TEXT');
+    }
   } catch (e) {
     console.log('[schema] clients columns migration:', e.message);
   }
