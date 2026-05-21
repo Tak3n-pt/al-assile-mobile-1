@@ -53,11 +53,18 @@ function ProductImage({ productId, hasImage, name }) {
       <div style={{
         width: '100%', height: '100%',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: 'linear-gradient(135deg, #E8EAF6 0%, #C5CAE9 100%)',
+        background: 'linear-gradient(145deg, #EEF0FB 0%, #D5D9F5 60%, #C5CAE9 100%)',
       }}>
-        <span style={{ fontSize: '1.4rem', fontWeight: 800, color: '#3949AB', opacity: 0.5 }}>
-          {initials}
-        </span>
+        <div style={{
+          width: 52, height: 52, borderRadius: '50%',
+          background: 'linear-gradient(135deg, #3949AB 0%, #7986CB 100%)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 3px 10px rgba(57,73,171,0.3)',
+        }}>
+          <span style={{ fontSize: '1.1rem', fontWeight: 800, color: 'white', letterSpacing: 1 }}>
+            {initials}
+          </span>
+        </div>
       </div>
     );
   }
@@ -94,7 +101,7 @@ function ProductCard({ product, cartQty, price, selectedTarif, effectiveTarif, o
         opacity: outOfStock ? 0.5 : 1,
       }}
     >
-      <div style={{ height: 110, position: 'relative', overflow: 'hidden' }}>
+      <div style={{ height: 130, position: 'relative', overflow: 'hidden' }}>
         <ProductImage productId={product.id} hasImage={product.has_image} name={product.name} />
 
         <div style={{
@@ -156,11 +163,12 @@ function ProductCard({ product, cartQty, price, selectedTarif, effectiveTarif, o
           {product.name}
         </span>
         <span style={{
-          color: '#2e7d32', fontSize: '0.88rem', fontWeight: 800,
+          color: '#5C6BC0', fontSize: '0.75rem', fontWeight: 700,
           textAlign: 'right', fontFamily: 'Cairo, sans-serif',
+          background: '#EEF0FB', borderRadius: 6, padding: '2px 8px',
+          alignSelf: 'flex-end',
         }}>
-          {price > 0 ? price.toFixed(2) : '—'}
-          <span style={{ fontSize: '0.65rem', fontWeight: 500, color: '#4caf50', marginRight: 3 }}>دج</span>
+          تعريفة {effectiveTarif}
         </span>
       </div>
     </div>
@@ -379,10 +387,10 @@ function HistoryTab() {
     setLoading(true);
     setError(false);
     api.get(`/api/sales?date=${d}`)
-      .then(res => setSales(Array.isArray(res) ? res : (res?.data || [])))
+      .then(res => setSales(Array.isArray(res) ? res : []))
       .catch(() => setError(true))
       .finally(() => setLoading(false));
-  }, []);
+  }, [api]);
 
   useEffect(() => { load(date); }, [date]);
 
