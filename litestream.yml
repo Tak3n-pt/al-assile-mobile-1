@@ -2,7 +2,7 @@ dbs:
   - path: /data/inventory.db
     replicas:
       - type: s3
-        bucket: al-assile-db
+        bucket: alassile
         path: inventory.db
         endpoint: ${R2_ENDPOINT}
         access-key-id: ${R2_ACCESS_KEY_ID}
