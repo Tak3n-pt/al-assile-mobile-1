@@ -124,41 +124,6 @@ app.use('/api/higher-packages', authenticate, higherPackagesRouter);
 app.use('/api/desktop',      authenticate, desktopRouter);
 
 // ---------------------------------------------------------------------------
-// TEMPORARY: Hard reset — wipes all data, keeps admin user + default settings
-// Protected by X-Sync-Key header so only the desktop/CLI can call it.
-// ---------------------------------------------------------------------------
-app.post('/api/admin/reset', (req, res) => {
-  if (req.headers['x-sync-key'] !== process.env.SYNC_API_KEY) {
-    return res.status(403).json({ success: false, error: 'Forbidden' });
-  }
-  try {
-    db.exec(`
-      DELETE FROM sale_items;
-      DELETE FROM sales;
-      DELETE FROM client_payments;
-      DELETE FROM supplier_payments;
-      DELETE FROM purchase_items;
-      DELETE FROM purchases;
-      DELETE FROM expenses;
-      DELETE FROM products;
-      DELETE FROM clients;
-      DELETE FROM suppliers;
-      DELETE FROM sync_log;
-    `);
-    // Reset auto-increment counters
-    db.exec(`
-      DELETE FROM sqlite_sequence WHERE name IN (
-        'sale_items','sales','client_payments','supplier_payments',
-        'purchase_items','purchases','expenses','products','clients','suppliers','sync_log'
-      );
-    `);
-    return res.json({ success: true, message: 'Database wiped' });
-  } catch (err) {
-    return res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-// ---------------------------------------------------------------------------
 // Health check (unauthenticated - useful for load balancers and monitoring)
 // ---------------------------------------------------------------------------
 app.get('/api/health', (_req, res) => {
