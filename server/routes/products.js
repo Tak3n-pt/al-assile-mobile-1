@@ -114,6 +114,44 @@ router.get('/:id/image', (req, res) => {
   }
 });
 
+/**
+ * POST /api/products/:id/image
+ * Stores/replaces a product image as a data URL/base64 string.
+ * Body: { image_data: string, image_path?: string }
+ */
+router.post('/:id/image', (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isInteger(id) || id < 1) {
+    return res.status(400).json({ success: false, error: 'Invalid product id' });
+  }
+
+  const imageData = req.body?.image_data || null;
+  const imagePath = req.body?.image_path || (imageData ? `remote-${id}` : null);
+
+  try {
+    const existing = db.prepare('SELECT id FROM products WHERE id = ?').get(id);
+    if (!existing) {
+      return res.status(404).json({ success: false, error: 'Product not found' });
+    }
+
+    const cols = db.prepare('PRAGMA table_info(products)').all().map(c => c.name);
+    if (!cols.includes('image_path')) {
+      db.exec('ALTER TABLE products ADD COLUMN image_path TEXT');
+    }
+
+    db.prepare(`
+      UPDATE products
+      SET image_data = ?, image_path = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(imageData, imageData ? imagePath : null, id);
+
+    return res.json({ success: true, data: { id, image_path: imageData ? imagePath : null } });
+  } catch (err) {
+    console.error('[products] POST /:id/image error:', err.message);
+    return res.status(500).json({ success: false, error: 'Failed to save image' });
+  }
+});
+
 const PRODUCT_SELECT = `
   SELECT id, name, description, selling_price,
          COALESCE(selling_price2, 0) AS selling_price2,

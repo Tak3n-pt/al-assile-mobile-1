@@ -37,6 +37,7 @@ const treasuryRouter     = require('./routes/treasury');
 const categoriesRouter   = require('./routes/categories');
 const unitsRouter        = require('./routes/units');
 const higherPackagesRouter = require('./routes/higherPackages');
+const desktopRouter     = require('./routes/desktop');
 
 // ---------------------------------------------------------------------------
 // Initialise database schema on startup
@@ -117,6 +118,7 @@ app.use('/api/treasury',     authenticate, treasuryRouter);
 app.use('/api/categories',   authenticate, categoriesRouter);
 app.use('/api/units',        authenticate, unitsRouter);
 app.use('/api/higher-packages', authenticate, higherPackagesRouter);
+app.use('/api/desktop',      authenticate, desktopRouter);
 
 // ---------------------------------------------------------------------------
 // Health check (unauthenticated - useful for load balancers and monitoring)

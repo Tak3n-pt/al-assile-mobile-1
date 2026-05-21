@@ -75,4 +75,42 @@ router.post('/login', (req, res) => {
   return res.json({ success: true, token, user: safeUser });
 });
 
+/**
+ * GET /api/auth/verify
+ * Lightweight token validation for the Electron desktop shell.
+ */
+router.get('/verify', (req, res) => {
+  const authHeader = req.headers.authorization || '';
+  if (!authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ success: false, error: 'Authorization header missing or malformed' });
+  }
+
+  try {
+    const token = authHeader.slice(7);
+    const payload = jwt.verify(token, JWT_SECRET);
+    const user = db.prepare(`
+      SELECT id, username, name, role, is_active
+      FROM users
+      WHERE id = ?
+    `).get(payload.userId);
+
+    if (!user || !user.is_active) {
+      return res.status(401).json({ success: false, error: 'Account is disabled' });
+    }
+
+    return res.json({
+      success: true,
+      user: {
+        id: user.id,
+        username: user.username,
+        name: user.name,
+        role: user.role,
+      },
+    });
+  } catch (err) {
+    const message = err.name === 'TokenExpiredError' ? 'Token has expired' : 'Invalid token';
+    return res.status(401).json({ success: false, error: message });
+  }
+});
+
 module.exports = router;
