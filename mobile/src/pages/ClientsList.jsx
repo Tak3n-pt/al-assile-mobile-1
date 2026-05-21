@@ -5,7 +5,7 @@ import {
   Search, X, Users, User, Phone, RefreshCw, ChevronRight,
   Wallet, History, Trash2, Edit2, AlertTriangle, UserPlus, Loader2,
   PlusCircle, ArrowRight, CheckCircle2, XCircle, Wrench, TrendingDown,
-  TrendingUp, BarChart3, CreditCard, ClipboardList,
+  TrendingUp, BarChart3, CreditCard, ClipboardList, ShoppingBag, Package,
 } from 'lucide-react';
 import { useApi } from '../hooks/useApi.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
@@ -621,6 +621,203 @@ function AuditView({ auditData, isAdmin, repairing, onRepair, refreshing }) {
   );
 }
 
+// ─── Sale helpers ─────────────────────────────────────────────────────────────
+
+const SALE_STATUS = {
+  paid:    { label: 'مدفوع', bg: '#dcfce7', color: '#16a34a', dot: '#16a34a' },
+  partial: { label: 'جزئي',  bg: '#fef9c3', color: '#ca8a04', dot: '#eab308' },
+  pending: { label: 'آجل',   bg: '#fee2e2', color: '#dc2626', dot: '#ef4444' },
+};
+
+function fmtSaleDate(iso) {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+// ─── SaleDetailMini ──────────────────────────────────────────────────────────
+
+function SaleDetailMini({ sale, onClose, api }) {
+  const [detail, setDetail] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const cfg = SALE_STATUS[sale?.status] || SALE_STATUS.pending;
+
+  useEffect(() => {
+    if (!sale) return;
+    setLoading(true);
+    api.get(`/api/sales/${sale.id}`)
+      .then(res => setDetail(res?.data || res))
+      .catch(() => setDetail(null))
+      .finally(() => setLoading(false));
+  }, [sale?.id]);
+
+  return (
+    <motion.div
+      className="fixed inset-0 z-[70]"
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      onClick={onClose}>
+      <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.5)' }} />
+      <motion.div
+        onClick={e => e.stopPropagation()}
+        className="absolute inset-x-0 bottom-0 rounded-t-3xl flex flex-col"
+        style={{ background: 'white', maxHeight: '85dvh', paddingBottom: 'env(safe-area-inset-bottom, 0px)', fontFamily: 'Cairo, Tajawal, sans-serif', direction: 'rtl' }}
+        initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+        transition={{ type: 'spring', damping: 28, stiffness: 280 }}>
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 4px' }}>
+          <div style={{ width: 36, height: 4, borderRadius: 2, background: '#e5e7eb' }} />
+        </div>
+        <div style={{ padding: '4px 16px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #f3f4f6' }}>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
+            <X size={20} style={{ color: '#6b7280' }} />
+          </button>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#111827' }}>
+              فاتورة #{sale?.id}
+            </div>
+            <div style={{ fontSize: '0.72rem', color: '#9ca3af' }}>
+              {fmtSaleDate(sale?.date)}
+              {sale?.origin === 'desktop' && <span style={{ marginRight: 6, color: '#6366f1', fontWeight: 600 }}>• ديسكتوب</span>}
+            </div>
+          </div>
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
+          {loading ? (
+            <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 40 }}>
+              <div style={{ width: 28, height: 28, border: '3px solid #e5e7eb', borderTopColor: '#3949AB', borderRadius: '50%', animation: 'spin 0.9s linear infinite' }} />
+            </div>
+          ) : (
+            <>
+              <div style={{ background: '#f9fafb', borderRadius: 12, padding: '12px 14px', marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ background: cfg.bg, color: cfg.color, borderRadius: 20, padding: '2px 10px', fontSize: '0.72rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: cfg.dot, display: 'inline-block' }} />
+                    {cfg.label}
+                  </span>
+                  <span style={{ fontSize: '0.78rem', color: '#6b7280' }}>الحالة</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ fontWeight: 800, color: '#111827', fontSize: '1rem' }}>{formatCurrency(sale?.total || 0)}</span>
+                  <span style={{ fontSize: '0.78rem', color: '#6b7280' }}>الإجمالي</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ fontWeight: 600, color: '#16a34a' }}>{formatCurrency(sale?.paid_amount || 0)}</span>
+                  <span style={{ fontSize: '0.78rem', color: '#6b7280' }}>المدفوع</span>
+                </div>
+                {sale?.status !== 'paid' && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ fontWeight: 600, color: '#dc2626' }}>{formatCurrency((sale?.total || 0) - (sale?.paid_amount || 0))}</span>
+                    <span style={{ fontSize: '0.78rem', color: '#6b7280' }}>المتبقي</span>
+                  </div>
+                )}
+                {(sale?.discount || 0) > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ fontWeight: 600, color: '#f59e0b' }}>{formatCurrency(sale.discount)}</span>
+                    <span style={{ fontSize: '0.78rem', color: '#6b7280' }}>الخصم</span>
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: '#374151', fontSize: '0.82rem' }}>{sale?.payment_method || 'نقداً'}</span>
+                  <span style={{ fontSize: '0.78rem', color: '#6b7280' }}>طريقة الدفع</span>
+                </div>
+              </div>
+
+              <div style={{ fontSize: '0.8rem', color: '#6b7280', textAlign: 'right', marginBottom: 8, fontWeight: 600 }}>
+                الأصناف ({detail?.items?.length || 0})
+              </div>
+              {(detail?.items || []).map((item, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #f3f4f6' }}>
+                  <span style={{ fontWeight: 700, color: '#111827', fontSize: '0.85rem' }}>
+                    {formatCurrency(item.unit_price * item.quantity)}
+                  </span>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '0.82rem', color: '#1f2937', fontWeight: 600 }}>{item.product_name || item.name || `#${item.product_id}`}</div>
+                    <div style={{ fontSize: '0.7rem', color: '#9ca3af' }}>{item.quantity} × {formatCurrency(item.unit_price)}</div>
+                  </div>
+                </div>
+              ))}
+
+              {sale?.notes && (
+                <div style={{ marginTop: 12, background: '#fffbeb', borderRadius: 10, padding: '8px 12px', fontSize: '0.8rem', color: '#92400e', textAlign: 'right' }}>
+                  {sale.notes}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// ─── SalesTab ────────────────────────────────────────────────────────────────
+
+function SalesTab({ clientId, api }) {
+  const [sales, setSales] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState(null);
+
+  useEffect(() => {
+    setLoading(true);
+    api.get(`/api/sales?client_id=${clientId}`)
+      .then(res => setSales(Array.isArray(res?.data) ? res.data : []))
+      .catch(() => setSales([]))
+      .finally(() => setLoading(false));
+  }, [clientId]);
+
+  if (loading) return <div className="text-center py-8" style={{ color: '#9ca3af' }}>جارٍ التحميل...</div>;
+
+  if (sales.length === 0) return (
+    <div className="text-center py-8">
+      <ShoppingBag size={40} className="mx-auto mb-3" style={{ color: '#9ca3af' }} />
+      <p style={{ color: '#6b7280' }}>لا توجد فواتير</p>
+    </div>
+  );
+
+  return (
+    <div className="space-y-2 pt-1">
+      {sales.map(sale => {
+        const cfg = SALE_STATUS[sale.status] || SALE_STATUS.pending;
+        const remaining = (sale.total || 0) - (sale.paid_amount || 0);
+        return (
+          <div key={sale.id} onClick={() => setSelected(sale)}
+            className="rounded-xl p-3 cursor-pointer"
+            style={{ background: '#F9FAFB', border: '1px solid #e5e7eb', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <span style={{ background: cfg.bg, color: cfg.color, borderRadius: 20, padding: '2px 10px', fontSize: '0.7rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ width: 5, height: 5, borderRadius: '50%', background: cfg.dot, display: 'inline-block' }} />
+                {cfg.label}
+              </span>
+              <span style={{ fontSize: '0.75rem', color: '#6b7280', fontFamily: 'Cairo, sans-serif' }}>
+                {fmtSaleDate(sale.date)}
+              </span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontWeight: 800, fontSize: '0.95rem', color: '#111827', fontFamily: 'Cairo, sans-serif' }}>
+                  {formatCurrency(sale.total || 0)}
+                </span>
+                {sale.status !== 'paid' && remaining > 0 && (
+                  <span style={{ fontSize: '0.72rem', color: '#dc2626', fontWeight: 600, fontFamily: 'Cairo, sans-serif' }}>
+                    ({formatCurrency(remaining)} متبقي)
+                  </span>
+                )}
+              </div>
+              <span style={{ fontSize: '0.7rem', color: '#9ca3af' }}>
+                {sale.item_count || 0} صنف
+                {sale.origin === 'desktop' && <span style={{ marginRight: 4, color: '#6366f1', fontWeight: 600 }}> • ديسكتوب</span>}
+              </span>
+            </div>
+          </div>
+        );
+      })}
+
+      <AnimatePresence>
+        {selected && <SaleDetailMini sale={selected} onClose={() => setSelected(null)} api={api} />}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 // ─── ClientDetailSheet ────────────────────────────────────────────────────────
 
 function ClientDetailSheet({ clientId, onClose, onChanged, isAdmin }) {
@@ -712,7 +909,7 @@ function ClientDetailSheet({ clientId, onClose, onChanged, isAdmin }) {
         {/* Tabs */}
         <div className="px-5 pb-3">
           <div className="flex rounded-xl p-1" style={{ background: '#F3F4F6' }}>
-            {[{ id: 'overview', label: 'نظرة عامة' }, { id: 'history', label: 'السجل المالي' }].map(({ id, label }) => (
+            {[{ id: 'overview', label: 'نظرة عامة' }, { id: 'history', label: 'السجل المالي' }, { id: 'sales', label: 'الفواتير' }].map(({ id, label }) => (
               <button key={id} onClick={() => setTab(id)}
                 className="flex-1 py-2 rounded-lg text-xs font-semibold transition-all touch-manipulation"
                 style={{
@@ -731,8 +928,10 @@ function ClientDetailSheet({ clientId, onClose, onChanged, isAdmin }) {
             <div className="text-center py-8" style={{ color: '#9ca3af' }}>جارٍ التحميل...</div>
           ) : tab === 'overview' ? (
             <OverviewTab client={client} />
-          ) : (
+          ) : tab === 'history' ? (
             <HistoryTab payments={payments} onDelete={onDeletePayment} onEdit={p => setEditingEntry(p)} isAdmin={isAdmin} />
+          ) : (
+            <SalesTab clientId={clientId} api={api} />
           )}
         </div>
 

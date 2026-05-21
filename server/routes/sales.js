@@ -204,16 +204,58 @@ router.post('/', (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// GET /api/sales  -  List sales for a specific date (defaults to today)
+// GET /api/sales  -  List sales by date (default) or by client_id
 // ---------------------------------------------------------------------------
 
 /**
  * Query params:
- *   ?date=YYYY-MM-DD   (optional, defaults to today's date in server timezone)
+ *   ?date=YYYY-MM-DD        (optional, defaults to today; ignored when client_id is set)
+ *   ?client_id=<number>     (optional; when set, returns ALL sales for that client)
  */
 router.get('/', (req, res) => {
-  let date = req.query.date;
+  const SALE_COLS = `
+    s.id, s.client_id, s.date, s.subtotal, s.discount, s.total,
+    s.payment_method, s.notes, s.remote_id, s.created_at, s.created_by,
+    s.paid_amount AS paid_at_creation,
+    (s.paid_amount + COALESCE(
+      (SELECT SUM(amount) FROM client_payments WHERE sale_id = s.id), 0
+    )) AS paid_amount,
+    CASE
+      WHEN (s.paid_amount + COALESCE(
+        (SELECT SUM(amount) FROM client_payments WHERE sale_id = s.id), 0
+      )) >= s.total THEN 'paid'
+      WHEN (s.paid_amount + COALESCE(
+        (SELECT SUM(amount) FROM client_payments WHERE sale_id = s.id), 0
+      )) > 0 THEN 'partial'
+      ELSE 'pending'
+    END AS status,
+    c.name  AS client_name,
+    c.phone AS client_phone,
+    (SELECT COUNT(*) FROM sale_items WHERE sale_id = s.id) AS item_count,
+    CASE WHEN s.remote_id LIKE 'desktop-%' THEN 'desktop' ELSE 'mobile' END AS origin
+  `;
 
+  if (req.query.client_id) {
+    const clientId = parseInt(req.query.client_id, 10);
+    if (!Number.isInteger(clientId) || clientId < 1) {
+      return res.status(400).json({ success: false, error: 'Invalid client_id' });
+    }
+    try {
+      const sales = db.prepare(`
+        SELECT ${SALE_COLS}
+        FROM sales s
+        LEFT JOIN clients c ON s.client_id = c.id
+        WHERE s.client_id = ?
+        ORDER BY s.date DESC, s.created_at DESC
+      `).all(clientId);
+      return res.json({ success: true, data: sales });
+    } catch (err) {
+      console.error('[sales] GET /?client_id error:', err.message);
+      return res.status(500).json({ success: false, error: 'Failed to fetch client sales' });
+    }
+  }
+
+  let date = req.query.date;
   if (date) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
       return res.status(400).json({
@@ -222,7 +264,6 @@ router.get('/', (req, res) => {
       });
     }
   } else {
-    // Default to today in ISO local date format
     const now = new Date();
     const y   = now.getFullYear();
     const m   = String(now.getMonth() + 1).padStart(2, '0');
@@ -231,36 +272,8 @@ router.get('/', (req, res) => {
   }
 
   try {
-    // Include BOTH mobile-origin and desktop-origin sales for the day.
-    // Desktop sales are read-only on mobile (mutations return 403 via the
-    // isDesktopOrigin guard below); the `origin` field lets the UI show them
-    // with a visual indicator so users know they came from the desktop POS.
-    //
-    // paid_amount is OVERRIDDEN with the running paid total: the at-creation
-    // cash + any post-creation client_payments rows linked to this sale.
-    // Status is derived from that. Storing only at-creation in the row keeps
-    // the desktop sync clean (sale snapshot doesn't churn on every payment).
     const sales = db.prepare(`
-      SELECT
-        s.id, s.client_id, s.date, s.subtotal, s.discount, s.total,
-        s.payment_method, s.notes, s.remote_id, s.created_at, s.created_by,
-        s.paid_amount AS paid_at_creation,
-        (s.paid_amount + COALESCE(
-          (SELECT SUM(amount) FROM client_payments WHERE sale_id = s.id), 0
-        )) AS paid_amount,
-        CASE
-          WHEN (s.paid_amount + COALESCE(
-            (SELECT SUM(amount) FROM client_payments WHERE sale_id = s.id), 0
-          )) >= s.total THEN 'paid'
-          WHEN (s.paid_amount + COALESCE(
-            (SELECT SUM(amount) FROM client_payments WHERE sale_id = s.id), 0
-          )) > 0 THEN 'partial'
-          ELSE 'pending'
-        END AS status,
-        c.name  AS client_name,
-        c.phone AS client_phone,
-        (SELECT COUNT(*) FROM sale_items WHERE sale_id = s.id) AS item_count,
-        CASE WHEN s.remote_id LIKE 'desktop-%' THEN 'desktop' ELSE 'mobile' END AS origin
+      SELECT ${SALE_COLS}
       FROM sales s
       LEFT JOIN clients c ON s.client_id = c.id
       WHERE s.date = ?
