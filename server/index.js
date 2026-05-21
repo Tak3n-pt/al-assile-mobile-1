@@ -37,7 +37,6 @@ const treasuryRouter     = require('./routes/treasury');
 const categoriesRouter   = require('./routes/categories');
 const unitsRouter        = require('./routes/units');
 const higherPackagesRouter = require('./routes/higherPackages');
-const desktopRouter     = require('./routes/desktop');
 
 // ---------------------------------------------------------------------------
 // Initialise database schema on startup
@@ -48,6 +47,10 @@ try {
   console.error('[startup] Database initialisation failed:', err.message);
   process.exit(1);
 }
+
+// desktopRouter must be required AFTER initDatabase so that ensureDesktopSchema()
+// finds the core tables (products, clients, etc.) already created.
+const desktopRouter = require('./routes/desktop');
 
 // ---------------------------------------------------------------------------
 // Express app setup
