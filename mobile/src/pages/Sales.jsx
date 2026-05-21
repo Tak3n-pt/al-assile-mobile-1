@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart, getPriceForTarif, resolveTarifForProduct } from '../hooks/useCart.jsx';
 import { useApi } from '../hooks/useApi.jsx';
+import BarcodeScanner from '../components/BarcodeScanner.jsx';
 
 const imageCache = new Map();
 
@@ -497,6 +498,11 @@ function ProductsTab({ itemCount }) {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
+  const [scanToast, setScanToast] = useState(null);
+  const productsRef = useRef([]);
+
+  useEffect(() => { productsRef.current = products; }, [products]);
 
   useEffect(() => {
     let cancelled = false;
@@ -509,6 +515,26 @@ function ProductsTab({ itemCount }) {
     return () => { cancelled = true; };
   }, []);
 
+  const showToast = useCallback((type, msg) => {
+    setScanToast({ type, msg });
+    setTimeout(() => setScanToast(null), 2200);
+  }, []);
+
+  const handleBarcodeScan = useCallback((raw) => {
+    const barcode = String(raw || '').replace(/[\r\n\t]/g, '').trim();
+    if (!barcode) return;
+    const list = productsRef.current;
+    let found = list.find(p => p.barcode === barcode);
+    if (!found) {
+      const stripped = barcode.replace(/^0+/, '');
+      if (stripped) found = list.find(p => p.barcode && String(p.barcode).replace(/^0+/, '') === stripped);
+    }
+    if (!found) { showToast('error', 'لم يُعثر على المنتج'); return; }
+    if ((found.quantity || 0) <= 0) { showToast('error', 'نفذت الكمية'); return; }
+    addItem(found);
+    showToast('success', found.name);
+  }, [addItem, showToast]);
+
   const filtered = search.trim()
     ? products.filter(p =>
         p.name?.toLowerCase().includes(search.trim().toLowerCase()) ||
@@ -517,9 +543,25 @@ function ProductsTab({ itemCount }) {
 
   return (
     <>
-      {/* Search */}
-      <div style={{ padding: '10px 12px 0', flexShrink: 0, background: '#F0F2F5' }}>
-        <div style={{ position: 'relative' }}>
+      {/* Scan toast */}
+      {scanToast && (
+        <div style={{
+          position: 'fixed', top: 70, left: '50%', transform: 'translateX(-50%)',
+          zIndex: 200, pointerEvents: 'none',
+          background: scanToast.type === 'success' ? '#22c55e' : '#ef4444',
+          color: 'white', borderRadius: 12, padding: '9px 18px',
+          fontFamily: 'Cairo, sans-serif', fontWeight: 700, fontSize: '0.88rem',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
+          maxWidth: '80vw', textAlign: 'center',
+          animation: 'toastIn 0.2s ease',
+        }}>
+          {scanToast.type === 'success' ? `✓ تمت إضافة: ${scanToast.msg}` : `✗ ${scanToast.msg}`}
+        </div>
+      )}
+
+      {/* Search + barcode button */}
+      <div style={{ padding: '10px 12px 0', flexShrink: 0, background: '#F0F2F5', display: 'flex', gap: 8 }}>
+        <div style={{ position: 'relative', flex: 1 }}>
           <input
             type="text"
             value={search}
@@ -541,7 +583,28 @@ function ProductsTab({ itemCount }) {
             </svg>
           </div>
         </div>
+        <button
+          onClick={() => setShowScanner(true)}
+          style={{
+            flexShrink: 0, width: 44, height: 44,
+            background: '#3949AB', border: 'none', borderRadius: 12,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', boxShadow: '0 2px 8px rgba(57,73,171,0.35)',
+          }}
+        >
+          <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2} strokeLinecap="round">
+            <path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/>
+            <line x1="7" y1="12" x2="7" y2="12.01"/><line x1="12" y1="8" x2="12" y2="16"/>
+            <line x1="17" y1="12" x2="17" y2="12.01"/>
+          </svg>
+        </button>
       </div>
+
+      <BarcodeScanner
+        isOpen={showScanner}
+        onScan={handleBarcodeScan}
+        onClose={() => setShowScanner(false)}
+      />
 
       {/* Grid */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '10px 12px', paddingBottom: itemCount > 0 ? 90 : 16 }}>
@@ -727,6 +790,7 @@ export default function Sales() {
 
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes toastIn { from { opacity:0; transform:translateX(-50%) translateY(-8px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }
         input::placeholder { color: #9ca3af; }
         * { -webkit-tap-highlight-color: transparent; }
       `}</style>
