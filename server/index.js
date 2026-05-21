@@ -127,11 +127,24 @@ app.use('/api/desktop',      authenticate, desktopRouter);
 // Health check (unauthenticated - useful for load balancers and monitoring)
 // ---------------------------------------------------------------------------
 app.get('/api/health', (_req, res) => {
-  res.json({
-    status:  'ok',
-    service: 'al-assile-mobile-server',
-    time:    new Date().toISOString()
-  });
+  const fs = require('fs');
+  const dbPath = process.env.NODE_ENV === 'production' ? '/data/inventory.db' : null;
+  let dbInfo = {};
+  if (dbPath) {
+    try {
+      const stat = fs.statSync(dbPath);
+      dbInfo = { path: dbPath, size_bytes: stat.size, modified: stat.mtime };
+    } catch (e) {
+      dbInfo = { path: dbPath, error: e.message };
+    }
+  }
+  let counts = {};
+  try {
+    counts.products = db.prepare('SELECT COUNT(*) AS n FROM products').get().n;
+    counts.sales    = db.prepare('SELECT COUNT(*) AS n FROM sales').get().n;
+    counts.users    = db.prepare('SELECT COUNT(*) AS n FROM users').get().n;
+  } catch(e) { counts.error = e.message; }
+  res.json({ status: 'ok', service: 'al-assile-mobile-server', time: new Date().toISOString(), db: dbInfo, counts });
 });
 
 // ---------------------------------------------------------------------------
