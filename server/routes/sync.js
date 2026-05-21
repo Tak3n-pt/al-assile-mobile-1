@@ -227,8 +227,8 @@ router.post('/push', (req, res) => {
       INSERT OR REPLACE INTO clients
         (id, name, phone, address, email, notes, balance,
          credit_blocked, last_contact_note, last_contact_at, remote_id,
-         created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         category, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     for (const c of clients) {
       // Skip incoming rows that would collide with a pending mobile-created
@@ -247,6 +247,7 @@ router.post('/push', (req, res) => {
         c.last_contact_note || null,
         c.last_contact_at   || null,
         c.remote_id         || null,
+        c.category_name     || c.category || null,
         c.created_at        || new Date().toISOString(),
         c.updated_at        || new Date().toISOString()
       );
