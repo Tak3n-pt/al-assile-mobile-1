@@ -816,7 +816,9 @@ function dispatch(channel, args, user) {
         SELECT c.*, cc.name AS category_name,
                (SELECT COUNT(*) FROM sales WHERE client_id = c.id) AS sale_count,
                (SELECT COALESCE(SUM(total), 0) FROM sales WHERE client_id = c.id) AS total_purchases,
-               (SELECT COALESCE(SUM(total - ${currentPaidExpr('sales')}), 0) FROM sales WHERE client_id = c.id AND status NOT IN ('paid','cancelled','return')) AS outstanding_debt
+               (SELECT COALESCE(SUM(total - ${currentPaidExpr('sales')}), 0) FROM sales WHERE client_id = c.id AND status NOT IN ('paid','cancelled','return')) AS outstanding_debt,
+               (SELECT MAX(date) FROM sales WHERE client_id = c.id AND status NOT IN ('cancelled','return')) AS last_sale_date,
+               CAST(julianday('now') - julianday((SELECT MAX(date) FROM sales WHERE client_id = c.id AND status NOT IN ('cancelled','return'))) AS INTEGER) AS days_since_last_sale
         FROM clients c LEFT JOIN client_categories cc ON c.category_id = cc.id
         ORDER BY c.name
       `).all());
@@ -847,6 +849,20 @@ function dispatch(channel, args, user) {
         WHERE c.balance < 0 OR EXISTS (SELECT 1 FROM sales WHERE client_id = c.id AND ${saleStatusExpr('sales')} != 'paid')
         ORDER BY c.balance ASC
       `).all());
+    case 'clients:getInactive': {
+      const days = Math.max(1, parseInt(args[0], 10) || 30);
+      return ok(db.prepare(`
+        SELECT c.*, cc.name AS category_name,
+               (SELECT MAX(date) FROM sales WHERE client_id = c.id AND status NOT IN ('cancelled','return')) AS last_sale_date,
+               CAST(julianday('now') - julianday((SELECT MAX(date) FROM sales WHERE client_id = c.id AND status NOT IN ('cancelled','return'))) AS INTEGER) AS days_since_last_sale
+        FROM clients c LEFT JOIN client_categories cc ON c.category_id = cc.id
+        WHERE (
+          (SELECT MAX(date) FROM sales WHERE client_id = c.id AND status NOT IN ('cancelled','return')) IS NULL
+          OR CAST(julianday('now') - julianday((SELECT MAX(date) FROM sales WHERE client_id = c.id AND status NOT IN ('cancelled','return'))) AS INTEGER) >= ?
+        )
+        ORDER BY days_since_last_sale DESC, c.name
+      `).all(days));
+    }
     case 'clients:add': {
       const data = args[0] || {};
       const categoryId = resolveClientCategory(data);

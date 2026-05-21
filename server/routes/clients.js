@@ -19,7 +19,13 @@ router.get('/', (req, res) => {
            FROM sales WHERE client_id = c.id) AS total_purchases,
         (SELECT COALESCE(SUM(total - paid_amount), 0)
            FROM sales
-           WHERE client_id = c.id AND status != 'paid') AS outstanding_debt
+           WHERE client_id = c.id AND status != 'paid') AS outstanding_debt,
+        (SELECT MAX(date) FROM sales
+           WHERE client_id = c.id AND status NOT IN ('cancelled','return')) AS last_sale_date,
+        CAST(julianday('now') - julianday(
+           (SELECT MAX(date) FROM sales
+            WHERE client_id = c.id AND status NOT IN ('cancelled','return'))
+        ) AS INTEGER) AS days_since_last_sale
       FROM clients c
       ORDER BY c.name ASC
     `).all();
@@ -106,6 +112,43 @@ router.get('/audit', (req, res) => {
   } catch (err) {
     console.error('[clients] GET /audit error:', err.message);
     return res.status(500).json({ success: false, error: 'Audit failed' });
+  }
+});
+
+/**
+ * GET /api/clients/inactive?days=30
+ * Returns clients not sold to in at least `days` days (default 30).
+ * Clients with no sales ever are also included.
+ */
+router.get('/inactive', (req, res) => {
+  const threshold = Math.max(1, parseInt(req.query.days, 10) || 30);
+  try {
+    const clients = db.prepare(`
+      SELECT
+        c.*,
+        (SELECT MAX(date) FROM sales
+           WHERE client_id = c.id AND status NOT IN ('cancelled','return')) AS last_sale_date,
+        CAST(julianday('now') - julianday(
+           (SELECT MAX(date) FROM sales
+            WHERE client_id = c.id AND status NOT IN ('cancelled','return'))
+        ) AS INTEGER) AS days_since_last_sale
+      FROM clients c
+      WHERE (
+        (SELECT MAX(date) FROM sales
+           WHERE client_id = c.id AND status NOT IN ('cancelled','return')) IS NULL
+        OR
+        CAST(julianday('now') - julianday(
+           (SELECT MAX(date) FROM sales
+            WHERE client_id = c.id AND status NOT IN ('cancelled','return'))
+        ) AS INTEGER) >= ?
+      )
+      ORDER BY days_since_last_sale DESC NULLS LAST, c.name ASC
+    `).all(threshold);
+
+    return res.json({ success: true, data: clients, threshold });
+  } catch (err) {
+    console.error('[clients] GET /inactive error:', err.message);
+    return res.status(500).json({ success: false, error: 'Failed to fetch inactive clients' });
   }
 });
 

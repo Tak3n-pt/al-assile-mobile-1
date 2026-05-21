@@ -42,13 +42,16 @@ export default function ClientsList() {
     return 'all';
   }, []); // eslint-disable-line
 
+  // Pre-select inactive filter when navigated from Home banner
+  const initialFilter = s.filter === 'inactive' ? 'inactive' : (s.filter || 'all');
+
   const [clients,    setClients]    = useState([]);
   const [auditData,  setAuditData]  = useState(null);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadError,  setLoadError]  = useState('');
   const [query,      setQuery]      = useState('');
-  const [filter,     setFilter]     = useState(s.filter || 'all');
+  const [filter,     setFilter]     = useState(initialFilter);
   const [selectedId, setSelectedId] = useState(null);
   const [showAdd,    setShowAdd]    = useState(autoAdd);
   const [repairing,  setRepairing]  = useState(null);
@@ -84,13 +87,19 @@ export default function ClientsList() {
                        : filter;
     return clients
       .filter(c => {
-        if (activeFilter === 'owes'   && !(c.balance < 0)) return false;
-        if (activeFilter === 'credit' && !(c.balance > 0)) return false;
+        if (activeFilter === 'owes'     && !(c.balance < 0)) return false;
+        if (activeFilter === 'credit'   && !(c.balance > 0)) return false;
+        if (activeFilter === 'inactive' && !((c.days_since_last_sale ?? Infinity) >= 30)) return false;
         if (!query) return true;
         const q = query.toLowerCase();
-        return (c.name || '').toLowerCase().includes(q) || (c.phone || '').includes(query);
+        return (c.name || '').toLowerCase().includes(q) || (c.phone || '').includes(query) || (c.category || '').toLowerCase().includes(q);
       })
       .sort((a, b) => {
+        if (activeFilter === 'inactive') {
+          const da = a.days_since_last_sale ?? 99999;
+          const db2 = b.days_since_last_sale ?? 99999;
+          return db2 - da; // most inactive first
+        }
         const ba = a.balance || 0, bb = b.balance || 0;
         if (ba < 0 && bb >= 0) return -1;
         if (ba >= 0 && bb < 0) return 1;
@@ -253,19 +262,24 @@ function ClientListView({ clients, mode, filter, query, totalOwed, totalCredit, 
 
         {/* Filter pills — only show on 'all' mode */}
         {mode === 'all' && (
-          <div className="flex gap-2">
-            {[{ id: 'all', label: 'الكل' }, { id: 'owes', label: 'مديونون' }, { id: 'credit', label: 'دائنون' }].map(({ id, label }) => (
-              <button key={id} onClick={() => onFilterChange(id)}
-                className="px-3 py-1 rounded-full text-xs font-semibold transition-all"
-                style={{
-                  background: filter === id ? '#3949AB' : 'white',
-                  border:     filter === id ? '1px solid #3949AB' : '1px solid #e5e7eb',
-                  color:      filter === id ? 'white' : '#6b7280',
-                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-                }}>
-                {label}
-              </button>
-            ))}
+          <div className="flex gap-2 flex-wrap">
+            {[
+              { id: 'all',      label: 'الكل' },
+              { id: 'owes',     label: 'مديونون' },
+              { id: 'credit',   label: 'دائنون' },
+              { id: 'inactive', label: 'متأخرون', accent: '#E65100' },
+            ].map(({ id, label, accent }) => {
+              const active = filter === id;
+              const bg     = active ? (accent || '#3949AB') : 'white';
+              const border = active ? (accent || '#3949AB') : '#e5e7eb';
+              return (
+                <button key={id} onClick={() => onFilterChange(id)}
+                  className="px-3 py-1 rounded-full text-xs font-semibold transition-all"
+                  style={{ background: bg, border: `1px solid ${border}`, color: active ? 'white' : '#6b7280', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+                  {label}
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
@@ -302,9 +316,15 @@ function ClientListView({ clients, mode, filter, query, totalOwed, totalCredit, 
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold truncate" style={{ color: '#1a1a1a' }}>{c.name}</p>
-                    <div className="flex items-center gap-2 mt-0.5">
+                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                       {c.phone && <span className="text-xs flex items-center gap-1" style={{ color: '#9ca3af' }}><Phone size={10} />{c.phone}</span>}
                       <BalanceBadge balance={c.balance} />
+                      {(c.days_since_last_sale != null ? c.days_since_last_sale : Infinity) >= 30 && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                          style={{ background: '#FFF3E0', color: '#E65100', border: '1px solid #FFCC80' }}>
+                          {c.days_since_last_sale != null ? `${c.days_since_last_sale}ي` : 'لا مبيعات'}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <ChevronRight size={15} style={{ color: '#ccc' }} />

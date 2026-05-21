@@ -3,9 +3,36 @@ import { useNavigate } from 'react-router-dom';
 import {
   ShoppingCart, Users, Truck, Package,
   BarChart2, Bell, Menu, X, LogOut, ChevronLeft,
-  Wallet, Archive, Vault,
+  Wallet, Archive, Vault, Clock,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth.jsx';
+
+function useInactiveCount() {
+  const [count, setCount] = useState(0);
+  const { isAuthenticated, token } = useAuth();
+
+  useEffect(() => {
+    if (!isAuthenticated || !token) return;
+    let cancelled = false;
+
+    async function load() {
+      try {
+        const res = await fetch('/api/clients/inactive?days=30', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        const json = await res.json();
+        if (!cancelled) setCount(Array.isArray(json.data) ? json.data.length : 0);
+      } catch {}
+    }
+
+    load();
+    const timer = setInterval(load, 300000); // refresh every 5 min
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [isAuthenticated, token]);
+
+  return count;
+}
 
 function useNotifCount() {
   const [count, setCount] = useState(0);
@@ -143,6 +170,7 @@ export default function Home() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const notifCount = useNotifCount();
+  const inactiveCount = useInactiveCount();
   const [menuOpen, setMenuOpen] = useState(false);
 
   function handleLogout() {
@@ -354,6 +382,54 @@ export default function Home() {
             </span>
           </TileButton>
         ))}
+
+        {/* Inactive clients — full-width, only shown when count > 0 */}
+        {inactiveCount > 0 && (
+          <button
+            onClick={() => navigate('/clients', { state: { filter: 'inactive' } })}
+            style={{
+              gridColumn: '1 / -1',
+              background: 'linear-gradient(135deg, #FFF3E0 0%, #FFF8E1 100%)',
+              border: '1.5px solid #FF9800',
+              borderRadius: '16px',
+              padding: '0.85rem 1.1rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.85rem',
+              cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(255,152,0,0.15)',
+              direction: 'rtl',
+              textAlign: 'right',
+            }}
+          >
+            <div
+              style={{
+                width: '52px',
+                height: '52px',
+                borderRadius: '16px',
+                background: '#FFE0B2',
+                flexShrink: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Clock size={26} color="#E65100" strokeWidth={1.8} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '0.95rem', fontWeight: '700', color: '#BF360C' }}>
+                عملاء لم يُستَعاد لهم
+              </div>
+              <div style={{ fontSize: '0.75rem', color: '#E65100', marginTop: '2px' }}>
+                {inactiveCount} عميل بدون مبيعات منذ ٣٠+ يوم
+              </div>
+            </div>
+            <span style={{ fontSize: '1.4rem', fontWeight: '800', color: '#FF9800' }}>
+              {inactiveCount}
+            </span>
+            <ChevronLeft size={18} color="#FF9800" />
+          </button>
+        )}
 
         {/* Notifications — full-width last row */}
         <button
