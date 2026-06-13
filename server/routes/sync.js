@@ -25,6 +25,128 @@ function requireSyncKey(req, res, next) {
 router.use(requireSyncKey);
 
 // ---------------------------------------------------------------------------
+// POST /api/sync/commercial-reset
+// Temporary release-prep endpoint. Protected by the sync key and intended to be
+// removed immediately after use. It wipes commercial/business data while
+// reseeding the default admin and base lookup values needed for first launch.
+// ---------------------------------------------------------------------------
+router.post('/commercial-reset', async (_req, res) => {
+  const fs = require('fs');
+  const path = require('path');
+
+  const tableExists = (name) => Boolean(
+    db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name = ?").get(name)
+  );
+  const countRows = (name) => tableExists(name)
+    ? db.prepare(`SELECT COUNT(*) AS n FROM ${name}`).get().n
+    : null;
+  const deleteAll = (name) => {
+    if (tableExists(name)) db.prepare(`DELETE FROM ${name}`).run();
+  };
+  const resetSequence = (name) => {
+    if (tableExists('sqlite_sequence')) {
+      db.prepare('DELETE FROM sqlite_sequence WHERE name = ?').run(name);
+    }
+  };
+  const insertIgnore = (sql, rows) => {
+    const stmt = db.prepare(sql);
+    for (const row of rows) stmt.run(...row);
+  };
+
+  const trackedTables = [
+    'stock_transactions',
+    'sale_items',
+    'client_payments',
+    'supplier_payments',
+    'sales',
+    'purchase_items',
+    'purchases',
+    'payroll',
+    'production_batches',
+    'product_recipes',
+    'documents',
+    'expenses',
+    'cash_box_entries',
+    'sync_log',
+    'products',
+    'stock',
+    'clients',
+    'suppliers',
+    'employers',
+    'client_categories',
+    'product_categories',
+    'product_units',
+    'product_higher_packages',
+    'settings',
+    'users'
+  ];
+
+  try {
+    let backup = null;
+    if (process.env.NODE_ENV === 'production') {
+      const backupDir = '/data/reset-backups';
+      fs.mkdirSync(backupDir, { recursive: true });
+      backup = path.join(backupDir, `inventory-before-commercial-reset-${new Date().toISOString().replace(/[:.]/g, '-')}.db`);
+      await db.backup(backup);
+    }
+
+    const before = Object.fromEntries(trackedTables.map(t => [t, countRows(t)]));
+
+    db.pragma('foreign_keys = OFF');
+    const after = db.transaction(() => {
+      for (const table of trackedTables) deleteAll(table);
+      for (const table of trackedTables) resetSequence(table);
+
+      db.prepare(`
+        INSERT INTO users (id, username, password_hash, name, role, is_active)
+        VALUES (1, 'admin', '$2a$10$AVjk5k/jnATNZafz4YnCgufV9jo9wuQDSwdHrsRh4nrgmSyifjBfy', 'Admin', 'admin', 1)
+      `).run();
+
+      insertIgnore('INSERT OR IGNORE INTO product_units (name) VALUES (?)', [
+        ['قطعة'], ['كغ'], ['غ'], ['لتر'], ['علبة'], ['متر']
+      ]);
+      insertIgnore('INSERT OR IGNORE INTO product_higher_packages (name) VALUES (?)', [
+        ['علبة'], ['كرتون'], ['كيس'], ['جراب'], ['دزينة']
+      ]);
+      insertIgnore('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)', [
+        ['currency', 'DZD'],
+        ['currency_symbol', 'د.ج'],
+        ['business_name', 'شركة التمور الجزائرية'],
+        ['business_name_fr', 'Société des Dattes Algériennes'],
+        ['invoice_prefix', 'FAC'],
+        ['delivery_prefix', 'BL'],
+        ['proforma_prefix', 'PRO'],
+        ['purchase_order_prefix', 'BC'],
+        ['exit_voucher_prefix', 'BS'],
+        ['credit_note_prefix', 'AV'],
+        ['quote_prefix', 'DEV'],
+        ['reception_voucher_prefix', 'BR'],
+        ['next_invoice_number', '1'],
+        ['next_delivery_number', '1'],
+        ['next_proforma_number', '1'],
+        ['next_purchase_order_number', '1'],
+        ['next_exit_voucher_number', '1'],
+        ['next_credit_note_number', '1'],
+        ['next_quote_number', '1'],
+        ['next_reception_voucher_number', '1'],
+        ['cashbox.include_sales', '1'],
+        ['cashbox.include_purchases', '1'],
+        ['cashbox.include_expenses', '1']
+      ]);
+
+      return Object.fromEntries(trackedTables.map(t => [t, countRows(t)]));
+    })();
+    db.pragma('foreign_keys = ON');
+
+    return res.json({ success: true, backup, before, after });
+  } catch (err) {
+    try { db.pragma('foreign_keys = ON'); } catch (_) {}
+    console.error('[sync] commercial reset error:', err.message);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // POST /api/sync/push
 // Desktop → Mobile: replace reference data
 // ---------------------------------------------------------------------------
