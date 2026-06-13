@@ -4,7 +4,7 @@ import { X, ShoppingCart, ScanBarcode, LogOut, ChevronRight, Upload, Save, Plus,
 import { formatCurrency } from '../utils/currency.js';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useApi } from '../hooks/useApi.jsx';
-import { useCart } from '../hooks/useCart.jsx';
+import { getPriceForTarif, useCart } from '../hooks/useCart.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
 import BarcodeScanner from '../components/BarcodeScanner.jsx';
 import { t, getLanguage, setLanguage } from '../utils/i18n.js';
@@ -12,7 +12,7 @@ import { parseInputNumber } from '../utils/numberInput.js';
 
 export default function ProductsList() {
   const api = useApi();
-  const { addItem } = useCart();
+  const { addItem, saleTarif, setSaleTarif } = useCart();
   const { logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -186,6 +186,33 @@ export default function ProductsList() {
         <button type="button" onClick={() => setShowMore(true)}         style={greyBtn}>المزيد</button>
       </div>
 
+      {/* Sale tariff selector — shared with the cart, so products added from this
+          list inherit the selected sale tariff immediately. */}
+      <div style={{ padding: '0 1rem 0.55rem', display: 'flex', alignItems: 'center', gap: '0.45rem', background: 'white' }}>
+        <span style={{ fontSize: '0.78rem', fontWeight: '700', color: '#6b7280', whiteSpace: 'nowrap' }}>{t('tarif')}</span>
+        {[1, 2, 3].map(n => (
+          <button
+            key={n}
+            type="button"
+            onClick={() => setSaleTarif(n)}
+            style={{
+              flex: 1,
+              border: 'none',
+              borderRadius: '8px',
+              padding: '0.45rem 0',
+              fontSize: '0.84rem',
+              fontWeight: '800',
+              cursor: 'pointer',
+              background: saleTarif === n ? '#3949AB' : '#f1f5f9',
+              color: saleTarif === n ? 'white' : '#6b7280',
+              fontFamily: "'Cairo','Tajawal',sans-serif",
+            }}
+          >
+            T{n}
+          </button>
+        ))}
+      </div>
+
       {/* Table header */}
       <div style={{ display: 'flex', alignItems: 'center', padding: '0.45rem 1rem', borderTop: '1px solid #cbd5e1', borderBottom: '1px solid #cbd5e1', color: '#1a1a1a', fontSize: '0.92rem', background: 'white' }}>
         <div style={{ flex: 2, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
@@ -225,7 +252,10 @@ export default function ProductsList() {
                     style={{ width: '16px', height: '16px', cursor: 'pointer', flexShrink: 0 }} />
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
                 </div>
-                <div style={{ flex: 1, textAlign: 'center', fontWeight: '600' }}>{formatCurrency(p.selling_price)}</div>
+                <div style={{ flex: 1, textAlign: 'center', fontWeight: '600' }}>
+                  <div>{formatCurrency(getPriceForTarif(p, saleTarif))}</div>
+                  <div style={{ fontSize: '0.66rem', color: '#3949AB', fontWeight: '800' }}>T{saleTarif}</div>
+                </div>
                 <div style={{ flex: 1, textAlign: 'center', fontWeight: '600', color: (p.quantity || 0) <= (p.min_stock_alert || 0) && (p.min_stock_alert || 0) > 0 ? '#d32f2f' : '#1a1a1a' }}>{p.quantity ?? 0}</div>
               </div>
             );
