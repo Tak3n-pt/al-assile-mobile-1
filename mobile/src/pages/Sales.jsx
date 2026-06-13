@@ -492,7 +492,7 @@ function HistoryTab() {
 function ProductsTab({ itemCount }) {
   const navigate = useNavigate();
   const { get } = useApi();
-  const { addItem, saleTarif, items } = useCart();
+  const { addItem, saleTarif, setSaleTarif, items } = useCart();
 
   const [products, setProducts] = useState([]);
   const [search, setSearch] = useState('');
@@ -678,6 +678,58 @@ function ProductsTab({ itemCount }) {
           </div>
         </div>
       )}
+
+      {/* Sale tarif selector */}
+      <div style={{
+        padding: '10px 12px 0',
+        background: '#F0F2F5',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 10,
+        direction: 'rtl',
+      }}>
+        <span style={{
+          color: '#4b5563',
+          fontSize: '0.78rem',
+          fontWeight: 700,
+          fontFamily: 'Cairo, sans-serif',
+          whiteSpace: 'nowrap',
+        }}>
+          تعريفة البيع
+        </span>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, minmax(48px, 1fr))',
+          gap: 6,
+          flex: 1,
+          maxWidth: 230,
+        }}>
+          {[1, 2, 3].map(n => (
+            <button
+              key={n}
+              type="button"
+              onClick={() => setSaleTarif(n)}
+              style={{
+                border: 'none',
+                borderRadius: 10,
+                padding: '8px 0',
+                background: saleTarif === n ? '#3949AB' : 'white',
+                color: saleTarif === n ? 'white' : '#4b5563',
+                fontSize: '0.8rem',
+                fontWeight: 800,
+                fontFamily: 'Cairo, sans-serif',
+                boxShadow: saleTarif === n
+                  ? '0 4px 12px rgba(57,73,171,0.3)'
+                  : '0 1px 4px rgba(0,0,0,0.06)',
+                cursor: 'pointer',
+              }}
+            >
+              T{n}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* Grid */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '10px 12px', paddingBottom: itemCount > 0 ? 90 : 16 }}>

@@ -609,16 +609,17 @@ function dispatch(channel, args, user) {
     }
     case 'products:update': {
       const data = args[1] || {};
-      const existing = db.prepare('SELECT image_data, image_path FROM products WHERE id = ?').get(args[0]);
+      const existing = db.prepare('SELECT image_data, image_path, quantity FROM products WHERE id = ?').get(args[0]);
       const imagePath = data.image_path !== undefined ? (data.image_path || null) : existing?.image_path || null;
       const imageData = data.image_data !== undefined
         ? (data.image_data || null)
         : (data.image_path === '' ? null : existing?.image_data || null);
+      const quantity = data.quantity !== undefined ? money(data.quantity) : money(existing?.quantity);
       return ok(runData(db.prepare(`
         UPDATE products SET
           name = ?, description = ?, selling_price = ?, selling_price2 = ?, selling_price3 = ?,
           manual_cost = ?, unit = ?, barcode = ?, is_favorite = ?, image_path = ?, image_data = ?,
-          is_resale = ?, purchase_price = ?, min_stock_alert = ?, category = ?, expiry_date = ?,
+          is_resale = ?, purchase_price = ?, quantity = ?, min_stock_alert = ?, category = ?, expiry_date = ?,
           tax_rate = ?, unit_package = ?, higher_package = ?, box_color = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `).run(
@@ -635,6 +636,7 @@ function dispatch(channel, args, user) {
         imageData,
         flag(data.is_resale),
         money(data.purchase_price),
+        quantity,
         money(data.min_stock_alert),
         data.category || null,
         data.expiry_date || null,
