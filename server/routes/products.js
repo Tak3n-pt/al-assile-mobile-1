@@ -3,6 +3,26 @@ const db      = require('../database/connection');
 
 const router = express.Router();
 
+const ARABIC_INDIC_ZERO = '٠'.charCodeAt(0);
+const EASTERN_ARABIC_ZERO = '۰'.charCodeAt(0);
+
+const parseInputNumber = (value, fallback = 0) => {
+  const normalized = String(value ?? '')
+    .trim()
+    .replace(/[٠-٩]/g, digit => String(digit.charCodeAt(0) - ARABIC_INDIC_ZERO))
+    .replace(/[۰-۹]/g, digit => String(digit.charCodeAt(0) - EASTERN_ARABIC_ZERO))
+    .replace(/\s+/g, '')
+    .replace(/٬/g, '')
+    .replace(/[٫,]/g, '.');
+
+  if (!normalized || normalized === '-' || normalized === '.' || normalized === '-.') {
+    return fallback;
+  }
+
+  const parsed = parseFloat(normalized);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
 /**
  * GET /api/products
  * Returns all active products ordered by is_favorite DESC, then name.
@@ -212,19 +232,19 @@ router.post('/', (req, res) => {
       `).run(
         String(name).trim(),
         description || null,
-        parseFloat(selling_price) || 0,
-        parseFloat(selling_price2) || 0,
-        parseFloat(selling_price3) || 0,
-        parseFloat(purchase_price) || 0,
+        parseInputNumber(selling_price),
+        parseInputNumber(selling_price2),
+        parseInputNumber(selling_price3),
+        parseInputNumber(purchase_price),
         unit || 'pcs',
         barcode || null,
         category || null,
         is_favorite ? 1 : 0,
-        parseFloat(quantity) || 0,
-        parseFloat(min_stock_alert) || 0,
+        parseInputNumber(quantity),
+        parseInputNumber(min_stock_alert),
         expiry_date || null,
-        parseFloat(tax_rate) || 0,
-        parseFloat(unit_package) || 0,
+        parseInputNumber(tax_rate),
+        parseInputNumber(unit_package),
         higher_package || null,
         box_color || null,
         image_data || null
@@ -270,19 +290,19 @@ router.patch('/:id', (req, res) => {
     const v = {
       name:             b.name             !== undefined ? String(b.name).trim()              : existing.name,
       description:      b.description      !== undefined ? b.description                       : existing.description,
-      selling_price:    b.selling_price    !== undefined ? parseFloat(b.selling_price)   || 0  : existing.selling_price,
-      selling_price2:   b.selling_price2   !== undefined ? parseFloat(b.selling_price2)  || 0  : (existing.selling_price2 || 0),
-      selling_price3:   b.selling_price3   !== undefined ? parseFloat(b.selling_price3)  || 0  : (existing.selling_price3 || 0),
-      purchase_price:   b.purchase_price   !== undefined ? parseFloat(b.purchase_price)  || 0  : existing.purchase_price,
+      selling_price:    b.selling_price    !== undefined ? parseInputNumber(b.selling_price)    : existing.selling_price,
+      selling_price2:   b.selling_price2   !== undefined ? parseInputNumber(b.selling_price2)   : (existing.selling_price2 || 0),
+      selling_price3:   b.selling_price3   !== undefined ? parseInputNumber(b.selling_price3)   : (existing.selling_price3 || 0),
+      purchase_price:   b.purchase_price   !== undefined ? parseInputNumber(b.purchase_price)   : existing.purchase_price,
       unit:             b.unit             !== undefined ? b.unit                                : existing.unit,
       barcode:          b.barcode          !== undefined ? b.barcode                             : existing.barcode,
       category:         b.category         !== undefined ? b.category                            : existing.category,
       is_favorite:      b.is_favorite      !== undefined ? (b.is_favorite ? 1 : 0)              : existing.is_favorite,
-      quantity:         b.quantity         !== undefined ? parseFloat(b.quantity)         || 0  : existing.quantity,
-      min_stock_alert:  b.min_stock_alert  !== undefined ? parseFloat(b.min_stock_alert)  || 0  : existing.min_stock_alert,
+      quantity:         b.quantity         !== undefined ? parseInputNumber(b.quantity)         : existing.quantity,
+      min_stock_alert:  b.min_stock_alert  !== undefined ? parseInputNumber(b.min_stock_alert)  : existing.min_stock_alert,
       expiry_date:      b.expiry_date      !== undefined ? (b.expiry_date || null)               : (existing.expiry_date || null),
-      tax_rate:         b.tax_rate         !== undefined ? parseFloat(b.tax_rate)         || 0  : (existing.tax_rate || 0),
-      unit_package:     b.unit_package     !== undefined ? parseFloat(b.unit_package)     || 0  : (existing.unit_package || 0),
+      tax_rate:         b.tax_rate         !== undefined ? parseInputNumber(b.tax_rate)         : (existing.tax_rate || 0),
+      unit_package:     b.unit_package     !== undefined ? parseInputNumber(b.unit_package)     : (existing.unit_package || 0),
       higher_package:   b.higher_package   !== undefined ? (b.higher_package || null)            : (existing.higher_package || null),
       box_color:        b.box_color        !== undefined ? (b.box_color || null)                 : (existing.box_color || null),
       image_data:       b.image_data       !== undefined ? (b.image_data || null)                : existing.image_data,

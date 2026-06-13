@@ -8,6 +8,7 @@ import { useCart } from '../hooks/useCart.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
 import BarcodeScanner from '../components/BarcodeScanner.jsx';
 import { t, getLanguage, setLanguage } from '../utils/i18n.js';
+import { parseInputNumber } from '../utils/numberInput.js';
 
 export default function ProductsList() {
   const api = useApi();
@@ -584,17 +585,17 @@ function AddProductSheet({ visible, onClose, onSaved, products, initialBarcode =
         name:            form.name.trim(),
         description:     form.description || null,
         barcode:         form.barcode     || null,
-        selling_price:   parseFloat(form.selling_price)  || 0,
-        selling_price2:  parseFloat(form.selling_price2) || 0,
-        selling_price3:  parseFloat(form.selling_price3) || 0,
-        purchase_price:  parseFloat(form.purchase_price) || 0,
-        quantity:        parseFloat(form.quantity)        || 0,
-        min_stock_alert: parseFloat(form.min_stock_alert) || 0,
+        selling_price:   parseInputNumber(form.selling_price),
+        selling_price2:  parseInputNumber(form.selling_price2),
+        selling_price3:  parseInputNumber(form.selling_price3),
+        purchase_price:  parseInputNumber(form.purchase_price),
+        quantity:        parseInputNumber(form.quantity),
+        min_stock_alert: parseInputNumber(form.min_stock_alert),
         expiry_date:     form.expiry_date || null,
-        tax_rate:        parseFloat(form.tax_rate) || 0,
+        tax_rate:        parseInputNumber(form.tax_rate),
         category:        form.category || null,
         unit:            form.unit || 'pcs',
-        unit_package:    parseFloat(form.unit_package) || 0,
+        unit_package:    parseInputNumber(form.unit_package),
         higher_package:  form.higher_package || null,
         box_color:       form.box_color || null,
         image_data:      form.image_data || null,
@@ -676,7 +677,7 @@ function AddProductSheet({ visible, onClose, onSaved, products, initialBarcode =
               ].map(p => (
                 <div key={p.key} style={{ flex: 1 }}>
                   <label style={{ ...apfLabel, textAlign: 'center', fontSize: '0.78rem' }}>{p.label}</label>
-                  <input type="number" inputMode="decimal" value={form[p.key]} onChange={e => set(p.key, e.target.value)}
+                  <input type="text" inputMode="decimal" value={form[p.key]} onChange={e => set(p.key, e.target.value)}
                     placeholder="0.0" style={apfNumberInput} />
                 </div>
               ))}
@@ -685,21 +686,21 @@ function AddProductSheet({ visible, onClose, onSaved, products, initialBarcode =
             {/* Cost */}
             <div style={{ marginTop: '0.75rem' }}>
               <label style={apfLabel}>سعر الشراء - التكلفة</label>
-              <input type="number" inputMode="decimal" value={form.purchase_price}
+              <input type="text" inputMode="decimal" value={form.purchase_price}
                 onChange={e => set('purchase_price', e.target.value)} placeholder="0.0" style={apfNumberInput} />
             </div>
 
             {/* Quantity */}
             <div style={{ marginTop: '0.75rem' }}>
               <label style={apfLabel}>الكمية</label>
-              <input type="number" inputMode="decimal" value={form.quantity}
+              <input type="text" inputMode="decimal" value={form.quantity}
                 onChange={e => set('quantity', e.target.value)} placeholder="0" style={apfNumberInput} />
             </div>
 
             {/* Reorder threshold */}
             <div style={{ marginTop: '0.75rem' }}>
               <label style={apfLabel}>حد الطلب(التنبية عند وصول المنتج للكمية)</label>
-              <input type="number" inputMode="decimal" value={form.min_stock_alert}
+              <input type="text" inputMode="decimal" value={form.min_stock_alert}
                 onChange={e => set('min_stock_alert', e.target.value)} placeholder="0" style={apfNumberInput} />
             </div>
 
@@ -739,7 +740,7 @@ function AddProductSheet({ visible, onClose, onSaved, products, initialBarcode =
               {/* Unit package */}
               <div style={{ marginTop: '0.85rem' }}>
                 <label style={apfLabel}>عبوه الوحده</label>
-                <input type="number" inputMode="decimal" value={form.unit_package}
+                <input type="text" inputMode="decimal" value={form.unit_package}
                   onChange={e => set('unit_package', e.target.value)} placeholder="0" style={apfNumberInput} />
               </div>
 
@@ -955,8 +956,8 @@ function EditPricesSheet({ visible, onClose, products, onUpdated }) {
     setSaving(s => ({ ...s, [id]: true }));
     try {
       await api.patch(`/api/products/${id}`, {
-        selling_price:  parseFloat(edits[id]?.sell) || 0,
-        purchase_price: parseFloat(edits[id]?.buy)  || 0,
+        selling_price:  parseInputNumber(edits[id]?.sell),
+        purchase_price: parseInputNumber(edits[id]?.buy),
       });
       onUpdated();
       setSaved(s => ({ ...s, [id]: true }));
@@ -1004,7 +1005,7 @@ function EditPricesSheet({ visible, onClose, products, onUpdated }) {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.55rem' }}>
                   <div>
                     <label style={{ fontSize: '0.78rem', color: '#6b7280', fontWeight: '600' }}>سعر البيع</label>
-                    <input type="number" inputMode="decimal"
+                    <input type="text" inputMode="decimal"
                       value={edits[p.id]?.sell ?? ''}
                       onChange={e => setField(p.id, 'sell', e.target.value)}
                       style={{
@@ -1016,7 +1017,7 @@ function EditPricesSheet({ visible, onClose, products, onUpdated }) {
                   </div>
                   <div>
                     <label style={{ fontSize: '0.78rem', color: '#6b7280', fontWeight: '600' }}>سعر الشراء</label>
-                    <input type="number" inputMode="decimal"
+                    <input type="text" inputMode="decimal"
                       value={edits[p.id]?.buy ?? ''}
                       onChange={e => setField(p.id, 'buy', e.target.value)}
                       style={{
@@ -1273,9 +1274,9 @@ function ImportSheet({ visible, onClose, onImported }) {
         await api.post('/api/products', {
           name:           String(row['اسم المنتج']  || row['name']           || '').trim(),
           barcode:        String(row['رقم المنتج']  || row['barcode']        || '').trim() || null,
-          selling_price:  parseFloat(row['سعر البيع']   || row['selling_price'])  || 0,
-          purchase_price: parseFloat(row['سعر الشراء']  || row['purchase_price']) || 0,
-          quantity:       parseFloat(row['الكمية']      || row['quantity'])       || 0,
+          selling_price:  parseInputNumber(row['سعر البيع']   || row['selling_price']),
+          purchase_price: parseInputNumber(row['سعر الشراء']  || row['purchase_price']),
+          quantity:       parseInputNumber(row['الكمية']      || row['quantity']),
           category:       row['التصنيف'] || row['category'] || null,
           unit:           row['الوحدة']  || row['unit']     || 'pcs',
           description:    row['الوصف']   || row['description'] || null,
