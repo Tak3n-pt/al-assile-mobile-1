@@ -288,6 +288,68 @@ router.get('/', (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// GET /api/sales/report  -  Sales report with date range + payment filter
+// Registered before /:id so "report" is not parsed as a sale id.
+// ---------------------------------------------------------------------------
+
+router.get('/report', (req, res) => {
+  const { from, to, q = '', methods = '' } = req.query;
+  if (!from || !/^\d{4}-\d{2}-\d{2}$/.test(from)) {
+    return res.status(400).json({ success: false, error: 'from date is required (YYYY-MM-DD)' });
+  }
+  if (!to || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+    return res.status(400).json({ success: false, error: 'to date is required (YYYY-MM-DD)' });
+  }
+
+  try {
+    const methodList = methods ? methods.split(',').map(m => m.trim()).filter(Boolean) : [];
+    const searchQ = q.trim();
+
+    let sql = `
+      SELECT s.id, s.client_id, s.date, s.subtotal, s.discount, s.total,
+             s.paid_amount AS paid_at_creation,
+             (s.paid_amount + COALESCE(
+               (SELECT SUM(cp.amount) FROM client_payments cp WHERE cp.sale_id = s.id), 0
+             )) AS paid_amount,
+             CASE
+               WHEN (s.paid_amount + COALESCE(
+                 (SELECT SUM(cp2.amount) FROM client_payments cp2 WHERE cp2.sale_id = s.id), 0
+               )) >= s.total THEN 'paid'
+               WHEN (s.paid_amount + COALESCE(
+                 (SELECT SUM(cp3.amount) FROM client_payments cp3 WHERE cp3.sale_id = s.id), 0
+               )) > 0 THEN 'partial'
+               ELSE 'pending'
+             END AS status,
+             s.payment_method, s.notes, s.created_at,
+             c.name AS client_name, c.phone AS client_phone,
+             (SELECT COUNT(*) FROM sale_items WHERE sale_id = s.id) AS item_count
+      FROM sales s
+      LEFT JOIN clients c ON s.client_id = c.id
+      WHERE s.date BETWEEN ? AND ?
+        AND s.status != 'return'
+    `;
+    const params = [from, to];
+
+    if (methodList.length > 0) {
+      sql += ` AND s.payment_method IN (${methodList.map(() => '?').join(',')})`;
+      params.push(...methodList);
+    }
+    if (searchQ) {
+      sql += ` AND (CAST(s.id AS TEXT) = ? OR c.name LIKE ?)`;
+      params.push(searchQ, `%${searchQ}%`);
+    }
+
+    sql += ' ORDER BY s.date DESC, s.created_at DESC';
+
+    const sales = db.prepare(sql).all(...params);
+    return res.json({ success: true, data: sales });
+  } catch (err) {
+    console.error('[sales] GET /report error:', err.message);
+    return res.status(500).json({ success: false, error: 'Failed to fetch sales report' });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // GET /api/sales/:id  -  Single sale with items
 // ---------------------------------------------------------------------------
 
@@ -909,61 +971,6 @@ router.patch('/:id', (req, res) => {
     console.error('[sales] PATCH /:id error:', err.message);
     const status = err.message.includes('Insufficient') || err.message.includes('not found') ? 400 : 500;
     return res.status(status).json({ success: false, error: err.message });
-  }
-});
-
-// ---------------------------------------------------------------------------
-// GET /api/sales/report  -  Sales report with date range + payment filter
-// ---------------------------------------------------------------------------
-
-/**
- * Query params:
- *   ?from=YYYY-MM-DD   (required)
- *   ?to=YYYY-MM-DD     (required)
- *   ?q=               (optional, sale ID or client name)
- *   ?methods=         (optional, comma-separated: cash,credit,card,check)
- */
-router.get('/report', (req, res) => {
-  const { from, to, q = '', methods = '' } = req.query;
-  if (!from || !/^\d{4}-\d{2}-\d{2}$/.test(from)) {
-    return res.status(400).json({ success: false, error: 'from date is required (YYYY-MM-DD)' });
-  }
-  if (!to || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
-    return res.status(400).json({ success: false, error: 'to date is required (YYYY-MM-DD)' });
-  }
-
-  try {
-    const methodList = methods ? methods.split(',').map(m => m.trim()).filter(Boolean) : [];
-    const searchQ = q.trim();
-
-    let sql = `
-      SELECT s.id, s.client_id, s.date, s.subtotal, s.discount, s.total,
-             s.paid_amount, s.status, s.payment_method, s.notes, s.created_at,
-             c.name AS client_name, c.phone AS client_phone,
-             (SELECT COUNT(*) FROM sale_items WHERE sale_id = s.id) AS item_count
-      FROM sales s
-      LEFT JOIN clients c ON s.client_id = c.id
-      WHERE s.date BETWEEN ? AND ?
-        AND s.status != 'return'
-    `;
-    const params = [from, to];
-
-    if (methodList.length > 0) {
-      sql += ` AND s.payment_method IN (${methodList.map(() => '?').join(',')})`;
-      params.push(...methodList);
-    }
-    if (searchQ) {
-      sql += ` AND (CAST(s.id AS TEXT) = ? OR c.name LIKE ?)`;
-      params.push(searchQ, `%${searchQ}%`);
-    }
-
-    sql += ' ORDER BY s.date DESC, s.created_at DESC';
-
-    const sales = db.prepare(sql).all(...params);
-    return res.json({ success: true, data: sales });
-  } catch (err) {
-    console.error('[sales] GET /report error:', err.message);
-    return res.status(500).json({ success: false, error: 'Failed to fetch sales report' });
   }
 });
 

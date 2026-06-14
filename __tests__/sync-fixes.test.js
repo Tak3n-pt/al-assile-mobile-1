@@ -41,6 +41,7 @@ const clientsRouter    = require('../server/routes/clients.js');
 const suppliersRouter  = require('../server/routes/suppliers.js');
 const productsRouter   = require('../server/routes/products.js');
 const syncRouter       = require('../server/routes/sync.js');
+const paymentsRouter   = require('../server/routes/payments.js');
 
 function buildApp({ role = 'admin', userId = 1 } = {}) {
   const app = express();
@@ -49,6 +50,7 @@ function buildApp({ role = 'admin', userId = 1 } = {}) {
   app.use('/api/clients',   clientsRouter);
   app.use('/api/suppliers', suppliersRouter);
   app.use('/api/products',  productsRouter);
+  app.use('/api/payments',  paymentsRouter);
   app.use('/api/sync',      syncRouter);
   app.use('/api/sales',     salesRouter);
   return app;
@@ -330,6 +332,119 @@ test('POST /:id/adjust admin-only credit/debit with sync_log', async () => {
     // Reason is required
     const noReason = await call(srv, 'POST', '/api/clients/1/adjust', { amount: 100 });
     assert.equal(noReason.status, 400, 'reason required');
+  } finally { srv.close(); }
+});
+
+// ============================================================================
+// TEST 6b — Global client versement allocates through ledger without double-count
+// ============================================================================
+test('POST /api/payments allocates versement without mutating sale paid_at_creation', async () => {
+  seed();
+  const app = buildApp();
+  const srv = await listen(app);
+  try {
+    const create = await call(srv, 'POST', '/api/sales', {
+      client_id: 1,
+      items: [{ product_id: 1, quantity: 5, unit_price: 100 }],
+      paid_amount: 100,
+      payment_method: 'cash',
+      date: new Date().toISOString().slice(0, 10),
+    });
+    assert.equal(create.status, 201, 'sale create');
+    const saleId = create.body.data.id;
+
+    const before = db.prepare('SELECT paid_amount, status FROM sales WHERE id = ?').get(saleId);
+    assert.equal(before.paid_amount, 100, 'checkout payment stored once');
+
+    const pay = await call(srv, 'POST', '/api/payments', {
+      client_id: 1,
+      amount: 100,
+      method: 'cash',
+      notes: '100 DA versement',
+    });
+    assert.equal(pay.status, 201, 'global versement ok');
+    assert.equal(pay.body.data.totalApplied, 100, 'versement applied to debt');
+    assert.equal(pay.body.data.creditCarry, 0, 'no credit carry');
+
+    const stored = db.prepare('SELECT paid_amount, status FROM sales WHERE id = ?').get(saleId);
+    assert.equal(stored.paid_amount, 100, 'sale paid_at_creation not mutated by versement');
+
+    const get = await call(srv, 'GET', `/api/sales?client_id=1`);
+    assert.equal(get.status, 200, 'client sales list ok');
+    const sale = get.body.data.find(s => s.id === saleId);
+    assert.equal(sale.paid_at_creation, 100, 'response exposes checkout payment');
+    assert.equal(sale.paid_amount, 200, 'response paid total counts versement once');
+    assert.equal(sale.status, 'partial', 'derived status uses ledger total');
+
+    const day = new Date().toISOString().slice(0, 10);
+    const report = await call(srv, 'GET', `/api/sales/report?from=${day}&to=${day}`);
+    assert.equal(report.status, 200, 'sales report ok');
+    const reportSale = report.body.data.find(s => s.id === saleId);
+    assert.equal(reportSale.paid_at_creation, 100, 'report exposes checkout payment');
+    assert.equal(reportSale.paid_amount, 200, 'report paid total counts versement once');
+    assert.equal(reportSale.status, 'partial', 'report derived status uses ledger total');
+
+    const client = db.prepare('SELECT balance FROM clients WHERE id = 1').get();
+    assert.equal(client.balance, -300, 'balance: -400 debt + 100 versement');
+
+    const cp = db.prepare('SELECT * FROM client_payments WHERE sale_id = ?').get(saleId);
+    assert.equal(cp.amount, 100, 'one ledger payment row');
+    assert.equal(cp.notes, '100 DA versement');
+  } finally { srv.close(); }
+});
+
+// ============================================================================
+// TEST 6c — Payment history returns exact-time entries and per-client summary
+// ============================================================================
+test('GET /api/payments returns entries plus per-client payment summary', async () => {
+  seed();
+  const app = buildApp();
+  const srv = await listen(app);
+  try {
+    const create = await call(srv, 'POST', '/api/sales', {
+      client_id: 1,
+      items: [{ product_id: 1, quantity: 5, unit_price: 100 }],
+      paid_amount: 100,
+      payment_method: 'cash',
+      date: new Date().toISOString().slice(0, 10),
+    });
+    assert.equal(create.status, 201, 'sale create');
+    const saleId = create.body.data.id;
+
+    await call(srv, 'POST', '/api/payments', {
+      client_id: 1,
+      amount: 150,
+      method: 'bank',
+      notes: 'bank transfer',
+    });
+
+    const history = await call(srv, 'GET', '/api/payments?client_id=1');
+    assert.equal(history.status, 200, 'history ok');
+    assert.ok(Array.isArray(history.body.data.entries), 'entries array returned');
+    assert.ok(history.body.data.summary, 'summary returned');
+
+    const checkout = history.body.data.entries.find(p => p.id === `sale-${saleId}`);
+    assert.ok(checkout, 'synthetic checkout payment row returned');
+    assert.equal(checkout.synthetic, 1);
+    assert.equal(checkout.entry_type, 'sale_initial_payment');
+    assert.equal(checkout.amount, 100);
+
+    const versement = history.body.data.entries.find(p => p.sale_id === saleId && p.synthetic === 0);
+    assert.ok(versement, 'versement row returned');
+    assert.equal(versement.entry_type, 'sale_versement');
+    assert.equal(versement.created_by_name, 'Test Admin');
+    assert.ok(versement.created_at, 'exact created_at returned');
+    assert.equal(versement.sale_paid_at_creation, 100);
+    assert.equal(versement.sale_paid_total, 250);
+    assert.equal(versement.sale_remaining, 250);
+
+    const summary = history.body.data.summary;
+    assert.equal(summary.total_paid, 250, 'checkout + versement total');
+    assert.equal(summary.total_versements, 150, 'explicit versement total');
+    assert.equal(summary.total_checkout_paid, 100, 'checkout total');
+    assert.equal(summary.total_allocated_to_sales, 250, 'allocated to sale total');
+    assert.equal(summary.versement_count, 1, 'one explicit versement');
+    assert.ok(summary.last_payment_at, 'last payment timestamp returned');
   } finally { srv.close(); }
 });
 

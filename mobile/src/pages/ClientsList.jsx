@@ -635,6 +635,31 @@ function fmtSaleDate(iso) {
   return `${d}/${m}/${y}`;
 }
 
+function asDateTime(value) {
+  if (!value) return null;
+  const normalized = String(value).includes('T') ? String(value) : String(value).replace(' ', 'T');
+  const date = new Date(normalized);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function fmtLedgerDate(value) {
+  const date = asDateTime(value);
+  if (!date) return value || '';
+  return date.toLocaleDateString('ar-DZ', { year: 'numeric', month: '2-digit', day: '2-digit' });
+}
+
+function fmtLedgerTime(value) {
+  const date = asDateTime(value);
+  if (!date) return '';
+  return date.toLocaleTimeString('ar-DZ', { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+function compactBatch(batchId) {
+  if (!batchId) return null;
+  const text = String(batchId);
+  return text.length > 18 ? `${text.slice(0, 10)}...${text.slice(-5)}` : text;
+}
+
 // ─── SaleDetailMini ──────────────────────────────────────────────────────────
 
 function SaleDetailMini({ sale, onClose, api }) {
@@ -825,6 +850,7 @@ function ClientDetailSheet({ clientId, onClose, onChanged, isAdmin }) {
   const [tab, setTab] = useState('overview');
   const [client, setClient] = useState(null);
   const [payments, setPayments] = useState([]);
+  const [paymentSummary, setPaymentSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showVersement, setShowVersement] = useState(false);
   const [showFunding, setShowFunding] = useState(false);
@@ -840,7 +866,9 @@ function ClientDetailSheet({ clientId, onClose, onChanged, isAdmin }) {
         api.get(`/api/payments?client_id=${clientId}`),
       ]);
       setClient(clientRes?.data || clientRes);
-      setPayments(Array.isArray(payRes?.data) ? payRes.data : []);
+      const payPayload = payRes?.data || payRes;
+      setPayments(Array.isArray(payPayload) ? payPayload : (payPayload?.entries || []));
+      setPaymentSummary(Array.isArray(payPayload) ? null : (payPayload?.summary || null));
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   }, [clientId]);
@@ -929,7 +957,7 @@ function ClientDetailSheet({ clientId, onClose, onChanged, isAdmin }) {
           ) : tab === 'overview' ? (
             <OverviewTab client={client} />
           ) : tab === 'history' ? (
-            <HistoryTab payments={payments} onDelete={onDeletePayment} onEdit={p => setEditingEntry(p)} isAdmin={isAdmin} />
+            <HistoryTab payments={payments} summary={paymentSummary} onDelete={onDeletePayment} onEdit={p => setEditingEntry(p)} isAdmin={isAdmin} />
           ) : (
             <SalesTab clientId={clientId} api={api} />
           )}
@@ -1066,7 +1094,7 @@ function OverviewTab({ client }) {
 
 // ─── HistoryTab ───────────────────────────────────────────────────────────────
 
-function HistoryTab({ payments, onDelete, onEdit, isAdmin }) {
+function HistoryTab({ payments, summary, onDelete, onEdit, isAdmin }) {
   if (payments.length === 0) {
     return (
       <div className="text-center py-8">
@@ -1081,47 +1109,123 @@ function HistoryTab({ payments, onDelete, onEdit, isAdmin }) {
     if (p.method === 'opening_balance') return 'رصيد افتتاحي';
     if (p.method === 'funding') return 'إيداع رصيد';
     if (p.method === 'return') return 'رصيد إرجاع';
+    if (p.entry_type === 'sale_initial_payment') return `دفعة وقت البيع #${p.sale_id}`;
     if (p.sale_id) return `دفعة مقابل فاتورة #${p.sale_id}`;
     return 'دفعة عميل';
   };
 
+  const methodChip = (method) => {
+    if (method === 'bank') return 'بنك';
+    if (method === 'credit_carry') return 'رصيد';
+    if (method === 'opening_balance') return 'افتتاحي';
+    if (method === 'funding') return 'إيداع';
+    if (method === 'adjustment') return 'تعديل';
+    return 'نقدي';
+  };
+
   return (
     <div className="space-y-2 pt-1">
+      {summary && (
+        <div className="rounded-2xl p-3 mb-3" style={{ background: '#F8FAFC', border: '1px solid #e2e8f0' }}>
+          <div className="grid grid-cols-2 gap-2 mb-2">
+            <div className="rounded-xl p-2.5" style={{ background: 'white', border: '1px solid #e5e7eb' }}>
+              <p className="text-[10px] font-semibold" style={{ color: '#64748b' }}>مجموع ما دفعه العميل</p>
+              <p className="text-base font-extrabold mt-0.5" style={{ color: '#059669' }}>{formatCurrency(summary.total_paid || 0)}</p>
+            </div>
+            <div className="rounded-xl p-2.5" style={{ background: 'white', border: '1px solid #e5e7eb' }}>
+              <p className="text-[10px] font-semibold" style={{ color: '#64748b' }}>دفعات بعد البيع</p>
+              <p className="text-base font-extrabold mt-0.5" style={{ color: '#2563eb' }}>{formatCurrency(summary.total_versements || 0)}</p>
+            </div>
+            <div className="rounded-xl p-2.5" style={{ background: 'white', border: '1px solid #e5e7eb' }}>
+              <p className="text-[10px] font-semibold" style={{ color: '#64748b' }}>مدفوع وقت البيع</p>
+              <p className="text-sm font-bold mt-0.5" style={{ color: '#111827' }}>{formatCurrency(summary.total_checkout_paid || 0)}</p>
+            </div>
+            <div className="rounded-xl p-2.5" style={{ background: 'white', border: '1px solid #e5e7eb' }}>
+              <p className="text-[10px] font-semibold" style={{ color: '#64748b' }}>رصيد/فائض</p>
+              <p className="text-sm font-bold mt-0.5" style={{ color: '#7c3aed' }}>{formatCurrency(summary.total_credit || 0)}</p>
+            </div>
+          </div>
+          <div className="flex items-center justify-between text-[11px]" style={{ color: '#64748b' }}>
+            <span>{summary.payment_count || 0} حركة دفع</span>
+            {summary.last_payment_at && <span>آخر دفع: {fmtLedgerDate(summary.last_payment_at)} {fmtLedgerTime(summary.last_payment_at)}</span>}
+          </div>
+        </div>
+      )}
       {payments.map(p => {
         const isAdjustment = p.method === 'adjustment';
         const isReadOnly   = !!p.synthetic;
         const needsAdmin   = isAdjustment && !isAdmin;
+        const statusCfg = SALE_STATUS[p.sale_status] || SALE_STATUS.pending;
+        const signedColor = p.amount < 0 ? '#ef4444' : p.method === 'credit_carry' ? '#3b82f6' : '#10b981';
         return (
-          <div key={p.id} className="rounded-xl p-3 flex items-center gap-3"
+          <div key={p.id} className="rounded-xl p-3"
             style={{
               background: isAdjustment ? '#FFFBEB' : p.method === 'credit_carry' ? '#EFF6FF' : '#F9FAFB',
               borderLeft: `3px solid ${isAdjustment ? '#d97706' : p.method === 'credit_carry' ? '#3b82f6' : '#e5e7eb'}`,
             }}>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold truncate" style={{ color: '#1a1a1a' }}>{methodLabel(p)}</p>
-              <p className="text-[11px]" style={{ color: '#9ca3af' }}>
-                {new Date(p.date).toLocaleDateString('ar-DZ')}
-                {p.created_by_name && ` · ${p.created_by_name}`}
-              </p>
-              {p.notes && <p className="text-[11px] italic mt-0.5 truncate" style={{ color: '#6b7280' }}>{p.notes}</p>}
+            <div className="flex items-start gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className="text-sm font-semibold truncate" style={{ color: '#1a1a1a' }}>{methodLabel(p)}</span>
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: 'white', color: '#475569', border: '1px solid #e2e8f0' }}>
+                    {methodChip(p.method)}
+                  </span>
+                  {isReadOnly && (
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: '#eef2ff', color: '#4f46e5' }}>
+                      تلقائي
+                    </span>
+                  )}
+                </div>
+                <div className="text-[11px] flex flex-wrap gap-x-2 gap-y-0.5" style={{ color: '#64748b' }}>
+                  <span>{fmtLedgerDate(p.created_at || p.date)}</span>
+                  <span>{fmtLedgerTime(p.created_at || p.date)}</span>
+                  {p.date && p.created_at && fmtLedgerDate(p.date) !== fmtLedgerDate(p.created_at) && <span>تاريخ العملية: {fmtLedgerDate(p.date)}</span>}
+                  {p.created_by_name && <span>الموظف: {p.created_by_name}</span>}
+                </div>
+              </div>
+              <div className="flex-shrink-0 text-left">
+                <p className="text-base font-bold" style={{ color: signedColor }}>
+                  {p.amount >= 0 ? '+' : ''}{formatCurrency(p.amount)}
+                </p>
+              </div>
+              {!isReadOnly && (
+                <div className="flex flex-col gap-1 flex-shrink-0">
+                  <button onClick={() => onEdit(p)} disabled={needsAdmin}
+                    className="p-1.5 rounded-lg touch-manipulation"
+                    style={{ background: '#F3F4F6', color: needsAdmin ? '#d1d5db' : '#6b7280', opacity: needsAdmin ? 0.4 : 1 }}>
+                    <Edit2 size={13} />
+                  </button>
+                  <button onClick={() => onDelete(p)} disabled={needsAdmin}
+                    className="p-1.5 rounded-lg touch-manipulation"
+                    style={{ background: '#FEF2F2', color: needsAdmin ? '#fca5a5' : '#ef4444', opacity: needsAdmin ? 0.4 : 1 }}>
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              )}
             </div>
-            <div className="flex-shrink-0 text-left ml-2">
-              <p className="text-base font-bold" style={{ color: p.amount < 0 ? '#ef4444' : p.method === 'credit_carry' ? '#3b82f6' : '#10b981' }}>
-                {p.amount >= 0 ? '+' : ''}{formatCurrency(p.amount)}
-              </p>
-            </div>
-            {!isReadOnly && (
-              <div className="flex flex-col gap-1 flex-shrink-0">
-                <button onClick={() => onEdit(p)} disabled={needsAdmin}
-                  className="p-1.5 rounded-lg touch-manipulation"
-                  style={{ background: '#F3F4F6', color: needsAdmin ? '#d1d5db' : '#6b7280', opacity: needsAdmin ? 0.4 : 1 }}>
-                  <Edit2 size={13} />
-                </button>
-                <button onClick={() => onDelete(p)} disabled={needsAdmin}
-                  className="p-1.5 rounded-lg touch-manipulation"
-                  style={{ background: '#FEF2F2', color: needsAdmin ? '#fca5a5' : '#ef4444', opacity: needsAdmin ? 0.4 : 1 }}>
-                  <Trash2 size={13} />
-                </button>
+            {(p.sale_id || p.batch_id || p.notes) && (
+              <div className="mt-2 pt-2" style={{ borderTop: '1px solid rgba(148,163,184,0.18)' }}>
+                {p.sale_id && (
+                  <div className="grid grid-cols-3 gap-1.5 mb-1.5">
+                    <div className="rounded-lg px-2 py-1.5" style={{ background: 'rgba(255,255,255,0.72)' }}>
+                      <p className="text-[9px] font-semibold" style={{ color: '#94a3b8' }}>الفاتورة</p>
+                      <p className="text-[11px] font-bold" style={{ color: '#111827' }}>#{p.sale_id}</p>
+                    </div>
+                    <div className="rounded-lg px-2 py-1.5" style={{ background: 'rgba(255,255,255,0.72)' }}>
+                      <p className="text-[9px] font-semibold" style={{ color: '#94a3b8' }}>إجماليها</p>
+                      <p className="text-[11px] font-bold" style={{ color: '#111827' }}>{formatCurrency(p.sale_total || 0)}</p>
+                    </div>
+                    <div className="rounded-lg px-2 py-1.5" style={{ background: statusCfg.bg }}>
+                      <p className="text-[9px] font-semibold" style={{ color: statusCfg.color }}>المتبقي</p>
+                      <p className="text-[11px] font-bold" style={{ color: statusCfg.color }}>{formatCurrency(Math.max(0, p.sale_remaining || 0))}</p>
+                    </div>
+                  </div>
+                )}
+                <div className="text-[11px] flex flex-wrap gap-x-2 gap-y-1" style={{ color: '#64748b' }}>
+                  {p.batch_id && <span>مجموعة: {compactBatch(p.batch_id)}</span>}
+                  {p.sale_status && <span>حالة الفاتورة: {statusCfg.label}</span>}
+                </div>
+                {p.notes && <p className="text-[11px] italic mt-1 truncate" style={{ color: '#475569' }}>{p.notes}</p>}
               </div>
             )}
           </div>

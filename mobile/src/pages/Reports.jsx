@@ -1147,7 +1147,11 @@ function ClientStatementTab() {
     let aborted = false;
     setLoadingPayments(true);
     api.get(`/api/payments?client_id=${selectedClient.id}`)
-      .then(res => { if (!aborted) setPayments(Array.isArray(res) ? res : (res?.data || [])); })
+      .then(res => {
+        if (aborted) return;
+        const payload = res?.data || res;
+        setPayments(Array.isArray(payload) ? payload : (payload?.entries || []));
+      })
       .catch(err => { if (!aborted) console.error(err); })
       .finally(() => { if (!aborted) setLoadingPayments(false); });
     return () => { aborted = true; };

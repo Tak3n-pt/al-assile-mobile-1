@@ -21,6 +21,40 @@ const router = express.Router();
 const MUTATE_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 const money = (v) => Math.round((Number(v) || 0) * 100) / 100;
+const sumMoney = (rows, predicate = () => true) => money(rows.reduce((sum, row) => (
+  predicate(row) ? sum + (Number(row.amount) || 0) : sum
+), 0));
+
+function rowTime(row) {
+  return Date.parse(row.created_at || row.date || '') || 0;
+}
+
+function buildSummary(rows) {
+  const ledgerRows = rows.filter(row => !row.synthetic);
+  const positiveRows = rows.filter(row => (Number(row.amount) || 0) > 0);
+  const byMethod = {};
+  for (const row of rows) {
+    const key = row.method || 'cash';
+    if (!byMethod[key]) byMethod[key] = { method: key, count: 0, total: 0 };
+    byMethod[key].count += 1;
+    byMethod[key].total = money(byMethod[key].total + (Number(row.amount) || 0));
+  }
+
+  const sorted = [...rows].sort((a, b) => rowTime(b) - rowTime(a));
+  return {
+    total_paid: sumMoney(positiveRows),
+    total_versements: sumMoney(ledgerRows, row => (Number(row.amount) || 0) > 0),
+    total_checkout_paid: sumMoney(rows, row => row.synthetic && (Number(row.amount) || 0) > 0),
+    total_allocated_to_sales: sumMoney(rows, row => row.sale_id && (Number(row.amount) || 0) > 0),
+    total_credit: sumMoney(ledgerRows, row => !row.sale_id && (Number(row.amount) || 0) > 0),
+    total_adjustments: sumMoney(ledgerRows, row => row.method === 'adjustment'),
+    payment_count: positiveRows.length,
+    versement_count: ledgerRows.filter(row => (Number(row.amount) || 0) > 0).length,
+    first_payment_at: sorted.length ? (sorted[sorted.length - 1].created_at || sorted[sorted.length - 1].date) : null,
+    last_payment_at: sorted.length ? (sorted[0].created_at || sorted[0].date) : null,
+    by_method: Object.values(byMethod).sort((a, b) => Math.abs(b.total) - Math.abs(a.total)),
+  };
+}
 
 // ---------------------------------------------------------------------------
 // GET /api/payments?client_id=XX — payment history for one client
@@ -41,7 +75,20 @@ router.get('/', (req, res) => {
       SELECT cp.id AS id, cp.client_id, cp.sale_id, cp.amount, cp.date,
         cp.method, cp.notes, cp.batch_id, cp.created_by, cp.created_at,
         s.date AS sale_date, s.total AS sale_total, s.status AS sale_status,
+        s.paid_amount AS sale_paid_at_creation,
+        (s.paid_amount + COALESCE(
+          (SELECT SUM(cp2.amount) FROM client_payments cp2 WHERE cp2.sale_id = s.id), 0
+        )) AS sale_paid_total,
+        (s.total - (s.paid_amount + COALESCE(
+          (SELECT SUM(cp3.amount) FROM client_payments cp3 WHERE cp3.sale_id = s.id), 0
+        ))) AS sale_remaining,
         u.name AS created_by_name,
+        CASE
+          WHEN cp.method = 'adjustment' THEN 'adjustment'
+          WHEN cp.sale_id IS NOT NULL THEN 'sale_versement'
+          WHEN cp.method IN ('credit_carry','funding','opening_balance','return') THEN 'client_credit'
+          ELSE 'client_versement'
+        END AS entry_type,
         0 AS synthetic
       FROM client_payments cp
       LEFT JOIN sales s ON cp.sale_id = s.id
@@ -52,6 +99,13 @@ router.get('/', (req, res) => {
     const saleCashRows = db.prepare(`
       SELECT s.id AS sale_id, s.date, s.total, s.paid_amount AS amount,
         s.payment_method AS method, s.status AS sale_status, s.created_at,
+        s.paid_amount AS sale_paid_at_creation,
+        (s.paid_amount + COALESCE(
+          (SELECT SUM(cp.amount) FROM client_payments cp WHERE cp.sale_id = s.id), 0
+        )) AS sale_paid_total,
+        (s.total - (s.paid_amount + COALESCE(
+          (SELECT SUM(cp2.amount) FROM client_payments cp2 WHERE cp2.sale_id = s.id), 0
+        ))) AS sale_remaining,
         u.name AS created_by_name
       FROM sales s
       LEFT JOIN users u ON s.created_by = u.id
@@ -72,17 +126,22 @@ router.get('/', (req, res) => {
       sale_date:       r.date,
       sale_total:      r.total,
       sale_status:     r.sale_status,
+      sale_paid_at_creation: r.sale_paid_at_creation,
+      sale_paid_total: r.sale_paid_total,
+      sale_remaining:  r.sale_remaining,
       created_by_name: r.created_by_name,
+      entry_type:      'sale_initial_payment',
       synthetic:       1,   // UI uses this to disable edit/delete
     }));
 
     // Merge + sort newest first
     const combined = [...ledger, ...saleCashRows].sort((a, b) => {
-      if (a.date !== b.date) return a.date < b.date ? 1 : -1;
-      return (b.id || 0) > (a.id || 0) ? 1 : -1;
+      const timeDelta = rowTime(b) - rowTime(a);
+      if (timeDelta !== 0) return timeDelta;
+      return String(b.id || '').localeCompare(String(a.id || ''));
     });
 
-    return res.json({ success: true, data: combined });
+    return res.json({ success: true, data: { entries: combined, summary: buildSummary(combined) } });
   } catch (err) {
     console.error('[payments] GET / error:', err.message);
     return res.status(500).json({ success: false, error: 'Failed to load payment history' });
@@ -115,10 +174,17 @@ router.post('/', (req, res) => {
 
   const tx = db.transaction(() => {
     const unpaid = db.prepare(`
-      SELECT id, total, paid_amount FROM sales
-      WHERE client_id = ?
-        AND status NOT IN ('paid', 'cancelled', 'return')
-        AND (total - paid_amount) > 0
+      SELECT
+        s.id,
+        s.total,
+        s.paid_amount,
+        COALESCE((SELECT SUM(cp.amount) FROM client_payments cp WHERE cp.sale_id = s.id), 0) AS post_paid
+      FROM sales s
+      WHERE s.client_id = ?
+        AND s.status NOT IN ('cancelled', 'return')
+        AND (s.total - (s.paid_amount + COALESCE(
+          (SELECT SUM(cp2.amount) FROM client_payments cp2 WHERE cp2.sale_id = s.id), 0
+        ))) > 0
       ORDER BY date ASC, id ASC
     `).all(clientId);
 
@@ -126,7 +192,6 @@ router.post('/', (req, res) => {
       INSERT INTO client_payments (client_id, sale_id, amount, date, method, notes, batch_id, created_by)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    const updateSale    = db.prepare(`UPDATE sales SET paid_amount = ?, status = ? WHERE id = ?`);
     const updateBalance = db.prepare(`UPDATE clients SET balance = balance + ? WHERE id = ?`);
     const logSync       = db.prepare(`INSERT INTO sync_log (entity_type, entity_id, action) VALUES ('payment', ?, 'create')`);
 
@@ -135,13 +200,10 @@ router.post('/', (req, res) => {
 
     for (const sale of unpaid) {
       if (remaining <= 0) break;
-      const outstanding = money(sale.total - sale.paid_amount);
+      const paidTotal = money((sale.paid_amount || 0) + (sale.post_paid || 0));
+      const outstanding = money(sale.total - paidTotal);
       if (outstanding <= 0) continue;
       const allocate = money(Math.min(remaining, outstanding));
-
-      const newPaid = money(sale.paid_amount + allocate);
-      const newStatus = newPaid >= sale.total ? 'paid' : 'partial';
-      updateSale.run(newPaid, newStatus, sale.id);
 
       const res1 = insertPayment.run(clientId, sale.id, allocate, date, method, notes, batchId, createdBy);
       updateBalance.run(allocate, clientId);
@@ -219,11 +281,14 @@ router.patch('/:id', (req, res) => {
     if (existing.sale_id) {
       const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(existing.sale_id);
       if (sale) {
-        const newPaid = money(sale.paid_amount + delta);
-        if (newPaid < 0) throw new Error('Edit would make sale paid_amount negative');
-        if (newPaid > sale.total) throw new Error('Edit would overpay the sale');
-        const newStatus = newPaid >= sale.total ? 'paid' : newPaid > 0 ? 'partial' : 'pending';
-        db.prepare('UPDATE sales SET paid_amount = ?, status = ? WHERE id = ?').run(newPaid, newStatus, sale.id);
+        const otherPayments = db.prepare(`
+          SELECT COALESCE(SUM(amount), 0) AS s
+          FROM client_payments
+          WHERE sale_id = ? AND id != ?
+        `).get(existing.sale_id, id).s;
+        const newPaidTotal = money((sale.paid_amount || 0) + otherPayments + newAmount);
+        if (newPaidTotal < 0) throw new Error('Edit would make sale paid amount negative');
+        if (newPaidTotal > sale.total) throw new Error('Edit would overpay the sale');
       }
     }
     db.prepare('UPDATE clients SET balance = balance + ? WHERE id = ?').run(delta, existing.client_id);
@@ -278,15 +343,6 @@ router.delete('/:id', (req, res) => {
   }
 
   const tx = db.transaction(() => {
-    if (existing.sale_id) {
-      const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(existing.sale_id);
-      if (sale) {
-        const newPaid = money(sale.paid_amount - existing.amount);
-        if (newPaid < 0) throw new Error('Reversal would make sale paid_amount negative');
-        const newStatus = newPaid >= sale.total ? 'paid' : newPaid > 0 ? 'partial' : 'pending';
-        db.prepare('UPDATE sales SET paid_amount = ?, status = ? WHERE id = ?').run(newPaid, newStatus, sale.id);
-      }
-    }
     db.prepare('UPDATE clients SET balance = balance - ? WHERE id = ?').run(existing.amount, existing.client_id);
     db.prepare('DELETE FROM client_payments WHERE id = ?').run(id);
     db.prepare(`INSERT INTO sync_log (entity_type, entity_id, action) VALUES ('payment', ?, 'delete')`).run(id);
