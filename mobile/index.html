@@ -25,6 +25,43 @@
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
       }
+      #boot-splash {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(180deg, #0d1108 0%, #080c14 60%);
+        color: #D4A574;
+        z-index: 9999;
+        transition: opacity 180ms ease;
+      }
+      #boot-splash.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+      .boot-splash__content {
+        text-align: center;
+        font-family: Inter, sans-serif;
+      }
+      .boot-splash__spinner {
+        width: 42px;
+        height: 42px;
+        margin: 0 auto 14px;
+        border-radius: 9999px;
+        border: 3px solid rgba(212,165,116,0.18);
+        border-top-color: #D4A574;
+        animation: boot-spin 0.9s linear infinite;
+      }
+      .boot-splash__label {
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+      }
+      @keyframes boot-spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
       /* Prevent iOS bounce scroll */
       body {
         overscroll-behavior: none;
@@ -33,6 +70,12 @@
     </style>
   </head>
   <body>
+    <div id="boot-splash">
+      <div class="boot-splash__content">
+        <div class="boot-splash__spinner"></div>
+        <div class="boot-splash__label">Loading Al Assile</div>
+      </div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
     <script>
