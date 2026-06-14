@@ -62,9 +62,43 @@ export default function ProductsList() {
     else if (act === 'import')       setShowImport(true);
   }, []);
 
+  useEffect(() => {
+    const barcode = query.trim();
+    if (!barcode) return;
+
+    const hasLocalMatch = products.some(p => {
+      const stored = String(p.barcode || '');
+      return stored === barcode || (stored && stored.replace(/^0+/, '') === barcode.replace(/^0+/, ''));
+    });
+    if (hasLocalMatch) return;
+
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const remote = await api.get('/api/products/barcode/' + encodeURIComponent(barcode));
+        if (!cancelled && remote?.id) {
+          setProducts(prev => prev.some(p => p.id === remote.id)
+            ? prev.map(p => (p.id === remote.id ? remote : p))
+            : [remote, ...prev]);
+        }
+      } catch {
+        // No exact barcode match on the server.
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [query, products, api]);
+
   const filtered = products.filter(p => {
-    if (!query) return true;
-    return (p.name || '').toLowerCase().includes(query.toLowerCase());
+    const q = query.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      (p.name || '').toLowerCase().includes(q) ||
+      String(p.barcode || '').toLowerCase().includes(q)
+    );
   });
 
   const showScanFeedback = (type, message) => {

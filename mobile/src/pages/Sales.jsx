@@ -516,12 +516,42 @@ function ProductsTab({ itemCount }) {
     return () => { cancelled = true; };
   }, []);
 
+  useEffect(() => {
+    const barcode = search.trim();
+    if (!barcode) return;
+
+    const hasLocalMatch = products.some(p => {
+      const stored = String(p.barcode || '');
+      return stored === barcode || (stored && stored.replace(/^0+/, '') === barcode.replace(/^0+/, ''));
+    });
+    if (hasLocalMatch) return;
+
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const remote = await get('/api/products/barcode/' + encodeURIComponent(barcode));
+        if (!cancelled && remote?.id) {
+          setProducts(prev => prev.some(p => p.id === remote.id)
+            ? prev.map(p => (p.id === remote.id ? remote : p))
+            : [remote, ...prev]);
+        }
+      } catch {
+        // No exact barcode match on the server.
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [search, products, get]);
+
   const showToast = useCallback((type, msg) => {
     setScanToast({ type, msg });
     setTimeout(() => setScanToast(null), 2200);
   }, []);
 
-  const handleBarcodeScan = useCallback((raw) => {
+  const handleBarcodeScan = useCallback(async (raw) => {
     const barcode = String(raw || '').replace(/[\r\n\t]/g, '').trim();
     if (!barcode) return;
     const list = productsRef.current;
@@ -530,16 +560,29 @@ function ProductsTab({ itemCount }) {
       const stripped = barcode.replace(/^0+/, '');
       if (stripped) found = list.find(p => p.barcode && String(p.barcode).replace(/^0+/, '') === stripped);
     }
+    if (!found) {
+      try {
+        const remote = await get('/api/products/barcode/' + encodeURIComponent(barcode));
+        if (remote?.id) {
+          found = remote;
+          setProducts(prev => prev.some(p => p.id === remote.id)
+            ? prev.map(p => (p.id === remote.id ? remote : p))
+            : [remote, ...prev]);
+        }
+      } catch {
+        // 404 means this barcode is genuinely absent.
+      }
+    }
     if (!found) { setNotFoundBarcode(barcode); return; }
     if ((found.quantity || 0) <= 0) { showToast('error', 'نفذت الكمية'); return; }
     addItem(found);
     showToast('success', found.name);
-  }, [addItem, showToast]);
+  }, [addItem, showToast, get]);
 
   const filtered = search.trim()
     ? products.filter(p =>
         p.name?.toLowerCase().includes(search.trim().toLowerCase()) ||
-        p.barcode?.includes(search.trim()))
+        String(p.barcode || '').toLowerCase().includes(search.trim().toLowerCase()))
     : products;
 
   return (
