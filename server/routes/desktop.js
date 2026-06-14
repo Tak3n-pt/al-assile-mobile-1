@@ -1,6 +1,11 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const db = require('../database/connection');
+const {
+  currentPaidExpr,
+  saleStatusExpr,
+  effectiveClientPaymentWhere,
+} = require('../utils/paymentLedger');
 
 const router = express.Router();
 
@@ -268,19 +273,6 @@ function resolveClientCategory(data = {}) {
   return asId(data.category_id);
 }
 
-function currentPaidExpr(alias = 's') {
-  return `(${alias}.paid_amount + COALESCE((SELECT SUM(amount) FROM client_payments WHERE sale_id = ${alias}.id), 0))`;
-}
-
-function saleStatusExpr(alias = 's') {
-  const paid = currentPaidExpr(alias);
-  return `CASE WHEN ${alias}.status = 'cancelled' THEN 'cancelled'
-               WHEN ${alias}.status = 'return' THEN 'return'
-               WHEN ${paid} >= ${alias}.total THEN 'paid'
-               WHEN ${paid} > 0 THEN 'partial'
-               ELSE 'pending' END`;
-}
-
 function salesBaseSelect() {
   const paid = currentPaidExpr('s');
   return `
@@ -343,20 +335,15 @@ function createSale(data, userId) {
 
     const clientId = asId(data.client_id);
     if (clientId) {
-      const insertPayment = db.prepare(`
-        INSERT INTO client_payments (client_id, sale_id, amount, date, method, notes, created_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `);
       if (total > paid) {
         db.prepare('UPDATE clients SET balance = balance - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(money(total - paid), clientId);
-        if (paid > 0) insertPayment.run(clientId, saleId, paid, data.date || today(), data.payment_method || 'cash', data.notes || null, userId || null);
       } else if (paid > total) {
         const credit = money(paid - total);
         db.prepare('UPDATE clients SET balance = balance + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(credit, clientId);
-        if (total > 0) insertPayment.run(clientId, saleId, total, data.date || today(), data.payment_method || 'cash', data.notes || null, userId || null);
-        insertPayment.run(clientId, null, credit, data.date || today(), 'credit_carry', data.notes || null, userId || null);
-      } else if (paid > 0) {
-        insertPayment.run(clientId, saleId, paid, data.date || today(), data.payment_method || 'cash', data.notes || null, userId || null);
+        db.prepare(`
+          INSERT INTO client_payments (client_id, sale_id, amount, date, method, notes, created_by)
+          VALUES (?, NULL, ?, ?, 'credit_carry', ?, ?)
+        `).run(clientId, credit, data.date || today(), data.notes || null, userId || null);
       }
     }
 
@@ -887,8 +874,8 @@ function dispatch(channel, args, user) {
     case 'clients:audit': {
       const rows = db.prepare(`
         SELECT c.id, c.name, c.phone, c.balance AS stored_balance,
-               COALESCE((SELECT SUM(amount) FROM client_payments WHERE client_id = c.id), 0) AS sum_payments,
-               COALESCE((SELECT SUM(total - ${currentPaidExpr('sales')}) FROM sales WHERE client_id = c.id AND status NOT IN ('paid','cancelled','return')), 0) AS sum_outstanding
+               COALESCE((SELECT SUM(amount) FROM client_payments cp WHERE cp.client_id = c.id AND ${effectiveClientPaymentWhere('cp')}), 0) AS sum_payments,
+               COALESCE((SELECT SUM(total - paid_amount) FROM sales WHERE client_id = c.id AND status NOT IN ('paid','cancelled','return')), 0) AS sum_outstanding
         FROM clients c ORDER BY c.name
       `).all().map(r => {
         const expected = money(r.sum_payments - r.sum_outstanding);
@@ -902,8 +889,8 @@ function dispatch(channel, args, user) {
         const id = args[0];
         const row = db.prepare(`
           SELECT c.balance AS old_balance,
-                 COALESCE((SELECT SUM(amount) FROM client_payments WHERE client_id = c.id), 0) AS sum_payments,
-                 COALESCE((SELECT SUM(total - ${currentPaidExpr('sales')}) FROM sales WHERE client_id = c.id AND status NOT IN ('paid','cancelled','return')), 0) AS sum_outstanding
+                 COALESCE((SELECT SUM(amount) FROM client_payments cp WHERE cp.client_id = c.id AND ${effectiveClientPaymentWhere('cp')}), 0) AS sum_payments,
+                 COALESCE((SELECT SUM(total - paid_amount) FROM sales WHERE client_id = c.id AND status NOT IN ('paid','cancelled','return')), 0) AS sum_outstanding
           FROM clients c WHERE c.id = ?
         `).get(id);
         if (!row) throw new Error('Client not found');
@@ -924,7 +911,7 @@ function dispatch(channel, args, user) {
           SELECT (SELECT COUNT(*) FROM clients) AS total_clients,
                  (SELECT COUNT(*) FROM sales) AS total_sales,
                  (SELECT COALESCE(SUM(total), 0) FROM sales) AS total_revenue,
-                 (SELECT COALESCE(SUM(paid_amount), 0) FROM sales) AS total_collected,
+                 (SELECT COALESCE(SUM(${currentPaidExpr('sales')}), 0) FROM sales) AS total_collected,
                  (SELECT COALESCE(SUM(ABS(balance)), 0) FROM clients WHERE balance < 0) AS total_outstanding,
                  (SELECT COUNT(*) FROM clients WHERE balance < 0) AS clients_with_debt
         `).get(),
@@ -942,6 +929,7 @@ function dispatch(channel, args, user) {
         LEFT JOIN sales s ON cp.sale_id = s.id
         LEFT JOIN users u ON cp.created_by = u.id
         WHERE cp.client_id = ?
+          AND ${effectiveClientPaymentWhere('cp')}
       `).all(clientId);
       const synthetic = db.prepare(`
         SELECT 'sale-' || s.id AS id, s.client_id, s.id AS sale_id, s.paid_amount AS amount,
@@ -950,7 +938,6 @@ function dispatch(channel, args, user) {
                u.name AS created_by_name, 1 AS synthetic
         FROM sales s LEFT JOIN users u ON s.created_by = u.id
         WHERE s.client_id = ? AND s.paid_amount > 0
-          AND NOT EXISTS (SELECT 1 FROM client_payments cp WHERE cp.sale_id = s.id AND cp.amount = s.paid_amount)
       `).all(clientId);
       return ok([...ledger, ...synthetic].sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.id).localeCompare(String(a.id))));
     }
@@ -1086,7 +1073,7 @@ function dispatch(channel, args, user) {
       return ok(db.prepare(`
         SELECT strftime('%m', date) AS month, COUNT(*) AS sale_count,
                COALESCE(SUM(total), 0) AS total_revenue,
-               COALESCE(SUM(paid_amount), 0) AS collected
+               COALESCE(SUM(${currentPaidExpr('sales')}), 0) AS collected
         FROM sales WHERE strftime('%Y', date) = ?
         GROUP BY strftime('%m', date) ORDER BY month
       `).all(year));
@@ -1498,11 +1485,11 @@ function dispatch(channel, args, user) {
       return ok(out);
     }
     case 'reports:getSalesByClient':
-      return ok(db.prepare('SELECT c.id, c.name AS client_name, c.phone, COUNT(s.id) AS sale_count, COALESCE(SUM(s.total), 0) AS total_sales, COALESCE(SUM(s.paid_amount), 0) AS total_paid, COALESCE(SUM(s.total - s.paid_amount), 0) AS outstanding FROM clients c LEFT JOIN sales s ON s.client_id = c.id AND s.date BETWEEN ? AND ? GROUP BY c.id HAVING sale_count > 0 ORDER BY total_sales DESC').all(args[0], args[1]));
+      return ok(db.prepare(`SELECT c.id, c.name AS client_name, c.phone, COUNT(s.id) AS sale_count, COALESCE(SUM(s.total), 0) AS total_sales, COALESCE(SUM(${currentPaidExpr('s')}), 0) AS total_paid, COALESCE(SUM(s.total - ${currentPaidExpr('s')}), 0) AS outstanding FROM clients c LEFT JOIN sales s ON s.client_id = c.id AND s.date BETWEEN ? AND ? GROUP BY c.id HAVING sale_count > 0 ORDER BY total_sales DESC`).all(args[0], args[1]));
     case 'reports:getTopProducts':
       return ok(db.prepare('SELECT p.id, p.name AS product_name, SUM(si.quantity) AS total_quantity, SUM(si.quantity * si.unit_price) AS total_revenue, COUNT(DISTINCT s.id) AS sale_count FROM sale_items si JOIN sales s ON si.sale_id = s.id JOIN products p ON si.product_id = p.id WHERE s.date BETWEEN ? AND ? GROUP BY p.id ORDER BY total_revenue DESC LIMIT ?').all(args[0], args[1], Number(args[2]) || 10));
     case 'reports:getSalesByStatus':
-      return ok(db.prepare('SELECT status, COUNT(*) AS count, COALESCE(SUM(total), 0) AS total_amount, COALESCE(SUM(paid_amount), 0) AS paid_amount FROM sales GROUP BY status').all());
+      return ok(db.prepare(`SELECT ${saleStatusExpr('s')} AS status, COUNT(*) AS count, COALESCE(SUM(total), 0) AS total_amount, COALESCE(SUM(${currentPaidExpr('s')}), 0) AS paid_amount FROM sales s GROUP BY ${saleStatusExpr('s')}`).all());
     case 'reports:getMonthlySales':
       return dispatch('sales:getMonthlySales', [args[0]], user);
     case 'reports:getExpensesByCategory':
@@ -1532,7 +1519,7 @@ function dispatch(channel, args, user) {
     case 'reports:getDashboardStats': {
       const firstDay = today().slice(0, 8) + '01';
       const stock = db.prepare('SELECT COUNT(*) AS total_items, COALESCE(SUM(quantity * cost_per_unit), 0) AS total_value, SUM(CASE WHEN quantity <= min_stock_alert AND min_stock_alert > 0 THEN 1 ELSE 0 END) AS low_stock_count FROM stock').get();
-      const sales = db.prepare('SELECT COUNT(*) AS sale_count, COALESCE(SUM(total), 0) AS total_sales, COALESCE(SUM(paid_amount), 0) AS total_collected FROM sales WHERE date >= ?').get(firstDay);
+      const sales = db.prepare(`SELECT COUNT(*) AS sale_count, COALESCE(SUM(total), 0) AS total_sales, COALESCE(SUM(${currentPaidExpr('sales')}), 0) AS total_collected FROM sales WHERE date >= ?`).get(firstDay);
       const expenses = db.prepare('SELECT COUNT(*) AS expense_count, COALESCE(SUM(amount), 0) AS total_expenses FROM expenses WHERE date >= ?').get(firstDay);
       const production = db.prepare('SELECT COUNT(*) AS batch_count, COALESCE(SUM(quantity_produced), 0) AS total_produced, COALESCE(SUM(total_cost), 0) AS total_cost FROM production_batches WHERE date >= ?').get(firstDay);
       const pendingPayroll = db.prepare('SELECT COUNT(*) AS count, COALESCE(SUM(amount), 0) AS amount FROM payroll WHERE paid = 0').get();

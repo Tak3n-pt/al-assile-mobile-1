@@ -1,5 +1,6 @@
 const express = require('express');
 const db      = require('../database/connection');
+const { currentPaidExpr, effectiveClientPaymentWhere } = require('../utils/paymentLedger');
 
 const router = express.Router();
 
@@ -17,9 +18,9 @@ router.get('/', (req, res) => {
         (SELECT COUNT(*) FROM sales WHERE client_id = c.id) AS sale_count,
         (SELECT COALESCE(SUM(total), 0)
            FROM sales WHERE client_id = c.id) AS total_purchases,
-        (SELECT COALESCE(SUM(total - paid_amount), 0)
-           FROM sales
-           WHERE client_id = c.id AND status != 'paid') AS outstanding_debt,
+        (SELECT COALESCE(SUM(total - ${currentPaidExpr('s')}), 0)
+           FROM sales s
+           WHERE s.client_id = c.id AND s.status NOT IN ('paid','cancelled','return')) AS outstanding_debt,
         (SELECT MAX(date) FROM sales
            WHERE client_id = c.id AND status NOT IN ('cancelled','return')) AS last_sale_date,
         CAST(julianday('now') - julianday(
@@ -54,9 +55,9 @@ router.get('/search', (req, res) => {
       SELECT
         c.*,
         (SELECT COUNT(*) FROM sales WHERE client_id = c.id) AS sale_count,
-        (SELECT COALESCE(SUM(total - paid_amount), 0)
-           FROM sales
-           WHERE client_id = c.id AND status != 'paid') AS outstanding_debt
+        (SELECT COALESCE(SUM(total - ${currentPaidExpr('s')}), 0)
+           FROM sales s
+           WHERE s.client_id = c.id AND s.status NOT IN ('paid','cancelled','return')) AS outstanding_debt
       FROM clients c
       WHERE c.name LIKE ? OR c.phone LIKE ?
       ORDER BY c.name ASC
@@ -85,9 +86,9 @@ router.get('/audit', (req, res) => {
     const rows = db.prepare(`
       SELECT
         c.id, c.name, c.phone, c.balance AS stored_balance,
-        COALESCE((SELECT SUM(amount) FROM client_payments WHERE client_id = c.id), 0) AS sum_payments,
+        COALESCE((SELECT SUM(amount) FROM client_payments cp WHERE cp.client_id = c.id AND ${effectiveClientPaymentWhere('cp')}), 0) AS sum_payments,
         COALESCE((SELECT SUM(total - paid_amount) FROM sales
-                   WHERE client_id = c.id AND status NOT IN ('paid','cancelled')), 0) AS sum_outstanding
+                   WHERE client_id = c.id AND status NOT IN ('paid','cancelled','return')), 0) AS sum_outstanding
       FROM clients c
       ORDER BY c.name ASC
     `).all();
@@ -169,9 +170,9 @@ router.get('/:id', (req, res) => {
         (SELECT COUNT(*) FROM sales WHERE client_id = c.id) AS sale_count,
         (SELECT COALESCE(SUM(total), 0)
            FROM sales WHERE client_id = c.id) AS total_purchases,
-        (SELECT COALESCE(SUM(total - paid_amount), 0)
-           FROM sales
-           WHERE client_id = c.id AND status != 'paid') AS outstanding_debt
+        (SELECT COALESCE(SUM(total - ${currentPaidExpr('s')}), 0)
+           FROM sales s
+           WHERE s.client_id = c.id AND s.status NOT IN ('paid','cancelled','return')) AS outstanding_debt
       FROM clients c
       WHERE c.id = ?
     `).get(id);
@@ -183,11 +184,12 @@ router.get('/:id', (req, res) => {
     // Include unpaid sales so the mobile Clients detail screen can show them
     // without a second round-trip.
     const unpaid_sales = db.prepare(`
-      SELECT id, date, total, paid_amount, status, notes,
-             (total - paid_amount) AS remaining
-      FROM sales
-      WHERE client_id = ?
-        AND status NOT IN ('paid', 'cancelled', 'return')
+      SELECT id, date, total, ${currentPaidExpr('s')} AS paid_amount, status, notes,
+             (total - ${currentPaidExpr('s')}) AS remaining
+      FROM sales s
+      WHERE s.client_id = ?
+        AND s.status NOT IN ('paid', 'cancelled', 'return')
+        AND (s.total - ${currentPaidExpr('s')}) > 0
       ORDER BY date ASC, id ASC
     `).all(id);
 
@@ -579,11 +581,11 @@ router.post('/:id/repair-balance', (req, res) => {
     if (!client) return res.status(404).json({ success: false, error: 'Client not found' });
 
     const sumPayments = db.prepare(
-      'SELECT COALESCE(SUM(amount), 0) AS s FROM client_payments WHERE client_id = ?'
+      `SELECT COALESCE(SUM(amount), 0) AS s FROM client_payments cp WHERE cp.client_id = ? AND ${effectiveClientPaymentWhere('cp')}`
     ).get(id).s;
     const sumOutstanding = db.prepare(
       `SELECT COALESCE(SUM(total - paid_amount), 0) AS s FROM sales
-        WHERE client_id = ? AND status NOT IN ('paid','cancelled')`
+        WHERE client_id = ? AND status NOT IN ('paid','cancelled','return')`
     ).get(id).s;
     const expected = Math.round((sumPayments - sumOutstanding) * 100) / 100;
     const oldBalance = Math.round(client.balance * 100) / 100;

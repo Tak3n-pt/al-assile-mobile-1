@@ -1,5 +1,6 @@
 const express = require('express');
 const db      = require('../database/connection');
+const { currentPaidExpr } = require('../utils/paymentLedger');
 
 const router = express.Router();
 
@@ -46,7 +47,7 @@ function computeBalance(settings) {
 
   if (settings.include_sales) {
     const r = db.prepare(`
-      SELECT COALESCE(SUM(paid_amount), 0) AS v FROM sales WHERE status != 'cancelled'
+      SELECT COALESCE(SUM(${currentPaidExpr('sales')}), 0) AS v FROM sales WHERE status != 'cancelled'
     `).get();
     balance += r.v || 0;
   }

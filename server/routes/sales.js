@@ -1,5 +1,6 @@
 const express = require('express');
 const db      = require('../database/connection');
+const { currentPaidExpr, postCreationPaymentSumSql, deriveStatus } = require('../utils/paymentLedger');
 
 const router = express.Router();
 
@@ -11,12 +12,6 @@ const router = express.Router();
  * Derive the payment status from totals.
  * Mirrors the logic in the desktop addPayment and addSale functions.
  */
-function deriveStatus(total, paidAmount) {
-  if (paidAmount <= 0)             return 'pending';
-  if (paidAmount >= total)         return 'paid';
-  return 'partial';
-}
-
 /**
  * Validate a single sale item from the request body.
  * Returns null when valid, or an error string when invalid.
@@ -217,16 +212,10 @@ router.get('/', (req, res) => {
     s.id, s.client_id, s.date, s.subtotal, s.discount, s.total,
     s.payment_method, s.notes, s.remote_id, s.created_at, s.created_by,
     s.paid_amount AS paid_at_creation,
-    (s.paid_amount + COALESCE(
-      (SELECT SUM(amount) FROM client_payments WHERE sale_id = s.id), 0
-    )) AS paid_amount,
+    ${currentPaidExpr('s')} AS paid_amount,
     CASE
-      WHEN (s.paid_amount + COALESCE(
-        (SELECT SUM(amount) FROM client_payments WHERE sale_id = s.id), 0
-      )) >= s.total THEN 'paid'
-      WHEN (s.paid_amount + COALESCE(
-        (SELECT SUM(amount) FROM client_payments WHERE sale_id = s.id), 0
-      )) > 0 THEN 'partial'
+      WHEN ${currentPaidExpr('s')} >= s.total THEN 'paid'
+      WHEN ${currentPaidExpr('s')} > 0 THEN 'partial'
       ELSE 'pending'
     END AS status,
     c.name  AS client_name,
@@ -308,16 +297,10 @@ router.get('/report', (req, res) => {
     let sql = `
       SELECT s.id, s.client_id, s.date, s.subtotal, s.discount, s.total,
              s.paid_amount AS paid_at_creation,
-             (s.paid_amount + COALESCE(
-               (SELECT SUM(cp.amount) FROM client_payments cp WHERE cp.sale_id = s.id), 0
-             )) AS paid_amount,
+             ${currentPaidExpr('s')} AS paid_amount,
              CASE
-               WHEN (s.paid_amount + COALESCE(
-                 (SELECT SUM(cp2.amount) FROM client_payments cp2 WHERE cp2.sale_id = s.id), 0
-               )) >= s.total THEN 'paid'
-               WHEN (s.paid_amount + COALESCE(
-                 (SELECT SUM(cp3.amount) FROM client_payments cp3 WHERE cp3.sale_id = s.id), 0
-               )) > 0 THEN 'partial'
+               WHEN ${currentPaidExpr('s')} >= s.total THEN 'paid'
+               WHEN ${currentPaidExpr('s')} > 0 THEN 'partial'
                ELSE 'pending'
              END AS status,
              s.payment_method, s.notes, s.created_at,
@@ -378,7 +361,7 @@ router.get('/:id', (req, res) => {
     // Override paid_amount + status with the running total derived from
     // post-creation client_payments. See GET / for rationale.
     const postCreation = db.prepare(
-      'SELECT COALESCE(SUM(amount), 0) AS s FROM client_payments WHERE sale_id = ?'
+      `SELECT ${postCreationPaymentSumSql('sales')} AS s FROM sales WHERE sales.id = ?`
     ).get(id).s;
     const paidTotal = (sale.paid_amount || 0) + postCreation;
     sale.paid_at_creation = sale.paid_amount;
@@ -467,7 +450,7 @@ router.delete('/:id', (req, res) => {
         }
         // (b) reverse every post-creation payment's balance contribution.
         const postCreation = db.prepare(
-          'SELECT COALESCE(SUM(amount), 0) AS s FROM client_payments WHERE sale_id = ?'
+          `SELECT ${postCreationPaymentSumSql('sales')} AS s FROM sales WHERE sales.id = ?`
         ).get(id).s;
         if (postCreation > 0) {
           db.prepare(`UPDATE clients SET balance = balance - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
@@ -552,7 +535,7 @@ router.post('/:id/payment', (req, res) => {
     // 'stale' (paid_amount changed) which archives + re-inserts the sale,
     // and (b) double-apply the payment when importRemotePayment also fires.
     const postCreationPaid = db.prepare(
-      'SELECT COALESCE(SUM(amount), 0) AS s FROM client_payments WHERE sale_id = ?'
+      `SELECT ${postCreationPaymentSumSql('sales')} AS s FROM sales WHERE sales.id = ?`
     ).get(id).s;
     const paidTotal = (sale.paid_amount || 0) + postCreationPaid;
     const remaining = Math.max(0, (sale.total || 0) - paidTotal);
@@ -597,7 +580,7 @@ router.post('/:id/payment', (req, res) => {
     // is intentionally unchanged (see comment above).
     const row = db.prepare('SELECT * FROM sales WHERE id = ?').get(id);
     const pt = (row.paid_amount || 0) + db.prepare(
-      'SELECT COALESCE(SUM(amount), 0) AS s FROM client_payments WHERE sale_id = ?'
+      `SELECT ${postCreationPaymentSumSql('sales')} AS s FROM sales WHERE sales.id = ?`
     ).get(id).s;
     return {
       ...row,

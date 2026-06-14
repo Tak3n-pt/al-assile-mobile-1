@@ -12,6 +12,15 @@
 
 const express = require('express');
 const db      = require('../database/connection');
+const {
+  money,
+  postCreationPaymentSumSql,
+  currentPaidExpr,
+  effectiveClientPaymentWhere,
+  deriveStatus,
+  rowTime,
+  withIsoTimestamps,
+} = require('../utils/paymentLedger');
 
 const router = express.Router();
 
@@ -20,14 +29,9 @@ const router = express.Router();
 // POS systems.
 const MUTATE_WINDOW_MS = 24 * 60 * 60 * 1000;
 
-const money = (v) => Math.round((Number(v) || 0) * 100) / 100;
 const sumMoney = (rows, predicate = () => true) => money(rows.reduce((sum, row) => (
   predicate(row) ? sum + (Number(row.amount) || 0) : sum
 ), 0));
-
-function rowTime(row) {
-  return Date.parse(row.created_at || row.date || '') || 0;
-}
 
 function buildSummary(rows) {
   const ledgerRows = rows.filter(row => !row.synthetic);
@@ -51,7 +55,9 @@ function buildSummary(rows) {
     payment_count: positiveRows.length,
     versement_count: ledgerRows.filter(row => (Number(row.amount) || 0) > 0).length,
     first_payment_at: sorted.length ? (sorted[sorted.length - 1].created_at || sorted[sorted.length - 1].date) : null,
+    first_payment_at_iso: sorted.length ? sorted[sorted.length - 1].created_at_iso : null,
     last_payment_at: sorted.length ? (sorted[0].created_at || sorted[0].date) : null,
+    last_payment_at_iso: sorted.length ? sorted[0].created_at_iso : null,
     by_method: Object.values(byMethod).sort((a, b) => Math.abs(b.total) - Math.abs(a.total)),
   };
 }
@@ -76,12 +82,8 @@ router.get('/', (req, res) => {
         cp.method, cp.notes, cp.batch_id, cp.created_by, cp.created_at,
         s.date AS sale_date, s.total AS sale_total, s.status AS sale_status,
         s.paid_amount AS sale_paid_at_creation,
-        (s.paid_amount + COALESCE(
-          (SELECT SUM(cp2.amount) FROM client_payments cp2 WHERE cp2.sale_id = s.id), 0
-        )) AS sale_paid_total,
-        (s.total - (s.paid_amount + COALESCE(
-          (SELECT SUM(cp3.amount) FROM client_payments cp3 WHERE cp3.sale_id = s.id), 0
-        ))) AS sale_remaining,
+        ${currentPaidExpr('s')} AS sale_paid_total,
+        (s.total - ${currentPaidExpr('s')}) AS sale_remaining,
         u.name AS created_by_name,
         CASE
           WHEN cp.method = 'adjustment' THEN 'adjustment'
@@ -94,25 +96,22 @@ router.get('/', (req, res) => {
       LEFT JOIN sales s ON cp.sale_id = s.id
       LEFT JOIN users u ON cp.created_by = u.id
       WHERE cp.client_id = ?
-    `).all(clientId);
+        AND ${effectiveClientPaymentWhere('cp')}
+    `).all(clientId).map(withIsoTimestamps);
 
     const saleCashRows = db.prepare(`
       SELECT s.id AS sale_id, s.date, s.total, s.paid_amount AS amount,
         s.payment_method AS method, s.status AS sale_status, s.created_at,
         s.paid_amount AS sale_paid_at_creation,
-        (s.paid_amount + COALESCE(
-          (SELECT SUM(cp.amount) FROM client_payments cp WHERE cp.sale_id = s.id), 0
-        )) AS sale_paid_total,
-        (s.total - (s.paid_amount + COALESCE(
-          (SELECT SUM(cp2.amount) FROM client_payments cp2 WHERE cp2.sale_id = s.id), 0
-        ))) AS sale_remaining,
+        ${currentPaidExpr('s')} AS sale_paid_total,
+        (s.total - ${currentPaidExpr('s')}) AS sale_remaining,
         u.name AS created_by_name
       FROM sales s
       LEFT JOIN users u ON s.created_by = u.id
       WHERE s.client_id = ?
         AND s.status != 'return'
         AND s.paid_amount > 0
-    `).all(clientId).map(r => ({
+    `).all(clientId).map(r => withIsoTimestamps({
       id:              `sale-${r.sale_id}`,
       client_id:       clientId,
       sale_id:         r.sale_id,
@@ -178,13 +177,11 @@ router.post('/', (req, res) => {
         s.id,
         s.total,
         s.paid_amount,
-        COALESCE((SELECT SUM(cp.amount) FROM client_payments cp WHERE cp.sale_id = s.id), 0) AS post_paid
+        ${postCreationPaymentSumSql('s')} AS post_paid
       FROM sales s
       WHERE s.client_id = ?
         AND s.status NOT IN ('cancelled', 'return')
-        AND (s.total - (s.paid_amount + COALESCE(
-          (SELECT SUM(cp2.amount) FROM client_payments cp2 WHERE cp2.sale_id = s.id), 0
-        ))) > 0
+        AND (s.total - ${currentPaidExpr('s')}) > 0
       ORDER BY date ASC, id ASC
     `).all(clientId);
 
@@ -235,6 +232,98 @@ router.post('/', (req, res) => {
   } catch (err) {
     console.error('[payments] POST / error:', err.message);
     return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/payments/repair-legacy-double-counts
+//
+// Older web builds inserted a client_payments row AND also increased
+// sales.paid_amount for the same versement. The stored client balance was
+// usually already correct, so this repair normalizes only the sale snapshot:
+// sales.paid_amount becomes checkout-only again while ledger rows stay intact.
+// ---------------------------------------------------------------------------
+router.post('/repair-legacy-double-counts', (req, res) => {
+  if (req.user?.role !== 'admin') {
+    return res.status(403).json({ success: false, error: 'Only admins can repair legacy payment data' });
+  }
+
+  try {
+    const tx = db.transaction(() => {
+      const clientRows = db.prepare(`
+        SELECT
+          c.id,
+          c.balance AS stored_balance,
+          COALESCE((
+            SELECT SUM(cp.amount)
+            FROM client_payments cp
+            WHERE cp.client_id = c.id
+              AND ${effectiveClientPaymentWhere('cp')}
+          ), 0) AS sum_payments,
+          COALESCE((
+            SELECT SUM(s.total - s.paid_amount)
+            FROM sales s
+            WHERE s.client_id = c.id
+              AND s.status NOT IN ('paid','cancelled','return')
+          ), 0) AS sum_outstanding
+        FROM clients c
+      `).all();
+
+      const updateSale = db.prepare('UPDATE sales SET paid_amount = ?, status = ? WHERE id = ?');
+      const logSale = db.prepare(`
+        INSERT INTO sync_log (entity_type, entity_id, action, synced)
+        VALUES ('sale', ?, 'update', 0)
+      `);
+      const repairs = [];
+
+      for (const client of clientRows) {
+        const stored = money(client.stored_balance);
+        const expected = money(client.sum_payments - client.sum_outstanding);
+        let neededReduction = money(expected - stored);
+        if (neededReduction <= 0) continue;
+
+        const candidates = db.prepare(`
+          SELECT
+            s.id,
+            s.total,
+            s.paid_amount,
+            s.status,
+            ${postCreationPaymentSumSql('s')} AS post_paid
+          FROM sales s
+          WHERE s.client_id = ?
+            AND s.status NOT IN ('cancelled','return')
+            AND s.paid_amount > 0
+            AND ${postCreationPaymentSumSql('s')} > 0
+          ORDER BY s.date ASC, s.id ASC
+        `).all(client.id);
+
+        for (const sale of candidates) {
+          if (neededReduction <= 0) break;
+          const maxReduction = money(Math.min(sale.paid_amount || 0, sale.post_paid || 0));
+          if (maxReduction <= 0) continue;
+          const reduction = money(Math.min(maxReduction, neededReduction));
+          const nextPaid = money((sale.paid_amount || 0) - reduction);
+          const nextStatus = deriveStatus(sale.total, nextPaid, sale.status);
+          updateSale.run(nextPaid, nextStatus, sale.id);
+          logSale.run(sale.id);
+          repairs.push({
+            sale_id: sale.id,
+            client_id: client.id,
+            old_paid_amount: money(sale.paid_amount),
+            new_paid_amount: nextPaid,
+            reduction,
+          });
+          neededReduction = money(neededReduction - reduction);
+        }
+      }
+
+      return { repaired_sales: repairs.length, repairs };
+    });
+
+    return res.json({ success: true, data: tx() });
+  } catch (err) {
+    console.error('[payments] POST /repair-legacy-double-counts error:', err.message);
+    return res.status(500).json({ success: false, error: 'Legacy payment repair failed' });
   }
 });
 

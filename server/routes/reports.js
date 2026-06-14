@@ -1,5 +1,6 @@
 const express = require('express');
 const db      = require('../database/connection');
+const { currentPaidExpr } = require('../utils/paymentLedger');
 
 const router = express.Router();
 
@@ -706,7 +707,7 @@ router.get('/treasury/capital', (req, res) => {
     `).get();
     let treasury = (manualRow.adds || 0) - (manualRow.subs || 0);
     if (sm['cashbox.include_sales'] === '1') {
-      treasury += db.prepare(`SELECT COALESCE(SUM(paid_amount),0) AS v FROM sales WHERE status!='cancelled'`).get().v || 0;
+      treasury += db.prepare(`SELECT COALESCE(SUM(${currentPaidExpr('sales')}),0) AS v FROM sales WHERE status!='cancelled'`).get().v || 0;
     }
     if (sm['cashbox.include_purchases'] === '1') {
       treasury -= db.prepare(`SELECT COALESCE(SUM(paid_amount),0) AS v FROM purchases WHERE status!='cancelled'`).get().v || 0;

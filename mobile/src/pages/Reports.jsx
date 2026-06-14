@@ -27,6 +27,34 @@ function rangeFor(preset) {
   return { start: end, end };
 }
 
+function asLedgerDateTime(value) {
+  if (!value) return null;
+  const text = String(value).trim();
+  if (!text) return null;
+  const normalized = text.includes('T') ? text : text.replace(' ', 'T');
+  const withZone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(normalized) ? normalized : `${normalized}Z`;
+  const date = new Date(withZone);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function fmtLedgerDate(value) {
+  const date = asLedgerDateTime(value);
+  if (!date) return value || '';
+  return date.toLocaleDateString('ar-DZ', { year: 'numeric', month: '2-digit', day: '2-digit' });
+}
+
+function fmtLedgerTime(value) {
+  const date = asLedgerDateTime(value);
+  if (!date) return '';
+  return date.toLocaleTimeString('ar-DZ', { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+function compactBatch(batchId) {
+  if (!batchId) return null;
+  const text = String(batchId);
+  return text.length > 18 ? `${text.slice(0, 10)}...${text.slice(-5)}` : text;
+}
+
 const PRINT_STYLES = `
 @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap');
 @page { margin: 1.5cm; }
@@ -1132,6 +1160,7 @@ function ClientStatementTab() {
   const [loadingClients, setLoadingClients] = useState(true);
   const [selectedClient, setSelectedClient] = useState(null);
   const [payments, setPayments] = useState([]);
+  const [paymentSummary, setPaymentSummary] = useState(null);
   const [loadingPayments, setLoadingPayments] = useState(false);
   const [search, setSearch] = useState('');
   useEffect(() => {
@@ -1146,11 +1175,13 @@ function ClientStatementTab() {
     if (!selectedClient) return;
     let aborted = false;
     setLoadingPayments(true);
+    setPaymentSummary(null);
     api.get(`/api/payments?client_id=${selectedClient.id}`)
       .then(res => {
         if (aborted) return;
         const payload = res?.data || res;
         setPayments(Array.isArray(payload) ? payload : (payload?.entries || []));
+        setPaymentSummary(Array.isArray(payload) ? null : (payload?.summary || null));
       })
       .catch(err => { if (!aborted) console.error(err); })
       .finally(() => { if (!aborted) setLoadingPayments(false); });
@@ -1191,7 +1222,7 @@ function ClientStatementTab() {
   );
   return (
     <div>
-      <button onClick={() => { setSelectedClient(null); setSearch(''); }}
+      <button onClick={() => { setSelectedClient(null); setSearch(''); setPaymentSummary(null); }}
         className="flex items-center gap-2 mb-3 text-sm font-semibold touch-manipulation"
         style={{ color: '#3949AB', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
         <span>←</span> {selectedClient.name}
@@ -1208,25 +1239,85 @@ function ClientStatementTab() {
           <p className="text-base font-bold" style={{ color: '#1a1a1a' }}>{formatCurrency(selectedClient.total_purchases || 0)}</p>
         </div>
       </div>
+      {paymentSummary && (
+        <div className="rounded-xl p-3 mb-3" style={{ background: '#F8FAFC', border: '1px solid #e2e8f0' }}>
+          <div className="grid grid-cols-2 gap-2">
+            <SummaryCard label="مجموع ما دفعه العميل" value={formatCurrency(paymentSummary.total_paid || 0)} color="#059669" bg="#ECFDF5" />
+            <SummaryCard label="دفعات بعد البيع" value={formatCurrency(paymentSummary.total_versements || 0)} color="#2563eb" bg="#EFF6FF" />
+            <SummaryCard label="مدفوع وقت البيع" value={formatCurrency(paymentSummary.total_checkout_paid || 0)} color="#111827" bg="#F9FAFB" />
+            <SummaryCard label="رصيد/فائض" value={formatCurrency(paymentSummary.total_credit || 0)} color="#7c3aed" bg="#F5F3FF" />
+          </div>
+          <div className="flex items-center justify-between text-[11px] mt-2" style={{ color: '#64748b' }}>
+            <span>{paymentSummary.payment_count || 0} حركة دفع</span>
+            {paymentSummary.last_payment_at_iso && <span>آخر دفع: {fmtLedgerDate(paymentSummary.last_payment_at_iso)} {fmtLedgerTime(paymentSummary.last_payment_at_iso)}</span>}
+          </div>
+        </div>
+      )}
       {loadingPayments ? <LoadingState /> : payments.length === 0
         ? <EmptyState text="لا توجد حركات لهذا العميل" color="#9ca3af" />
         : (
           <div className="space-y-2">
             {payments.map((p, i) => {
-              const isSaleRow = p.synthetic === 1;
-              const color = isSaleRow ? '#ef4444' : '#10b981';
-              const typeLabel = isSaleRow ? `فاتورة #${p.sale_id}` : 'دفعة';
+              const isSaleRow = p.entry_type === 'sale_initial_payment' || p.synthetic === 1;
+              const color = p.amount < 0 ? '#ef4444' : isSaleRow ? '#4f46e5' : '#10b981';
+              const stamp = p.created_at_iso || p.created_at || p.date;
+              const typeLabel = isSaleRow
+                ? `دفعة وقت البيع #${p.sale_id}`
+                : p.sale_id
+                  ? `دفعة مقابل فاتورة #${p.sale_id}`
+                  : p.method === 'credit_carry'
+                    ? 'رصيد محمول'
+                    : p.method === 'adjustment'
+                      ? 'تعديل رصيد'
+                      : 'دفعة عميل';
+              const methodLabel = p.method === 'bank' ? 'بنك'
+                : p.method === 'credit_carry' ? 'رصيد'
+                  : p.method === 'adjustment' ? 'تعديل'
+                    : 'نقدي';
               return (
-                <div key={`${p.id}-${i}`} className="flex items-start justify-between p-3 rounded-xl"
+                <div key={`${p.id}-${i}`} className="p-3 rounded-xl"
                   style={{ background: 'white', border: '1px solid #e5e7eb', borderLeft: `3px solid ${color}` }}>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold" style={{ color: '#1a1a1a' }}>{typeLabel}</p>
-                    <p className="text-xs mt-0.5" style={{ color: '#9ca3af' }}>
-                      {p.date || p.created_at?.slice(0, 10)}{p.method ? ` · ${p.method}` : ''}
-                    </p>
-                    {p.notes && <p className="text-xs mt-0.5 italic truncate" style={{ color: '#9ca3af' }}>{p.notes}</p>}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <p className="text-sm font-semibold truncate" style={{ color: '#1a1a1a' }}>{typeLabel}</p>
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: '#F8FAFC', color: '#475569', border: '1px solid #e2e8f0' }}>{methodLabel}</span>
+                        {isSaleRow && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: '#eef2ff', color: '#4f46e5' }}>تلقائي</span>}
+                      </div>
+                      <div className="text-[11px] flex flex-wrap gap-x-2 gap-y-0.5" style={{ color: '#64748b' }}>
+                        <span>{fmtLedgerDate(stamp)}</span>
+                        <span>{fmtLedgerTime(stamp)}</span>
+                        {p.created_by_name && <span>الموظف: {p.created_by_name}</span>}
+                      </div>
+                    </div>
+                    <p className="text-base font-bold flex-shrink-0" style={{ color }}>{p.amount >= 0 ? '+' : ''}{formatCurrency(p.amount || 0)}</p>
                   </div>
-                  <p className="text-sm font-bold flex-shrink-0 mr-2" style={{ color }}>{formatCurrency(p.amount || 0)}</p>
+                  {(p.sale_id || p.batch_id || p.notes) && (
+                    <div className="mt-2 pt-2" style={{ borderTop: '1px solid rgba(148,163,184,0.18)' }}>
+                      {p.sale_id && (
+                        <div className="grid grid-cols-3 gap-1.5 mb-1.5">
+                          <div className="rounded-lg px-2 py-1.5" style={{ background: '#F9FAFB' }}>
+                            <p className="text-[9px] font-semibold" style={{ color: '#94a3b8' }}>الفاتورة</p>
+                            <p className="text-[11px] font-bold" style={{ color: '#111827' }}>#{p.sale_id}</p>
+                          </div>
+                          <div className="rounded-lg px-2 py-1.5" style={{ background: '#F9FAFB' }}>
+                            <p className="text-[9px] font-semibold" style={{ color: '#94a3b8' }}>إجماليها</p>
+                            <p className="text-[11px] font-bold" style={{ color: '#111827' }}>{formatCurrency(p.sale_total || 0)}</p>
+                          </div>
+                          <div className="rounded-lg px-2 py-1.5" style={{ background: '#FFF7ED' }}>
+                            <p className="text-[9px] font-semibold" style={{ color: '#c2410c' }}>المتبقي</p>
+                            <p className="text-[11px] font-bold" style={{ color: '#c2410c' }}>{formatCurrency(Math.max(0, p.sale_remaining || 0))}</p>
+                          </div>
+                        </div>
+                      )}
+                      <div className="text-[11px] flex flex-wrap gap-x-2 gap-y-1" style={{ color: '#64748b' }}>
+                        {p.batch_id && <span>مجموعة: {compactBatch(p.batch_id)}</span>}
+                        {p.sale_status && <span>حالة الفاتورة: {p.sale_status}</span>}
+                        {p.date && stamp && fmtLedgerDate(p.date) !== fmtLedgerDate(stamp) && <span>تاريخ العملية: {fmtLedgerDate(p.date)}</span>}
+                      </div>
+                      {p.notes && <p className="text-[11px] italic mt-1 truncate" style={{ color: '#475569' }}>{p.notes}</p>}
+                    </div>
+                  )}
                 </div>
               );
             })}

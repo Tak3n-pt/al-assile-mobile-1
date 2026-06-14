@@ -42,6 +42,7 @@ const suppliersRouter  = require('../server/routes/suppliers.js');
 const productsRouter   = require('../server/routes/products.js');
 const syncRouter       = require('../server/routes/sync.js');
 const paymentsRouter   = require('../server/routes/payments.js');
+const desktopRouter    = require('../server/routes/desktop.js');
 
 function buildApp({ role = 'admin', userId = 1 } = {}) {
   const app = express();
@@ -51,6 +52,7 @@ function buildApp({ role = 'admin', userId = 1 } = {}) {
   app.use('/api/suppliers', suppliersRouter);
   app.use('/api/products',  productsRouter);
   app.use('/api/payments',  paymentsRouter);
+  app.use('/api/desktop',   desktopRouter);
   app.use('/api/sync',      syncRouter);
   app.use('/api/sales',     salesRouter);
   return app;
@@ -445,6 +447,112 @@ test('GET /api/payments returns entries plus per-client payment summary', async 
     assert.equal(summary.total_allocated_to_sales, 250, 'allocated to sale total');
     assert.equal(summary.versement_count, 1, 'one explicit versement');
     assert.ok(summary.last_payment_at, 'last payment timestamp returned');
+  } finally { srv.close(); }
+});
+
+// ============================================================================
+// TEST 6d — Legacy double-count repair normalizes old web versements
+// ============================================================================
+test('POST /api/payments/repair-legacy-double-counts converts old mutated sales back to checkout-only paid_amount', async () => {
+  seed();
+  const app = buildApp();
+  const srv = await listen(app);
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const saleId = db.prepare(`
+      INSERT INTO sales (client_id, date, subtotal, discount, total, paid_amount, status, payment_method, created_by)
+      VALUES (1, ?, 500, 0, 500, 200, 'partial', 'cash', 1)
+    `).run(today).lastInsertRowid;
+    db.prepare(`
+      INSERT INTO client_payments (client_id, sale_id, amount, date, method, notes, batch_id, created_by)
+      VALUES (1, ?, 100, ?, 'cash', 'old versement', 'bulk-old', 1)
+    `).run(saleId, today);
+    db.prepare('UPDATE clients SET balance = -300 WHERE id = 1').run();
+
+    const before = await call(srv, 'GET', `/api/sales?client_id=1`);
+    assert.equal(before.status, 200, 'client sales before repair ok');
+    assert.equal(before.body.data[0].paid_amount, 300, 'legacy row is double-counted before repair');
+
+    const repair = await call(srv, 'POST', '/api/payments/repair-legacy-double-counts');
+    assert.equal(repair.status, 200, 'repair ok');
+    assert.equal(repair.body.data.repaired_sales, 1, 'one polluted sale repaired');
+    assert.equal(repair.body.data.repairs[0].old_paid_amount, 200);
+    assert.equal(repair.body.data.repairs[0].new_paid_amount, 100);
+
+    const stored = db.prepare('SELECT paid_amount, status FROM sales WHERE id = ?').get(saleId);
+    assert.equal(stored.paid_amount, 100, 'sale paid_amount is checkout-only again');
+    assert.equal(stored.status, 'partial');
+
+    const after = await call(srv, 'GET', `/api/sales?client_id=1`);
+    assert.equal(after.body.data[0].paid_at_creation, 100, 'checkout payment is preserved');
+    assert.equal(after.body.data[0].paid_amount, 200, 'paid total counts checkout + versement once');
+
+    const audit = await call(srv, 'GET', '/api/clients/audit');
+    assert.equal(audit.status, 200, 'client audit ok');
+    assert.equal(audit.body.data.total_drift_count, 0, 'balance math matches after repair');
+  } finally { srv.close(); }
+});
+
+// ============================================================================
+// TEST 6e — Desktop checkout payments do not double-count as post-sale ledger
+// ============================================================================
+test('desktop sale creation stores checkout payment once and does not create a duplicate ledger payment', async () => {
+  seed();
+  const app = buildApp();
+  const srv = await listen(app);
+  try {
+    const create = await call(srv, 'POST', '/api/desktop/ipc', {
+      channel: 'sales:createComplete',
+      args: [{
+        client_id: 1,
+        date: new Date().toISOString().slice(0, 10),
+        total: 500,
+        paid_amount: 100,
+        payment_method: 'cash',
+        items: [{ product_id: 1, quantity: 5, unit_price: 100 }],
+      }],
+    });
+    assert.equal(create.status, 200, 'desktop create ok');
+    assert.equal(create.body.success, true, 'desktop create success');
+    const saleId = create.body.data.lastInsertRowid;
+
+    const duplicateCount = db.prepare('SELECT COUNT(*) AS c FROM client_payments WHERE sale_id = ?').get(saleId).c;
+    assert.equal(duplicateCount, 0, 'checkout amount is not written as a ledger duplicate');
+
+    const detail = await call(srv, 'POST', '/api/desktop/ipc', {
+      channel: 'sales:getById',
+      args: [saleId],
+    });
+    assert.equal(detail.body.data.paid_at_creation, 100);
+    assert.equal(detail.body.data.paid_amount, 100, 'desktop paid total counts checkout once');
+    assert.equal(detail.body.data.status, 'partial');
+  } finally { srv.close(); }
+});
+
+// ============================================================================
+// TEST 6f — API exposes timezone-explicit timestamps for payment display
+// ============================================================================
+test('GET /api/payments exposes ISO timestamps with timezone for exact payment time display', async () => {
+  seed();
+  const app = buildApp();
+  const srv = await listen(app);
+  try {
+    const saleId = db.prepare(`
+      INSERT INTO sales (client_id, date, subtotal, discount, total, paid_amount, status, payment_method, created_by, created_at)
+      VALUES (1, '2026-06-14', 500, 0, 500, 100, 'partial', 'cash', 1, '2026-06-14 12:30:05')
+    `).run().lastInsertRowid;
+    db.prepare(`
+      INSERT INTO client_payments (client_id, sale_id, amount, date, method, notes, batch_id, created_by, created_at)
+      VALUES (1, ?, 100, '2026-06-14', 'cash', 'timed versement', 'bulk-time', 1, '2026-06-14 13:45:59')
+    `).run(saleId);
+
+    const history = await call(srv, 'GET', '/api/payments?client_id=1');
+    assert.equal(history.status, 200, 'history ok');
+    const versement = history.body.data.entries.find(p => p.notes === 'timed versement');
+    const checkout = history.body.data.entries.find(p => p.id === `sale-${saleId}`);
+    assert.equal(versement.created_at_iso, '2026-06-14T13:45:59.000Z');
+    assert.equal(checkout.created_at_iso, '2026-06-14T12:30:05.000Z');
+    assert.equal(history.body.data.summary.last_payment_at_iso, '2026-06-14T13:45:59.000Z');
   } finally { srv.close(); }
 });
 
