@@ -441,18 +441,12 @@ const initDatabase = (db) => {
     )
   `);
 
-  // Seed defaults on first run so dropdowns are never empty.
+  // Keep dropdown defaults available without removing user-created values.
   try {
-    const unitsCount = db.prepare('SELECT COUNT(*) AS n FROM product_units').get().n;
-    if (unitsCount === 0) {
-      const stmt = db.prepare('INSERT OR IGNORE INTO product_units (name) VALUES (?)');
-      ['قطعة', 'كغ', 'غ', 'لتر', 'علبة', 'متر'].forEach(n => stmt.run(n));
-    }
-    const hpCount = db.prepare('SELECT COUNT(*) AS n FROM product_higher_packages').get().n;
-    if (hpCount === 0) {
-      const stmt = db.prepare('INSERT OR IGNORE INTO product_higher_packages (name) VALUES (?)');
-      ['علبة', 'كرتون', 'كيس', 'جراب', 'دزينة'].forEach(n => stmt.run(n));
-    }
+    const unitsStmt = db.prepare('INSERT OR IGNORE INTO product_units (name) VALUES (?)');
+    ['قطعة', 'كغ', 'غ', 'لتر', 'مل', 'قارورة', 'علبة', 'متر'].forEach(n => unitsStmt.run(n));
+    const packageStmt = db.prepare('INSERT OR IGNORE INTO product_higher_packages (name) VALUES (?)');
+    ['علبة', 'كرتون', 'كيس', 'جراب', 'دزينة'].forEach(n => packageStmt.run(n));
   } catch (e) {
     console.log('[schema] lookup seed skipped:', e.message);
   }

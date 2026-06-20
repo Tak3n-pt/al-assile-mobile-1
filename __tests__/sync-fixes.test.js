@@ -733,6 +733,66 @@ test('POST /api/products logs create and /api/sync/pull returns full tarif paylo
 });
 
 // ============================================================================
+// TEST 13b — Desktop product edits preserve website-only package metadata
+// ============================================================================
+test('desktop product update preserves website package and display fields when omitted', async () => {
+  seed();
+  const app = buildApp();
+  const srv = await listen(app);
+  try {
+    const create = await call(srv, 'POST', '/api/products', {
+      name: 'Packaged Product',
+      description: 'Created on website',
+      selling_price: 100,
+      selling_price2: 150,
+      selling_price3: 180,
+      purchase_price: 70,
+      unit: 'قارورة',
+      barcode: 'PKG-1',
+      category: 'Dates',
+      quantity: 24,
+      min_stock_alert: 4,
+      expiry_date: '2026-12-31',
+      tax_rate: 9,
+      unit_package: 12,
+      higher_package: 'علبة',
+      box_color: 'green',
+    });
+    assert.equal(create.status, 200, 'product create ok');
+    const productId = create.body.data.id;
+
+    const desktopEdit = await call(srv, 'POST', '/api/desktop/ipc', {
+      channel: 'products:update',
+      args: [productId, {
+        name: 'Packaged Product Edited',
+        description: 'Edited from desktop',
+        selling_price: 110,
+        selling_price2: 160,
+        selling_price3: 190,
+        manual_cost: null,
+        unit: 'قارورة',
+        barcode: 'PKG-1',
+        is_favorite: 0,
+        is_resale: 1,
+        purchase_price: 75,
+        quantity: 24,
+      }],
+    });
+    assert.equal(desktopEdit.status, 200, 'desktop edit ok');
+    assert.equal(desktopEdit.body.success, true, 'desktop edit success');
+
+    const row = db.prepare('SELECT * FROM products WHERE id = ?').get(productId);
+    assert.equal(row.name, 'Packaged Product Edited');
+    assert.equal(row.category, 'Dates');
+    assert.equal(row.expiry_date, '2026-12-31');
+    assert.equal(row.tax_rate, 9);
+    assert.equal(row.unit_package, 12);
+    assert.equal(row.higher_package, 'علبة');
+    assert.equal(row.box_color, 'green');
+  } finally { srv.close(); }
+});
+
+// ============================================================================
 // TEST 14 — Product create + sale in same pull does not double-deduct stock
 // ============================================================================
 test('sync pull sends pre-sale product quantity when sale is in same response', async () => {

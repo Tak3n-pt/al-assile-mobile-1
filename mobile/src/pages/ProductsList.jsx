@@ -434,7 +434,7 @@ const TAX_CHOICES = [
 
 // Fallback values used until the API responds (or if it fails).
 // The server seeds these exact strings into the DB on first run.
-const DEFAULT_UNITS            = ['قطعة', 'كغ', 'غ', 'لتر', 'علبة', 'متر'];
+const DEFAULT_UNITS            = ['قطعة', 'كغ', 'غ', 'لتر', 'مل', 'قارورة', 'علبة', 'متر'];
 const DEFAULT_HIGHER_PACKAGES  = ['علبة', 'كرتون', 'كيس', 'جراب', 'دزينة'];
 
 const APF_FIELD_BORDER = '1.5px solid #90caf9';

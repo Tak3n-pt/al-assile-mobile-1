@@ -16,6 +16,7 @@ const asId = (v) => {
   return Number.isInteger(n) && n > 0 ? n : null;
 };
 const flag = (v) => (v === true || v === 1 || v === '1' ? 1 : 0);
+const hasOwn = (obj, key) => Object.prototype.hasOwnProperty.call(obj || {}, key);
 
 function monthRange(year, month) {
   const y = Number(year);
@@ -596,12 +597,14 @@ function dispatch(channel, args, user) {
     }
     case 'products:update': {
       const data = args[1] || {};
-      const existing = db.prepare('SELECT image_data, image_path, quantity FROM products WHERE id = ?').get(args[0]);
-      const imagePath = data.image_path !== undefined ? (data.image_path || null) : existing?.image_path || null;
-      const imageData = data.image_data !== undefined
+      const existing = db.prepare('SELECT * FROM products WHERE id = ?').get(args[0]);
+      const imagePath = hasOwn(data, 'image_path') ? (data.image_path || null) : existing?.image_path || null;
+      const imageData = hasOwn(data, 'image_data')
         ? (data.image_data || null)
         : (data.image_path === '' ? null : existing?.image_data || null);
-      const quantity = data.quantity !== undefined ? money(data.quantity) : money(existing?.quantity);
+      const quantity = hasOwn(data, 'quantity') ? money(data.quantity) : money(existing?.quantity);
+      const textValue = (key, fallback = null) => hasOwn(data, key) ? (data[key] || null) : (existing?.[key] ?? fallback);
+      const numberValue = (key, fallback = 0) => hasOwn(data, key) ? money(data[key]) : money(existing?.[key] ?? fallback);
       return ok(runData(db.prepare(`
         UPDATE products SET
           name = ?, description = ?, selling_price = ?, selling_price2 = ?, selling_price3 = ?,
@@ -610,27 +613,27 @@ function dispatch(channel, args, user) {
           tax_rate = ?, unit_package = ?, higher_package = ?, box_color = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `).run(
-        data.name,
-        data.description || null,
-        money(data.selling_price),
-        data.selling_price2 !== '' && data.selling_price2 != null ? money(data.selling_price2) : 0,
-        data.selling_price3 !== '' && data.selling_price3 != null ? money(data.selling_price3) : 0,
-        data.manual_cost !== '' && data.manual_cost != null ? money(data.manual_cost) : null,
-        data.unit || 'pcs',
-        data.barcode || null,
-        flag(data.is_favorite),
+        textValue('name', existing?.name || ''),
+        textValue('description'),
+        numberValue('selling_price'),
+        hasOwn(data, 'selling_price2') ? (data.selling_price2 !== '' && data.selling_price2 != null ? money(data.selling_price2) : 0) : money(existing?.selling_price2),
+        hasOwn(data, 'selling_price3') ? (data.selling_price3 !== '' && data.selling_price3 != null ? money(data.selling_price3) : 0) : money(existing?.selling_price3),
+        hasOwn(data, 'manual_cost') ? (data.manual_cost !== '' && data.manual_cost != null ? money(data.manual_cost) : null) : existing?.manual_cost ?? null,
+        textValue('unit', existing?.unit || 'pcs'),
+        textValue('barcode'),
+        hasOwn(data, 'is_favorite') ? flag(data.is_favorite) : flag(existing?.is_favorite),
         imagePath,
         imageData,
-        flag(data.is_resale),
-        money(data.purchase_price),
+        hasOwn(data, 'is_resale') ? flag(data.is_resale) : flag(existing?.is_resale),
+        numberValue('purchase_price'),
         quantity,
-        money(data.min_stock_alert),
-        data.category || null,
-        data.expiry_date || null,
-        money(data.tax_rate),
-        money(data.unit_package),
-        data.higher_package || null,
-        data.box_color || null,
+        numberValue('min_stock_alert'),
+        textValue('category'),
+        textValue('expiry_date'),
+        numberValue('tax_rate'),
+        numberValue('unit_package'),
+        textValue('higher_package'),
+        textValue('box_color'),
         args[0]
       )));
     }

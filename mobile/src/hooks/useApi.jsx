@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from './useAuth.jsx';
 import { t } from '../utils/i18n.js';
+import { fetchWithRetry } from '../utils/fetchWithRetry.js';
 
 export function useApi() {
   const navigate = useNavigate();
@@ -16,7 +17,7 @@ export function useApi() {
     const options = { method, headers };
     if (body !== undefined) options.body = JSON.stringify(body);
 
-    const res = await fetch(path, options);
+    const res = await fetchWithRetry(path, options);
 
     if (res.status === 401) {
       // Critical: call logout() to clear AuthContext state, not just localStorage.
